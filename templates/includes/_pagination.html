@@ -1,0 +1,54 @@
+{# templates/includes/_pagination.html #}
+{#
+Expects from the calling template's context:
+- current_page: (integer) current active page
+- total_pages: (integer) total number of pages
+- endpoint: (string) Flask endpoint name for the links (e.g., 'index', 'search')
+- query_params: (dict) additional query parameters to include in the links (e.g., {'category': 'Books'})
+#}
+{% if total_pages and total_pages > 1 %}
+<nav aria-label="Page navigation" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {# Previous Page Link #}
+        <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for(endpoint, page=current_page-1, **query_params) if current_page > 1 else '#' }}" aria-label="Previous">
+                <span aria-hidden="true">«</span>
+            </a>
+        </li>
+
+        {# Page Number Links #}
+        {% set page_window = 2 %} {# How many pages to show around the current page #}
+        {% for page_num in range(1, total_pages + 1) %}
+            {# Condition to display page numbers:
+               - Always show the first page.
+               - Always show the last page.
+               - Show pages within the 'page_window' of the current page.
+            #}
+            {% if page_num == 1 or page_num == total_pages or
+                  (page_num >= current_page - page_window and page_num <= current_page + page_window) %}
+                <li class="page-item {% if page_num == current_page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for(endpoint, page=page_num, **query_params) }}">{{ page_num }}</a>
+                </li>
+            {# Condition to display ellipsis (...):
+               - Check if the previous item in the loop was defined (i.e., not the first iteration after a shown page).
+               - Check if the current page_num is just outside the window (page_window + 1 away from current_page).
+               - Ensure it's not right next to the first or last page if they were already shown by the main condition.
+            #}
+            {% elif loop.previtem is defined and
+                   ( (page_num == current_page - page_window - 1 and page_num > 1) or
+                     (page_num == current_page + page_window + 1 and page_num < total_pages) ) and
+                   not ( (page_num == current_page - page_window - 1 and page_num == 2 and current_page - page_window <= 2) or
+                         (page_num == current_page + page_window + 1 and page_num == total_pages - 1 and current_page + page_window >= total_pages - 1) ) %}
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+            {% endif %}
+        {% endfor %}
+
+        {# Next Page Link #}
+        <li class="page-item {% if current_page == total_pages %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for(endpoint, page=current_page+1, **query_params) if current_page < total_pages else '#' }}" aria-label="Next">
+                <span aria-hidden="true">»</span>
+            </a>
+        </li>
+    </ul>
+</nav>
+{% endif %}

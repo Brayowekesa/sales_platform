@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Search Results for "{{ query }}"
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <h2>Search Results for: <em class="text-primary">"{{ query }}"</em></h2>
+            {% if results %}
+                <p class="text-muted">{{ total_results }} product(s) found.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if results %}
+        <div class="row">
+            {% for product in results %}
+                {% include 'includes/_product_card.html' %} {# Reusing the product card snippet #}
+            {% endfor %}
+        </div>
+
+        {# Pagination #}
+        {% if total_pages and total_pages > 1 %}
+            {% set endpoint = 'search' %}
+            {% include 'includes/_pagination.html' %}
+        {% endif %}
+    {% else %}
+        <div class="row">
+            <div class="col-md-12">
+                <div class="alert alert-warning text-center" role="alert">
+                    No products found matching your search term "{{ query }}". Please try a different search.
+                </div>
+                <div class="text-center">
+                    <a href="{{ url_for('index') }}" class="btn btn-info">Back to Shop</a>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

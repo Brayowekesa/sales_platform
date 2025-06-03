@@ -1,0 +1,78 @@
+{% extends "layout.html" %}
+
+{% block title %}Login - {{ SITE_NAME|default('E-Shop') }}{% endblock %}
+
+{# No {% block sidebar %} is defined, so layout.html will not render one #}
+
+{% block content %}
+<div class="login-page-container"> {# This new wrapper will be centered by layout.html CSS #}
+    <div class="col-11 col-sm-10 col-md-8 col-lg-6 col-xl-5"> {# Controls the width of the content #}
+        
+        <div class="text-center mb-4">
+            <a href="{{ url_for('login') }}"> {# Link to login page itself or a neutral public page if preferred #}
+                <img src="{{ url_for('static', filename='images/logo_dark.png') }}" 
+                     alt="{{ SITE_NAME|default('E-Shop') }} Logo" 
+                     style="max-height: 220px; /* <<< YOUR DESIRED LOGO HEIGHT */
+                            max-width: 100%;   /* Ensure it doesn't get wider than its column */
+                            width: auto;       /* Maintain aspect ratio based on height */
+                            object-fit: contain;">
+            </a>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header text-center bg-primary text-white">
+                <h4 class="mb-0">Login to Your Account</h4>
+            </div>
+            <div class="card-body p-4">
+                {# Flash messages for login errors could be moved here if preferred #}
+                <form method="POST" action="{{ url_for('login', next=request.args.get('next')) }}">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="form-group">
+                        {{ form.login_identifier.label(class="form-control-label font-weight-bold") }}
+                        {{ form.login_identifier(class="form-control form-control-lg" + (" is-invalid" if form.login_identifier.errors else ""), placeholder="Username or Email") }}
+                        {% if form.login_identifier.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.login_identifier.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-group">
+                        {{ form.password.label(class="form-control-label font-weight-bold") }}
+                        <div class="input-group">
+                            {{ form.password(class="form-control form-control-lg" + (" is-invalid" if form.password.errors else ""), placeholder="Password") }}
+                        </div>
+                        {% if form.password.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.password.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="custom-control custom-checkbox">
+                                {{ form.remember(class="custom-control-input", id="rememberMeLogin") }} {# Ensure unique ID if also on register page #}
+                                {{ form.remember.label(class="custom-control-label", for="rememberMeLogin") }}
+                            </div>
+                            <a href="{{ url_for('reset_request') }}" class="small">Forgot Password?</a>
+                        </div>
+                    </div>
+                    
+                    {{ form.submit(class="btn btn-primary btn-lg btn-block mt-4 mb-3") }}
+                </form>
+                <hr class="my-3">
+                <p class="text-center small text-muted">
+                    Need an account? <a href="{{ url_for('register') }}">Sign Up Here</a>
+                </p>
+            </div>
+        </div>
+        <p class="text-center text-muted small mt-5">© {{ SCRIPT_START_YEAR|default(current_year) }}{% if current_year > SCRIPT_START_YEAR|default(current_year) %}-{{ current_year }}{% endif %} {{ SITE_NAME|default('Your Company') }}. All Rights Reserved.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_extra %}
+{# No specific scripts needed for login page usually #}
+{% endblock %}

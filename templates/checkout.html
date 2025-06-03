@@ -1,0 +1,185 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Checkout
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4 text-center">Checkout</h2>
+
+    {% if not cart_items %}
+        <div class="alert alert-warning text-center" role="alert">
+            Your cart is empty! Please add some products to your cart before proceeding to checkout.
+        </div>
+        <div class="text-center">
+            <a href="{{ url_for('index') }}" class="btn btn-primary">Continue Shopping</a>
+        </div>
+    {% else %}
+        <div class="row">
+            {# Order Summary - Right Column on Larger Screens, Top on Smaller #}
+            <div class="col-md-5 col-lg-4 order-md-last">
+                <h4 class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="text-primary">Your Cart</span>
+                    <span class="badge bg-primary rounded-pill text-white">{{ cart_items|length }}</span>
+                </h4>
+                <ul class="list-group mb-3">
+                    {% for item in cart_items %}
+                        <li class="list-group-item d-flex justify-content-between lh-sm">
+                            <div>
+                                <h6 class="my-0">{{ item.name }} (x{{ item.quantity }})</h6>
+                                <small class="text-muted">Unit Price: ${{ "%.2f"|format(item.price) }}</small>
+                            </div>
+                            <span class="text-muted">${{ "%.2f"|format(item.price * item.quantity) }}</span>
+                        </li>
+                    {% endfor %}
+                    <li class="list-group-item d-flex justify-content-between bg-light">
+                        <div class="text-success">
+                            <h6 class="my-0">Promo code</h6>
+                            <small>EXAMPLECODE</small> {# Placeholder for promo code logic #}
+                        </div>
+                        <span class="text-success">−$0.00</span> {# Placeholder for discount #}
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Total (USD)</span>
+                        <strong>${{ "%.2f"|format(total_amount) }}</strong>
+                    </li>
+                </ul>
+                {# Promo code form - Placeholder #}
+                {# <form class="card p-2">
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="Promo code">
+                        <button type="submit" class="btn btn-secondary">Redeem</button>
+                    </div>
+                </form> #}
+            </div>
+
+            {# Checkout Form - Left Column on Larger Screens, Bottom on Smaller #}
+            <div class="col-md-7 col-lg-8">
+                <h4 class="mb-3">Billing & Shipping Address</h4>
+                <form method="POST" action="{{ url_for('checkout') }}" class="needs-validation" novalidate>
+                    {{ form.hidden_tag() }} {# CSRF token #}
+
+                    {# Example: Simple combined shipping address field #}
+                    {# You might want more detailed fields (street, city, state, zip, country) #}
+                    <div class="mb-3">
+                        {{ form.shipping_address.label(class="form-label required") }}
+                        {% if form.shipping_address.errors %}
+                            {{ form.shipping_address(class="form-control form-control-lg is-invalid", rows="3", placeholder="1234 Main St\nApartment, studio, or floor\nCity, State Zipcode") }}
+                            <div class="invalid-feedback">
+                                {% for error in form.shipping_address.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% else %}
+                            {{ form.shipping_address(class="form-control form-control-lg", rows="3", placeholder="1234 Main St\nApartment, studio, or floor\nCity, State Zipcode") }}
+                        {% endif %}
+                    </div>
+
+                    <hr class="my-4">
+
+                    <h4 class="mb-3">Payment</h4>
+
+                    {# Payment Method Selection #}
+                    {# This uses simple radio buttons. For a real app, integrate actual payment gateways. #}
+                    {# The 'payment_method' field in CheckoutForm is currently a StringField.
+                       For better UX, it should be a RadioField in app.py:
+                       payment_method = RadioField('Payment Method', choices=[
+                           ('Credit Card', 'Credit Card (Not Implemented)'),
+                           ('PayPal', 'PayPal (Not Implemented)'),
+                           ('Cash on Delivery', 'Cash on Delivery'),
+                           ('Lipa na M-Pesa', 'Lipa na M-Pesa')
+                       ], validators=[DataRequired()])
+                    #}
+                    <div class="my-3">
+                        <div class="form-check">
+                            <input id="cod" name="payment_method" type="radio" class="form-check-input" value="Cash on Delivery" required {% if form.payment_method.data == 'Cash on Delivery' %}checked{% endif %}>
+                            <label class="form-check-label" for="cod">Cash on Delivery</label>
+                        </div>
+                        <div class="form-check">
+                            <input id="mpesa" name="payment_method" type="radio" class="form-check-input" value="Lipa na M-Pesa" required {% if form.payment_method.data == 'Lipa na M-Pesa' %}checked{% endif %}>
+                            <label class="form-check-label" for="mpesa">Lipa na M-Pesa</label>
+                        </div>
+                        {# Add other payment methods as needed #}
+                        <div class="form-check">
+                            <input id="credit" name="payment_method" type="radio" class="form-check-input" value="Credit Card" disabled required {% if form.payment_method.data == 'Credit Card' %}checked{% endif %}>
+                            <label class="form-check-label" for="credit">Credit card (Not implemented)</label>
+                        </div>
+                        {% if form.payment_method.errors %}
+                            <div class="text-danger small mt-2">
+                                {% for error in form.payment_method.errors %}<span>{{ error }}</span><br>{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    {# M-Pesa Phone Number Field - Show only if Lipa na M-Pesa is selected #}
+                    <div class="row gy-3" id="mpesa-details" style="display: none;">
+                        <div class="col-md-6 mb-3">
+                             {{ form.phone_number.label(class="form-label") }}
+                            {% if form.phone_number.errors %}
+                                {{ form.phone_number(class="form-control form-control-lg is-invalid", placeholder="2547XXXXXXXX") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.phone_number.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.phone_number(class="form-control form-control-lg", placeholder="2547XXXXXXXX") }}
+                            {% endif %}
+                            <small class="text-muted">Required for M-Pesa payment.</small>
+                        </div>
+                    </div>
+                    {# Placeholder for Credit Card details if that method was implemented #}
+                    {# <hr class="my-4"> #}
+
+                    {{ form.submit(class="w-100 btn btn-primary btn-lg") }}
+                </form>
+            </div>
+        </div>
+    {% endif %} {# End of "if cart_items" #}
+</div>
+{% endblock %}
+
+{% block scripts_extra %}
+<script>
+    // JavaScript to show/hide M-Pesa phone number field based on payment method selection
+    document.addEventListener('DOMContentLoaded', function () {
+        const paymentMethodRadios = document.querySelectorAll('input[name="payment_method"]');
+        const mpesaDetailsDiv = document.getElementById('mpesa-details');
+        const mpesaPhoneNumberInput = document.querySelector('input[name="phone_number"]');
+
+        function toggleMpesaDetails() {
+            const selectedPaymentMethod = document.querySelector('input[name="payment_method"]:checked');
+            if (selectedPaymentMethod && selectedPaymentMethod.value === 'Lipa na M-Pesa') {
+                mpesaDetailsDiv.style.display = 'block'; // Or 'flex' if it's a flex container
+                if (mpesaPhoneNumberInput) mpesaPhoneNumberInput.required = true;
+            } else {
+                mpesaDetailsDiv.style.display = 'none';
+                if (mpesaPhoneNumberInput) {
+                    mpesaPhoneNumberInput.required = false;
+                    // mpesaPhoneNumberInput.value = ''; // Optionally clear if hiding
+                }
+            }
+        }
+
+        paymentMethodRadios.forEach(function (radio) {
+            radio.addEventListener('change', toggleMpesaDetails);
+        });
+
+        // Initial check on page load
+        toggleMpesaDetails();
+
+        // Example starter JavaScript for disabling form submissions if there are invalid fields (Bootstrap 5)
+        // (function () {
+        //   'use strict'
+        //   var forms = document.querySelectorAll('.needs-validation')
+        //   Array.prototype.slice.call(forms)
+        //     .forEach(function (form) {
+        //       form.addEventListener('submit', function (event) {
+        //         if (!form.checkValidity()) {
+        //           event.preventDefault()
+        //           event.stopPropagation()
+        //         }
+        //         form.classList.add('was-validated')
+        //       }, false)
+        //     })
+        // })()
+    });
+</script>
+{% endblock %}

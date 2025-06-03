@@ -1,0 +1,104 @@
+{% extends "admin/admin_layout.html" %}
+
+{% block admin_title %}{{ title }}{% endblock %}
+
+{% block admin_head_extra %}
+<style>
+    .table th, .table td { vertical-align: middle; }
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">{{ title }}</h1>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Filter Report</h6>
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('report_sales_by_product') }}" class="form-row align-items-end">
+                <div class="form-group col-md-3 mb-2">
+                    <label for="start_date" class="mr-2">Start Date:</label>
+                    <input type="date" class="form-control form-control-sm" id="start_date" name="start_date" value="{{ start_date }}">
+                </div>
+                <div class="form-group col-md-3 mb-2">
+                    <label for="end_date" class="mr-2">End Date:</label>
+                    <input type="date" class="form-control form-control-sm" id="end_date" name="end_date" value="{{ end_date }}">
+                </div>
+                <div class="form-group col-md-2 mb-2">
+                    <label for="category" class="mr-2">Category:</label>
+                    <select name="category" id="category" class="form-control form-control-sm">
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if cat == current_category %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group col-md-2 mb-2">
+                    <label for="sort_by" class="mr-2">Sort By:</label>
+                    <select name="sort_by" id="sort_by" class="form-control form-control-sm">
+                        <option value="revenue" {% if sort_by == 'revenue' %}selected{% endif %}>Revenue</option>
+                        <option value="quantity" {% if sort_by == 'quantity' %}selected{% endif %}>Quantity Sold</option>
+                    </select>
+                </div>
+                <div class="form-group col-md-2 mb-2">
+                    <button type="submit" class="btn btn-sm btn-primary btn-block">Apply Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Product Sales Data ({{ start_date }} to {{ end_date }})</h6>
+        </div>
+        <div class="card-body">
+            {% if sales_data %}
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover table-sm" id="salesByProductTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Product Name</th>
+                            <th>Category</th>
+                            <th>Quantity Sold</th>
+                            <th>Avg. Selling Price</th>
+                            <th>Total Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in sales_data %}
+                        <tr>
+                            <td><a href="{{ url_for('admin_edit_product', product_id=item.product_id) }}">{{ item.product_name }}</a></td>
+                            <td>{{ item.product_category }}</td>
+                            <td>{{ item.total_quantity_sold }}</td>
+                            <td>${{ "%.2f"|format(item.average_selling_price) }}</td>
+                            <td>${{ "%.2f"|format(item.total_revenue_generated) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-center text-muted">No sales data found for the selected criteria.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block admin_scripts_extra %}
+{# Optional: Add DataTables.js for sorting/searching the HTML table #}
+{# 
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.25/css/jquery.dataTables.css">
+<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.js"></script>
+<script>
+$(document).ready( function () {
+    $('#salesByProductTable').DataTable({
+        "order": [] // Disable initial sorting if Python handles it, or set default
+    });
+});
+</script>
+#}
+{% endblock %}

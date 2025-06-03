@@ -1,0 +1,71 @@
+{% extends "admin/admin_layout.html" %}
+
+{% block admin_title %}{{ title }}{% endblock %}
+
+{% block admin_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">{{ title }} (Stock ≤ {{ threshold }})</h1>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Filter Report</h6>
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('report_low_stock') }}" class="form-inline">
+                <div class="form-group mb-2 mr-sm-2">
+                    <label for="threshold" class="mr-2">Show stock less than or equal to:</label>
+                    <input type="number" class="form-control form-control-sm" style="width: 80px;" id="threshold" name="threshold" value="{{ threshold }}" min="0">
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary mb-2">Apply Filter</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Products with Low Stock</h6>
+        </div>
+        <div class="card-body">
+            {% if products %}
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover table-sm" id="lowStockTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Product Name</th>
+                            <th>Category</th>
+                            <th>Current Stock</th>
+                            <th>Price</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in products %}
+                        <tr>
+                            <td><a href="{{ url_for('admin_edit_product', product_id=product.id) }}">{{ product.name }}</a></td>
+                            <td>{{ product.category }}</td>
+                            <td><span class="badge badge-danger">{{ product.stock }}</span></td>
+                            <td>${{ "%.2f"|format(product.price) }}</td>
+                            <td>
+                                <a href="{{ url_for('admin_edit_product', product_id=product.id) }}" class="btn btn-info btn-sm" title="Edit Product">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-center text-muted">No products found with stock at or below the threshold of {{ threshold }}.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block admin_scripts_extra %}
+{# Optional: DataTables.js for this table #}
+{# <script> $(document).ready( function () { $('#lowStockTable').DataTable(); }); </script> #}
+{% endblock %}

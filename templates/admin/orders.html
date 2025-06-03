@@ -1,0 +1,86 @@
+{% extends "admin/admin_layout.html" %}
+
+{% block admin_title %}
+    Manage Orders
+{% endblock %}
+
+{% block admin_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Manage Orders</h1>
+        {# Optional: Add button for creating manual orders if needed #}
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">All Customer Orders</h6>
+        </div>
+        <div class="card-body">
+            {% if orders %}
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover" id="dataTableOrders" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Customer</th>
+                            <th>Date Placed</th>
+                            <th>Total Amount</th>
+                            <th>Payment Method</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders %}
+                        <tr>
+                            <td>#{{ order.id }}</td>
+                            <td>{{ order.username }}</td>
+                            <td>{{ order.order_date.strftime('%Y-%m-%d %H:%M') if order.order_date else 'N/A' }}</td>
+                            <td>${{ "%.2f"|format(order.total_amount) }}</td>
+                            <td>{{ order.payment_method if order.payment_method else 'N/A' }}</td>
+                            <td>
+                                {% if order.status == 'Paid' or order.status == 'Delivered' %}
+                                    <span class="badge badge-success">{{ order.status }}</span>
+                                {% elif order.status == 'Processing' or order.status == 'Shipped' %}
+                                    <span class="badge badge-info">{{ order.status }}</span>
+                                {% elif order.status == 'Pending' or order.status == 'Pending Payment' %}
+                                    <span class="badge badge-warning">{{ order.status }}</span>
+                                {% elif order.status == 'Cancelled' or order.status == 'Payment Failed' or order.status == 'Refunded' %}
+                                    <span class="badge badge-danger">{{ order.status }}</span>
+                                {% else %}
+                                    <span class="badge badge-secondary">{{ order.status if order.status else 'Unknown' }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('admin_order_details', order_id=order.id) }}" class="btn btn-info btn-sm" title="View Order Details">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                {# Further actions like 'Mark Shipped' could be buttons here if not on detail page #}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info text-center">
+                No orders found.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {# Add pagination here if you implement it for admin order listing #}
+</div>
+{% endblock %}
+
+{% block admin_scripts_extra %}
+{# Optional: DataTables for Orders table
+   <script>
+       $(document).ready( function () {
+           $('#dataTableOrders').DataTable({
+               "order": [[ 2, "desc" ]] // Default sort by date descending
+           });
+       } );
+   </script>
+#}
+{% endblock %}

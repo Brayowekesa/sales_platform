@@ -1,0 +1,65 @@
+{# templates/includes/_product_card.html #}
+{# Expects a 'product' or 'card_product' object in its context #}
+{# Let's standardize to 'product' as it's more common from loops #}
+{% set P = product if product else card_product %} {# Handle both possible names #}
+
+<div class="card h-100">
+    <a href="{{ url_for('product_details', product_id=P.id) }}">
+        <div class="card-img-wrapper"> {# CSS should style this and the img inside #}
+            <img class="card-img-top"
+                 src="{{ url_for('static', filename=(P.image if P.image else 'uploads/default.jpg')) }}"
+                 alt="{{ P.name }}">
+        </div>
+    </a>
+    <div class="card-body">
+        <div class="card-body-content">
+            <h4 class="card-title">
+                <a href="{{ url_for('product_details', product_id=P.id) }}">{{ P.name }}</a>
+            </h4>
+            
+            {# Price Display Logic #}
+            <div class="price-container mb-2">
+                {% if P.original_price and P.original_price > P.price %}
+                    <h5 class="product-price text-danger d-inline">
+                        ${{ "%.2f"|format(P.price) }}
+                    </h5>
+                    <small class="text-muted" style="text-decoration: line-through; font-size: 0.85em; margin-left: 8px;">
+                        ${{ "%.2f"|format(P.original_price) }}
+                    </small>
+                    {% set discount_percentage = ((P.original_price - P.price) / P.original_price * 100)|round|int %}
+                    {% if discount_percentage > 0 %}
+                        <span class="badge badge-success ml-2">{{ discount_percentage }}% OFF</span>
+                    {% endif %}
+                {% else %}
+                    <h5 class="product-price d-inline">${{ "%.2f"|format(P.price) }}</h5>
+                {% endif %}
+            </div>
+
+            <p class="card-text product-description">
+                {{ P.description[:70] if P.description and P.description|length > 70 else P.description or '' }}
+                {% if P.description and P.description|length > 70 %}...{% endif %}
+            </p>
+        </div>
+    </div>
+    <div class="card-footer text-center">
+        {% if P.stock is not none and P.stock > 0 %}
+            <form action="{{ url_for('add_to_cart', product_id=P.id) }}" method="POST" class="add-to-cart-form-js d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="quantity" value="1">
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="fas fa-shopping-cart"></i> Add to Cart
+                </button>
+            </form>
+        {% else %}
+            <button type="button" class="btn btn-secondary btn-sm" disabled>
+               <i class="fas fa-shopping-cart"></i> Out of Stock
+            </button>
+        {% endif %}
+        <form action="{{ url_for('add_to_wishlist', product_id=P.id) }}" method="POST" class="d-inline ml-1">
+             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-danger btn-sm" title="Add to Wishlist">
+                <i class="far fa-heart"></i>
+            </button>
+        </form>
+    </div>
+</div>

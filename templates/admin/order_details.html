@@ -1,0 +1,102 @@
+{% extends "admin/admin_layout.html" %}
+
+{% block admin_title %}
+    Order Details - #{{ order.id }}
+{% endblock %}
+
+{% block admin_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Order Details <small class="text-muted">#{{ order.id }}</small></h1>
+        <a href="{{ url_for('admin_orders') }}" class="btn btn-secondary btn-sm shadow-sm">
+            <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Orders
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Items in Order</h6>
+                </div>
+                <div class="card-body">
+                    {% if order_items %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Product Image</th>
+                                    <th>Product Name</th>
+                                    <th class="text-center">Quantity</th>
+                                    <th class="text-right">Unit Price</th>
+                                    <th class="text-right">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in order_items %}
+                                <tr>
+                                    <td>
+                                        <img src="{{ url_for('static', filename=item.image if item.image else 'uploads/default.jpg') }}" alt="{{ item.name }}" style="max-width: 50px; max-height: 50px; object-fit: contain;">
+                                    </td>
+                                    <td>{{ item.name }}</td>
+                                    <td class="text-center">{{ item.quantity }}</td>
+                                    <td class="text-right">${{ "%.2f"|format(item.price) }}</td>
+                                    <td class="text-right">${{ "%.2f"|format(item.price * item.quantity) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="4" class="text-right font-weight-bold">Order Total:</td>
+                                    <td class="text-right font-weight-bold">${{ "%.2f"|format(order.total_amount) }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p>No items found for this order. This may indicate an issue.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Order Information</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>Order ID:</strong> #{{ order.id }}</p>
+                    <p><strong>Customer:</strong> {{ order.username }} ({{ order.email }})</p>
+                    <p><strong>Order Date:</strong> {{ order.order_date.strftime('%Y-%m-%d %H:%M:%S') if order.order_date else 'N/A' }}</p>
+                    <p><strong>Payment Method:</strong> {{ order.payment_method if order.payment_method else 'N/A' }}</p>
+                    {% if order.transaction_id %}
+                        <p><strong>Transaction ID:</strong> {{ order.transaction_id }}</p>
+                    {% endif %}
+                    <h6><strong>Shipping Address:</strong></h6>
+                    <p style="white-space: pre-line;">{{ order.shipping_address if order.shipping_address else "Not provided" }}</p>
+                    <hr>
+                    <form action="{{ url_for('admin_update_order_status', order_id=order.id) }}" method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="form-group">
+                            <label for="status" class="font-weight-bold">Order Status:</label>
+                            <select name="status" id="status" class="form-control">
+                                <option value="Pending" {% if order.status == 'Pending' %}selected{% endif %}>Pending</option>
+                                <option value="Pending Payment" {% if order.status == 'Pending Payment' %}selected{% endif %}>Pending Payment</option>
+                                <option value="Processing" {% if order.status == 'Processing' %}selected{% endif %}>Processing</option>
+                                <option value="Paid" {% if order.status == 'Paid' %}selected{% endif %}>Paid</option>
+                                <option value="Shipped" {% if order.status == 'Shipped' %}selected{% endif %}>Shipped</option>
+                                <option value="Delivered" {% if order.status == 'Delivered' %}selected{% endif %}>Delivered</option>
+                                <option value="Cancelled" {% if order.status == 'Cancelled' %}selected{% endif %}>Cancelled</option>
+                                <option value="Refunded" {% if order.status == 'Refunded' %}selected{% endif %}>Refunded</option>
+                                <option value="Payment Failed" {% if order.status == 'Payment Failed' %}selected{% endif %}>Payment Failed</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-success btn-block">Update Status</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

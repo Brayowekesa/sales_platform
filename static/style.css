@@ -1,0 +1,271 @@
+/* === General Body and Layout (from layout.html) === */
+html, body {
+    height: 100%;
+}
+body {
+    display: flex;
+    flex-direction: column;
+    padding-top: 56px; /* Match your fixed navbar height */
+    font-family: 'Arial', sans-serif; /* Example font */
+    color: #333;
+    background-color: #fff; /* Default page background */
+}
+.fixed-top-navbar { /* Assuming your navbar has .fixed-top */
+    z-index: 1030;
+}
+.full-width-page-wrapper {
+    display: flex;
+    flex-grow: 1;
+    overflow: hidden; /* Important for flex children with overflow:auto */
+}
+#page-sidebar {
+    width: 250px; /* Width of the categories sidebar */
+    flex-shrink: 0; /* Prevent sidebar from shrinking */
+    background-color: #f8f9fa; /* Light background for sidebar */
+    padding: 0px 15px 20px 15px; /* Top padding from h3, bottom padding added */
+    overflow-y: auto; /* Allow sidebar content to scroll if it's too long */
+    border-right: 1px solid #dee2e6; /* Optional: a light border */
+}
+#page-sidebar .list-group-item {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    padding-top: 0.6rem; /* Adjust padding for sidebar items */
+    padding-bottom: 0.6rem;
+    font-size: 0.9rem;
+}
+#page-sidebar .list-group-item.active {
+    background-color: #007bff;
+    border-color: #007bff;
+    color: white;
+}
+#main-content-area {
+    flex-grow: 1; /* Main content takes all remaining space */
+    padding: 0; /* No padding if banner/featured are full bleed */
+    overflow-y: auto; /* Allow main content to scroll */
+    overflow-x: hidden; /* Prevent horizontal scroll on the main area itself */
+}
+.main-content-inner-container {
+    /* Used for content within #main-content-area that needs standard width and padding */
+    max-width: 1140px; /* Example: Bootstrap's default .container max-width for lg */
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 15px;
+    padding-right: 15px;
+}
+.site-footer {
+    background-color: #343a40;
+    color: white;
+    padding: 20px 0;
+    text-align: center;
+    flex-shrink: 0; /* Prevent footer from shrinking if content is short */
+}
+
+/* For flash messages positioned at top right */
+.fixed-top-right {
+    position: fixed;
+    top: calc(56px + 1rem); /* Position below a 56px fixed navbar */
+    right: 1rem;
+    z-index: 1050; /* High z-index to appear above other content */
+}
+
+/* === Section Title Styling === */
+#page-sidebar h3, /* "Categories" title */
+.horizontal-scroll-section .main-content-inner-container h3, /* "Featured Products" title */
+.all-products-section .main-content-inner-container h2 { /* "All Products" title */
+    font-size: 1.7rem; /* Adjust as desired */
+    font-weight: 600;
+    color: #343a40; /* Darker text for titles */
+    margin-top: 1.5rem; /* Default top margin for titles */
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 2px solid #007bff; /* Jumia-like underline */
+}
+#page-sidebar h3 { /* Specific adjustments for Categories title if needed */
+    margin-top: 1rem; /* Can be different from other section titles */
+    border-bottom: none; /* Maybe no underline for sidebar title */
+    padding-bottom: 0;
+    font-size: 1.5rem;
+}
+
+
+/* === Promotional Carousel Styles === */
+#promoCarousel .carousel-inner {
+    /* Height is set inline on this element in index.html, e.g., style="height: 350px;" */
+    /* background-color: #f0f0f0; /* Fallback for letterboxing if using object-fit: contain */
+}
+#promoCarousel .carousel-item {
+    height: 100%; /* Ensures carousel item fills the height of .carousel-inner */
+}
+#promoCarousel .carousel-item img {
+    /* object-fit property is set inline on the img tag in index.html ('contain' or 'cover') */
+}
+
+/* === FOCUSED STYLES FOR HORIZONTAL SCROLL "Featured Products" === */
+
+.horizontal-scroll-section {
+    width: 100%; /* Ensure the section itself tries to be full-width of its container (#main-content-area) */
+    padding-top: 20px;
+    padding-bottom: 20px;
+    box-sizing: border-box; /* Include padding in width calculation if needed */
+}
+
+/* Title for featured products - constrained by main-content-inner-container */
+.horizontal-scroll-section .main-content-inner-container h3 {
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: #212529;
+    margin-top: 0; /* Title is first in section, so less top margin */
+    margin-bottom: 1rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 2px solid #007bff;
+}
+
+.horizontal-scroll-wrapper {
+    display: flex;         /* THIS IS CRUCIAL for horizontal layout */
+    flex-direction: row;   /* Explicitly set row direction */
+    overflow-x: auto;      /* Enable horizontal scrollbar if content overflows */
+    overflow-y: hidden;    /* Disable vertical scrollbar on this wrapper */
+    width: 100%;           /* Wrapper takes full width of its parent section */
+    padding: 10px 0px 10px 15px; /* Left padding for first item, right padding on last item's margin */
+    box-sizing: border-box;
+    -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
+}
+
+.horizontal-scroll-wrapper .product-card-item {
+    flex: 0 0 auto;      /* CRUCIAL: Item takes its defined width, does not shrink/grow */
+    width: 220px;        /* <<< TARGET WIDTH FOR EACH CARD (Adjust for ~5 cards) */
+    height: auto;        /* Let height be determined by content, or set fixed if needed */
+    margin-right: 15px;  /* Space between cards */
+    box-sizing: border-box;
+    /* border: 1px solid blue; /* DEBUG: Add border to see item boundaries */
+}
+.horizontal-scroll-wrapper .product-card-item:last-child {
+    margin-right: 15px; /* Ensure padding after the last item as well if using padding on wrapper */
+}
+
+
+/* Card styling specifically for items within the horizontal scroll */
+.horizontal-scroll-wrapper .product-card-item .card {
+    width: 100%; /* Card fills the .product-card-item wrapper */
+    height: 100%; /* Card takes full height of .product-card-item (if item has fixed height or parent is flex) */
+    display: flex;
+    flex-direction: column; /* Stack image, body, footer vertically */
+    border: 1px solid #ddd;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.horizontal-scroll-wrapper .product-card-item .card .card-img-top {
+    width: 100%; /* Make image responsive within its allocated space */
+    height: 140px; /* <<< FIXED HEIGHT FOR IMAGES IN THESE CARDS */
+    object-fit: contain; /* 'contain' shows whole image, 'cover' fills and crops */
+    padding: 5px; /* Optional padding around image */
+}
+
+.horizontal-scroll-wrapper .product-card-item .card .card-body {
+    padding: 0.75rem; /* Padding inside the card body */
+    flex-grow: 1; /* Allows body to take available space, pushing footer down */
+    overflow: hidden; /* Prevent text from breaking layout */
+}
+
+.horizontal-scroll-wrapper .product-card-item .card .card-title {
+    font-size: 0.85rem; /* Smaller font for these cards */
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Add ... for long titles */
+}
+.horizontal-scroll-wrapper .product-card-item .card .card-title a {
+    color: #333;
+    text-decoration: none;
+}
+.horizontal-scroll-wrapper .product-card-item .card .card-title a:hover {
+    color: #007bff;
+}
+
+.horizontal-scroll-wrapper .product-card-item .card h5 { /* Price */
+    font-size: 0.9rem;
+    color: #007bff;
+    margin-bottom: 0.4rem;
+}
+
+.horizontal-scroll-wrapper .product-card-item .card .card-text {
+    display: none; /* Typically hide description in these compact horizontal cards */
+}
+
+.horizontal-scroll-wrapper .product-card-item .card .card-footer {
+    padding: 0.5rem 0.75rem;
+    background-color: #f8f9fa; /* Light footer background */
+    border-top: 1px solid #eee;
+}
+.horizontal-scroll-wrapper .product-card-item .card .btn {
+    font-size: 0.8rem; /* Smaller buttons */
+}
+
+/* Make sure other general .card styles don't interfere too much. */
+/* You might need to make these horizontal scroll card styles more specific if they do. */
+
+/* === "All Products" Grid Section === */
+.all-products-section {
+    /* This section will be wrapped by .main-content-inner-container in index.html for padding */
+}
+/* 5 columns for lg screens and up. Bootstrap 4 uses 12 column grid. 100/5 = 20% */
+.product-grid-5-per-line .col-lg-custom-5 {
+    padding-right: 10px; /* Adjust gutter between cards */
+    padding-left: 10px;
+}
+@media (min-width: 992px) { /* lg breakpoint */
+    .product-grid-5-per-line .col-lg-custom-5 {
+        flex: 0 0 20%;
+        max-width: 20%;
+    }
+}
+/* Styling for cards within the main "All Products" grid */
+.all-products-section .card {
+    border: 1px solid #dee2e6;
+    box-shadow: 0 0.1rem 0.25rem rgba(0,0,0,0.06);
+    display: flex; /* Ensure card children flow correctly */
+    flex-direction: column;
+    background-color: #fff;
+}
+.all-products-section .card .card-img-top {
+    height: 200px;  /* <<< ADJUST IMAGE HEIGHT FOR MAIN GRID CARDS */
+    object-fit: contain; /* Or 'cover' */
+    padding: 10px;
+    border-bottom: 1px solid #f0f0f0;
+}
+.all-products-section .card .card-body {
+    flex-grow: 1; /* Body takes available space, pushing footer down */
+    padding: 1rem;
+}
+.all-products-section .card .card-title {
+    font-size: 1.05rem; /* Slightly larger title for main grid */
+    margin-bottom: 0.4rem;
+}
+.all-products-section .card .card-title a {
+    color: #212529;
+    text-decoration: none;
+}
+.all-products-section .card .card-title a:hover {
+    color: #007bff;
+}
+.all-products-section .card h5 { /* Price */
+    font-size: 1.1rem;
+    color: #007bff;
+    margin-bottom: 0.6rem;
+}
+.all-products-section .card .card-text { /* Description */
+    font-size: 0.875rem;
+    margin-bottom: 0.8rem;
+    color: #6c757d;
+    display: -webkit-box;
+    -webkit-line-clamp: 3; /* Show 3 lines of description */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 4em; /* Approximate height for 3 lines to help alignment */
+}
+.all-products-section .card .card-footer {
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    padding: 0.75rem 1rem;
+}

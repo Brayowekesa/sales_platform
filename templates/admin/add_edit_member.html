@@ -1,0 +1,89 @@
+{% extends "admin/admin_layout.html" %}
+
+{% block admin_title %}
+    {{ action }} Member
+{% endblock %}
+
+{% block admin_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">{{ action }} Member</h1>
+        <a href="{{ url_for('admin_members') }}" class="btn btn-secondary btn-sm shadow-sm">
+            <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Members
+        </a>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Member Details</h6>
+        </div>
+        <div class="card-body">
+            {# 'form' comes from admin_add_member or admin_edit_member route #}
+            {# 'member' object is passed for editing to show current values #}
+            <form method="POST">
+                {{ form.hidden_tag() }} {# CSRF token #}
+
+                <div class="form-row">
+                    <div class="form-group col-md-6">
+                        {{ form.username.label(class="form-control-label required") }}
+                        {% if form.username.errors %}
+                            {{ form.username(class="form-control is-invalid") }}
+                            <div class="invalid-feedback">{% for error in form.username.errors %}<span>{{ error }}</span>{% endfor %}</div>
+                        {% else %}
+                            {{ form.username(class="form-control") }}
+                        {% endif %}
+                    </div>
+                    <div class="form-group col-md-6">
+                        {{ form.email.label(class="form-control-label required") }}
+                        {% if form.email.errors %}
+                            {{ form.email(class="form-control is-invalid") }}
+                            <div class="invalid-feedback">{% for error in form.email.errors %}<span>{{ error }}</span>{% endfor %}</div>
+                        {% else %}
+                            {{ form.email(class="form-control") }}
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    {{ form.password.label(class="form-control-label " + ("required" if action == 'Add' else "")) }}
+                     {% if form.password.errors %}
+                        {{ form.password(class="form-control is-invalid") }}
+                        <div class="invalid-feedback">{% for error in form.password.errors %}<span>{{ error }}</span>{% endfor %}</div>
+                    {% else %}
+                        {{ form.password(class="form-control") }}
+                    {% endif %}
+                    {% if action == 'Edit' %}
+                    <small class="form-text text-muted">Leave blank to keep the current password.</small>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    {{ form.confirm_password.label(class="form-control-label") }}
+                     {% if form.confirm_password.errors %}
+                        {{ form.confirm_password(class="form-control is-invalid") }}
+                        <div class="invalid-feedback">{% for error in form.confirm_password.errors %}<span>{{ error }}</span>{% endfor %}</div>
+                    {% else %}
+                        {{ form.confirm_password(class="form-control") }}
+                    {% endif %}
+                </div>
+                <hr>
+                <div class="form-group form-check">
+                    {{ form.is_admin(class="form-check-input") }}
+                    {{ form.is_admin.label(class="form-check-label") }}
+                </div>
+                 <div class="form-group form-check">
+                    {{ form.confirmed(class="form-check-input") }}
+                    {{ form.confirmed.label(class="form-check-label") }}
+                     <small class="form-text text-muted">Check this to mark the user's email as confirmed (e.g., if they can't use the email link).</small>
+                </div>
+
+                <hr>
+                <div class="form-group text-right">
+                    <a href="{{ url_for('admin_members') }}" class="btn btn-secondary mr-2">Cancel</a>
+                    {{ form.submit(class="btn btn-primary") }} {# Button text set by AdminUserForm #}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
