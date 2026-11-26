@@ -40,15 +40,15 @@
                                     </td>
                                     <td>{{ item.name }}</td>
                                     <td class="text-center">{{ item.quantity }}</td>
-                                    <td class="text-right">${{ "%.2f"|format(item.price) }}</td>
-                                    <td class="text-right">${{ "%.2f"|format(item.price * item.quantity) }}</td>
+                                    <td class="text-right">{{ item.price|money }}</td>
+                                    <td class="text-right">{{ (item.price * item.quantity)|money }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                             <tfoot>
                                 <tr>
                                     <td colspan="4" class="text-right font-weight-bold">Order Total:</td>
-                                    <td class="text-right font-weight-bold">${{ "%.2f"|format(order.total_amount) }}</td>
+                                    <td class="text-right font-weight-bold">{{ order.total_amount|money }}</td>
                                 </tr>
                             </tfoot>
                         </table>

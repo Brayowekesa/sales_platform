@@ -1,31 +1,55 @@
-{% extends "layout.html" %} {# Or "admin/admin_layout.html" if you want different error pages for admin section #}
+{% extends "layout.html" %}
 
 {% block title %}
     404 - Page Not Found
 {% endblock %}
 
 {% block content %}
-<div class="container text-center mt-5 pt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <h1 class="display-1 text-danger">404</h1>
-            <h2 class="mb-4">Oops! Page Not Found.</h2>
-            <p class="lead text-muted mb-4">
-                The page you are looking for might have been removed, had its name changed,
-                or is temporarily unavailable.
-            </p>
-            <div class="mb-4">
-                <i class="fas fa-compass fa-7x text-info"></i>
+<div class="container py-5">
+    <div class="card shadow-sm border-0 mx-auto" style="max-width: 900px;">
+        <div class="card-body p-4 p-md-5">
+            <header class="d-flex flex-column flex-md-row align-items-center justify-content-between mb-4">
+                <a href="{{ url_for('index') }}" class="d-flex align-items-center text-decoration-none text-dark mb-3 mb-md-0">
+                    <img src="{{ url_for('static', filename='images/logo_light.png') }}" alt="E-Shop Logo" style="height: 42px; width: auto;" class="mr-2">
+                    <span class="font-weight-bold">E-Shop</span>
+                </a>
+                <nav class="d-flex flex-wrap align-items-center gap-3 text-muted small">
+                    <a href="{{ url_for('index') }}" class="text-muted">Home</a>
+                    <a href="{{ url_for('index', category='Electronics') }}" class="text-muted">Categories</a>
+                    <a href="{{ url_for('view_cart') }}" class="text-muted">Cart {% if cart_item_count %}<span class="badge badge-primary">{{ cart_item_count }}</span>{% endif %}</a>
+                    <a href="{{ url_for('view_wishlist') }}" class="text-muted">Wishlist</a>
+                    <a href="{{ url_for('index') }}" class="text-muted">Browse</a>
+                </nav>
+            </header>
+
+            <div class="text-center py-4">
+                <h1 class="display-1 font-weight-bold text-danger mb-3">404</h1>
+                <h2 class="mb-3">Oops! Page Not Found.</h2>
+                <p class="lead text-muted mb-4">
+                    The page you are looking for might have been removed, had its name changed,
+                    or is temporarily unavailable.
+                </p>
+
+                <div class="mb-4">
+                    <i class="fas fa-compass fa-7x text-info" aria-hidden="true"></i>
+                </div>
+
+                <p class="mb-4">Let's get you back on track:</p>
+
+                <div class="d-flex justify-content-center flex-wrap gap-2">
+                    <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-home mr-2"></i>Back to Home
+                    </a>
+                    <a href="javascript:history.back()" class="btn btn-outline-secondary btn-lg">
+                        <i class="fas fa-arrow-left mr-2"></i>Previous Page
+                    </a>
+                </div>
             </div>
-            <p>Let's get you back on track:</p>
-            <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg mr-2">
-                <i class="fas fa-home"></i> Go to Homepage
-            </a>
-            {# You could add a search bar or other helpful links here #}
-            {# <a href="javascript:history.back()" class="btn btn-outline-secondary btn-lg">
-                <i class="fas fa-arrow-left"></i> Go Back
-            </a> #}
         </div>
     </div>
+
+    <footer class="text-center text-muted small mt-4">
+        © 2023 - 2026 E-Shop. All Rights Reserved.
+    </footer>
 </div>
 {% endblock %}

@@ -28,9 +28,9 @@
                         <li class="list-group-item d-flex justify-content-between lh-sm">
                             <div>
                                 <h6 class="my-0">{{ item.name }} (x{{ item.quantity }})</h6>
-                                <small class="text-muted">Unit Price: ${{ "%.2f"|format(item.price) }}</small>
+                                <small class="text-muted">Unit Price: {{ item.price|money }}</small>
                             </div>
-                            <span class="text-muted">${{ "%.2f"|format(item.price * item.quantity) }}</span>
+                            <span class="text-muted">{{ (item.price * item.quantity)|money }}</span>
                         </li>
                     {% endfor %}
                     <li class="list-group-item d-flex justify-content-between bg-light">
@@ -38,11 +38,11 @@
                             <h6 class="my-0">Promo code</h6>
                             <small>EXAMPLECODE</small> {# Placeholder for promo code logic #}
                         </div>
-                        <span class="text-success">−$0.00</span> {# Placeholder for discount #}
+                        <span class="text-success">−KSh 0</span> {# Placeholder for discount #}
                     </li>
                     <li class="list-group-item d-flex justify-content-between">
                         <span>Total (USD)</span>
-                        <strong>${{ "%.2f"|format(total_amount) }}</strong>
+                        <strong>{{ total_amount|money }}</strong>
                     </li>
                 </ul>
                 {# Promo code form - Placeholder #}

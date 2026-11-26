@@ -1,10 +1,10 @@
 {# templates/includes/_navbar.html #}
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top shadow-sm">
+<nav class="navbar navbar-expand-lg navbar-dark shop-nav fixed-top">
     <div class="container">
         <a class="navbar-brand" href="{{ url_for('index') }}">
                         <img src="{{ url_for('static', filename='images/logo_light.png') }}"
                  alt="{{ config.get('SITE_NAME', 'ESA E-Shop') }} Logo"
-                 height="60"
+                 height="38"
                  class="d-inline-block align-top mr-2">
             {# Optional: If your logo image doesn't include the text "ESA E-Shop", 
                and you want it next to the icon, uncomment and style this span:
@@ -18,7 +18,7 @@
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav mr-auto">
                 <li class="nav-item {{ 'active' if request.endpoint == 'index' else '' }}">
-                    <a class="nav-link" href="{{ url_for('index') }}">Home <span class="sr-only">(current)</span></a>
+                    <a class="nav-link" href="{{ url_for('index') }}">Home</a>
                 </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="categoriesDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -40,16 +40,16 @@
                 {# Add other public navigation links here if needed #}
             </ul>
 
-            <form class="form-inline my-2 my-lg-0 mr-md-3" action="{{ url_for('search') }}" method="GET">
-                <input class="form-control mr-sm-2 form-control-sm" type="search" name="query" placeholder="Search products..." aria-label="Search" value="{{ request.args.get('query', '') }}">
-                <button class="btn btn-outline-success btn-sm my-2 my-sm-0" type="submit"><i class="fas fa-search"></i></button>
+            <form class="search-pill mr-lg-3 my-2 my-lg-0" action="{{ url_for('search') }}" method="GET">
+                <input type="search" name="query" placeholder="Search products..." aria-label="Search" value="{{ request.args.get('query', '') }}">
+                <button type="submit" aria-label="Search"><i class="fas fa-search"></i></button>
             </form>
 
             <ul class="navbar-nav">
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('view_cart') }}">
                         <i class="fas fa-shopping-cart"></i> Cart
-                        <span class="badge badge-pill badge-danger" id="cart-count">{{ cart_item_count if cart_item_count else 0 }}</span>
+                        <span class="badge badge-pill badge-cart" id="cart-count">{{ cart_item_count if cart_item_count else 0 }}</span>
                     </a>
                 </li>
                 <li class="nav-item">

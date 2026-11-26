@@ -57,7 +57,7 @@
             <div class="card report-summary-card shadow-sm">
                 <div class="card-body">
                     <h5 class="card-title">Total Sales</h5>
-                    <p class="card-text">${{ "%.2f"|format(total_sales_period) }}</p>
+                    <p class="card-text">{{ total_sales_period|money }}</p>
                 </div>
             </div>
         </div>
@@ -73,7 +73,7 @@
             <div class="card report-summary-card shadow-sm">
                 <div class="card-body">
                     <h5 class="card-title">Avg. Order Value</h5>
-                    <p class="card-text">${{ "%.2f"|format(average_order_value) }}</p>
+                    <p class="card-text">{{ average_order_value|money }}</p>
                 </div>
             </div>
         </div>
@@ -126,9 +126,9 @@ $(document).ready(function() {
                 y: {
                     beginAtZero: true,
                     ticks: {
-                        // Include a dollar sign in the ticks
+                        // Currency prefix on the axis ticks
                         callback: function(value, index, values) {
-                            return '$' + value.toFixed(2);
+                            return '{{ CURRENCY_SYMBOL }} ' + Number(value).toLocaleString();
                         }
                     }
                 },

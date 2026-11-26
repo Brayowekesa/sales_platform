@@ -1,8 +1,13 @@
 import os
 import sqlite3
+import random
 from functools import wraps # For decorators
-from datetime import datetime
+from datetime import datetime, timedelta
 import base64 # For M-Pesa if used, not directly for this part
+from dotenv import load_dotenv
+
+# Load environment variables from a local .env file if present.
+load_dotenv()
 
 from flask import (
     Flask, render_template, request, redirect, url_for,
@@ -26,7 +31,8 @@ from wtforms import (
     BooleanField, 
     IntegerField, 
     TextAreaField,
-    FloatField  # Ensure FloatField is here
+    FloatField,
+    SelectField  # Ensure SelectField is here
 )
 from wtforms.validators import DataRequired, Email, EqualTo, Length, Optional, NumberRange # Ensure NumberRange is here
 from wtforms.widgets import TextArea 
@@ -40,11 +46,46 @@ from itsdangerous import URLSafeTimedSerializer
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__)
 
+# --- Currency formatting: change CURRENCY_SYMBOL (or env var) to switch the whole site ---
+CURRENCY_SYMBOL = os.environ.get('CURRENCY_SYMBOL', 'KSh')
+
+app.jinja_env.globals['CURRENCY_SYMBOL'] = CURRENCY_SYMBOL
+
+@app.template_filter('money')
+def money_filter(value):
+    """Format a number as currency, e.g. KSh 8,999 or KSh 1,249.50"""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return f"{CURRENCY_SYMBOL} 0"
+    return f"{CURRENCY_SYMBOL} {v:,.0f}" if v == int(v) else f"{CURRENCY_SYMBOL} {v:,.2f}"
+
+
 # IMPORTANT: Load sensitive data from environment variables in production
-app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'your_development_secret_key') # CHANGE THIS!
+# SECRET_KEY signs sessions and password-reset tokens. Set FLASK_SECRET_KEY in production
+# (generate one with: python -c "import secrets; print(secrets.token_hex(32))").
+# If it is missing we generate a random key for this run only: safe, but everyone is
+# logged out on restart and multiple server workers won't share sessions.
+_secret_key = os.environ.get('FLASK_SECRET_KEY')
+if not _secret_key:
+    import secrets as _secrets
+    _secret_key = _secrets.token_hex(32)
+    print("WARNING: FLASK_SECRET_KEY is not set - using a temporary random key (sessions reset on restart).")
+app.config['SECRET_KEY'] = _secret_key
+
+# Session cookie hardening (set SESSION_COOKIE_SECURE=1 when serving over HTTPS)
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '0') == '1'
 app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static', 'uploads')
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
+allowed_register_emails = os.environ.get('ALLOWED_REGISTER_EMAILS', '').strip()
+app.config['ALLOWED_REGISTER_EMAILS'] = {
+    email.strip().lower()
+    for email in allowed_register_emails.split(',')
+    if email.strip()
+}
 
 # Mail Configuration (Use environment variables for credentials)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -52,7 +93,7 @@ app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', 'your_email@example.com')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_APP_PASSWORD', 'your_email_app_password')
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'your_email@example.com')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', os.environ.get('MAIL_USERNAME', 'your_email@example.com'))
 
 # M-Pesa Configuration (Use environment variables)
 app.config['MPESA_CONSUMER_KEY'] = os.environ.get('MPESA_CONSUMER_KEY', 'your_consumer_key')
@@ -77,6 +118,17 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info' # Optional: for styling flash messages
 bootstrap = Bootstrap(app) # Initialize Bootstrap
+
+# --- Shared category choices for products and navigation ---
+PRODUCT_CATEGORY_CHOICES = [
+    ('Electronics', 'Electronics'),
+    ('Home & Kitchen', 'Home & Kitchen'),
+    ('Fashion & Wear', 'Fashion & Wear'),
+    ('Beauty & Personal Care', 'Beauty & Personal Care'),
+    ('Health & Wellness', 'Health & Wellness'),
+    ('Sports & Outdoors', 'Sports & Outdoors'),
+    ('Office & School', 'Office & School'),
+]
 
 # --- Database Setup ---
 DATABASE = os.path.join(BASE_DIR, 'sales.db')
@@ -110,6 +162,8 @@ def init_db():
                     password_hash TEXT NOT NULL,
                     is_admin INTEGER DEFAULT 0,
                     confirmed INTEGER DEFAULT 0,
+                    verification_code TEXT,
+                    verification_code_expires DATETIME,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                );
                 CREATE TABLE IF NOT EXISTS promotions (
@@ -204,8 +258,18 @@ def init_db():
                 );
                 PRAGMA journal_mode=WAL;
             ''') # End of triple-quoted string
+        # Add missing verification columns for existing databases created before this update.
+        columns = [row[1] for row in c.execute("PRAGMA table_info(users)").fetchall()]
+        if 'verification_code' not in columns:
+            c.execute('ALTER TABLE users ADD COLUMN verification_code TEXT')
+        if 'verification_code_expires' not in columns:
+            c.execute('ALTER TABLE users ADD COLUMN verification_code_expires DATETIME')
+
         # No explicit conn.commit() needed here due to 'with conn:'
         print("Database initialized (from init_db function).") # Added print statement
+
+# Ensure the required tables exist as soon as the app is imported/started.
+init_db()
 
 # --- User Model and Authentication ---
 class User(UserMixin):
@@ -284,18 +348,31 @@ def utility_processor():
             pass # Default to 0 if error
     
     # Categories for navbar
-    nav_categories = [] # Default to empty list
+    nav_categories = [choice[0] for choice in PRODUCT_CATEGORY_CHOICES]
     try:
         with get_db_connection() as conn:
             categories_data = conn.execute(
                 'SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != "" ORDER BY category LIMIT 7'
             ).fetchall()
-            nav_categories = [row['category'] for row in categories_data]
+            product_categories = [row['category'] for row in categories_data]
+            if product_categories:
+                nav_categories = product_categories
     except Exception as e:
          app.logger.error(f"Error fetching categories for navbar: {e}")
 
 
+    # Products already in the user's wishlist (so cards can show a filled heart)
+    wishlist_ids = set()
+    if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
+        try:
+            with get_db_connection() as conn:
+                wishlist_ids = {r['product_id'] for r in conn.execute(
+                    'SELECT product_id FROM wishlists WHERE user_id = ?', (current_user.id,)).fetchall()}
+        except Exception as e:
+            app.logger.error(f"Error fetching wishlist ids: {e}")
+
     return dict(
+        wishlist_ids=wishlist_ids,
         cart_item_count=cart_item_count,
         current_year=datetime.utcnow().year, # <<< THIS PROVIDES current_year
         SCRIPT_START_YEAR=2023, # Or your desired start year for copyright range
@@ -326,10 +403,29 @@ class ResetPasswordForm(FlaskForm):
     confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
     submit = SubmitField('Reset Password')
 
+class VerifyEmailForm(FlaskForm):
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    verification_code = StringField('Verification Code', validators=[DataRequired(), Length(min=6, max=6)])
+    submit = SubmitField('Verify Account')
+
 # app.py
 
 # ... (other form definitions) ...
 # --- User Authentication Routes ---
+def generate_verification_code():
+    return str(random.randint(100000, 999999))
+
+
+def is_allowed_registration_email(email):
+    allowed = app.config.get('ALLOWED_REGISTER_EMAILS', set())
+    normalized = (email or '').strip().lower()
+    if not normalized:
+        return False
+    if not allowed:
+        return True
+    return normalized in allowed
+
+
 def send_confirmation_email(user_email):
     token = s.dumps(user_email, salt='email-confirm')
     confirm_url = url_for('confirm_email', token=token, _external=True)
@@ -343,30 +439,111 @@ def send_confirmation_email(user_email):
         log_activity("Failed to send confirmation email", details=f"To: {user_email}, Error: {str(e)}")
         app.logger.error(f"Failed to send email: {e}") # Log to Flask logger
 
+
+def send_verification_email(user_email, code):
+    subject = "Your Verification Code"
+    body = f"Your verification code is: {code}\n\nEnter this code on the verification page to activate your account."
+    msg = Message(subject, recipients=[user_email], body=body)
+    try:
+        mail.send(msg)
+        log_activity("Verification code email sent", details=f"To: {user_email}")
+        return True
+    except Exception as e:
+        log_activity("Failed to send verification code", details=f"To: {user_email}, Error: {str(e)}")
+        app.logger.error(f"Failed to send verification email: {e}")
+        if app.debug:
+            app.logger.warning(f"DEBUG MODE: verification code for {user_email} is {code}")
+        return False
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
     form = RegistrationForm()
     if form.validate_on_submit():
+        email_value = form.email.data.strip().lower()
+        if not is_allowed_registration_email(email_value):
+            flash('This app is configured for approved email addresses only. Please use the registered administrator email.', 'danger')
+            return render_template('register.html', title='Register', form=form)
+
         hashed_password = generate_password_hash(form.password.data)
+        code = generate_verification_code()
+        expires_at = (datetime.utcnow() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
         try:
             with get_db_connection() as conn:
                 conn.execute(
-                    'INSERT INTO users (username, email, password_hash, confirmed) VALUES (?, ?, ?, ?)',
-                    (form.username.data, form.email.data, hashed_password, 0)
+                    'INSERT INTO users (username, email, password_hash, confirmed, verification_code, verification_code_expires) VALUES (?, ?, ?, ?, ?, ?)',
+                    (form.username.data, email_value, hashed_password, 0, code, expires_at)
                 )
                 conn.commit()
-            send_confirmation_email(form.email.data)
-            flash('Registration successful! Please check your email to confirm your account.', 'success')
+            sent = send_verification_email(email_value, code)
+            if sent:
+                flash('Registration successful! Check your email for the 6-digit verification code.', 'success')
+            else:
+                flash('Registration successful, but the verification email could not be delivered. Please contact support.', 'warning')
             log_activity("User registration initiated", details=f"Username: {form.username.data}")
-            return redirect(url_for('login'))
+            return redirect(url_for('verify_email', email=email_value))
         except sqlite3.IntegrityError:
-            flash('Username or email already exists.', 'danger')
+            with get_db_connection() as conn:
+                existing_username = conn.execute('SELECT id FROM users WHERE username = ?', (form.username.data.strip(),)).fetchone()
+                existing_email = conn.execute('SELECT id FROM users WHERE email = ?', (email_value,)).fetchone()
+            if existing_username and existing_email:
+                flash('This username and email are already registered.', 'danger')
+            elif existing_username:
+                flash('This username is already taken.', 'danger')
+            else:
+                flash('This email is already registered.', 'danger')
         except Exception as e:
             flash(f'An error occurred: {str(e)}', 'danger')
             log_activity("User registration failed", details=f"Username: {form.username.data}, Error: {str(e)}")
     return render_template('register.html', title='Register', form=form)
+
+@app.route('/verify_email', methods=['GET', 'POST'])
+def verify_email():
+    default_email = request.args.get('email', '')
+    form = VerifyEmailForm(email=default_email)
+    if form.validate_on_submit():
+        email = form.email.data.strip()
+        submitted_code = form.verification_code.data.strip()
+
+        with get_db_connection() as conn:
+            user = conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
+            if not user:
+                flash('No account found for that email.', 'danger')
+                return redirect(url_for('register'))
+
+            if user['confirmed']:
+                flash('Account already confirmed. Please login.', 'info')
+                return redirect(url_for('login'))
+
+            expires_at = user['verification_code_expires']
+            if not expires_at or datetime.strptime(expires_at, '%Y-%m-%d %H:%M:%S') < datetime.utcnow():
+                new_code = generate_verification_code()
+                new_expires_at = (datetime.utcnow() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
+                conn.execute(
+                    'UPDATE users SET verification_code = ?, verification_code_expires = ? WHERE id = ?',
+                    (new_code, new_expires_at, user['id'])
+                )
+                conn.commit()
+                send_verification_email(email, new_code)
+                flash('Your verification code expired. A new one has been sent to your email.', 'warning')
+                return redirect(url_for('verify_email', email=email))
+
+            if submitted_code != user['verification_code']:
+                flash('Invalid verification code.', 'danger')
+                return render_template('verify_email.html', title='Verify Email', form=form)
+
+            conn.execute(
+                'UPDATE users SET confirmed = 1, verification_code = NULL, verification_code_expires = NULL WHERE id = ?',
+                (user['id'],)
+            )
+            conn.commit()
+
+        flash('Your account has been verified! You can now log in.', 'success')
+        log_activity("Email verified", details=f"Email: {email}")
+        return redirect(url_for('login'))
+
+    return render_template('verify_email.html', title='Verify Email', form=form)
 
 @app.route('/confirm/<token>')
 def confirm_email(token):
@@ -419,8 +596,8 @@ def login():
                         next_page = request.args.get('next')
                         return redirect(next_page or url_for('index'))
                     else:
-                        flash('Please confirm your email address before logging in. Resend confirmation?', 'warning')
-                        # Optionally, add a link/button here to resend confirmation
+                        flash('Please verify your email with the 6-digit code before logging in.', 'warning')
+                        return redirect(url_for('verify_email', email=user_obj.email))
                 else:
                     flash('Invalid username/email or password.', 'danger')
             else:
@@ -861,19 +1038,32 @@ def view_cart():
 @app.route('/cart/add/<int:product_id>', methods=['POST'])
 @login_required
 def add_to_cart(product_id):
-    quantity = int(request.form.get('quantity', 1)) # Allow specifying quantity from product page
+    try:
+        quantity = int(request.form.get('quantity', 1))
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'message': 'Quantity must be a valid number.'}), 400
+
     if quantity <= 0:
         return jsonify({'success': False, 'message': 'Quantity must be positive.'}), 400
 
     try:
         with get_db_connection() as conn:
-            product = conn.execute("SELECT stock FROM products WHERE id = ?", (product_id,)).fetchone()
+            product = conn.execute("SELECT id, name, stock FROM products WHERE id = ?", (product_id,)).fetchone()
             if not product:
-                 return jsonify({'success': False, 'message': 'Product not found.'}), 404
-            if product['stock'] < quantity:
-                return jsonify({'success': False, 'message': f"Not enough stock. Only {product['stock']} available."}), 400
+                return jsonify({'success': False, 'message': 'Product not found.'}), 404
 
-            # UPSERT operation
+            current_in_cart = conn.execute(
+                'SELECT quantity FROM carts WHERE user_id = ? AND product_id = ?',
+                (current_user.id, product_id)
+            ).fetchone()
+            current_in_cart_quantity = current_in_cart['quantity'] if current_in_cart else 0
+            remaining_stock = max(0, product['stock'] - current_in_cart_quantity)
+
+            if product['stock'] <= 0:
+                return jsonify({'success': False, 'message': 'This product is currently out of stock.'}), 400
+            if quantity > remaining_stock:
+                return jsonify({'success': False, 'message': f"Only {remaining_stock} left in stock for {product['name']}."}), 400
+
             conn.execute('''
                 INSERT INTO carts (user_id, product_id, quantity)
                 VALUES (?, ?, ?)
@@ -882,7 +1072,6 @@ def add_to_cart(product_id):
             ''', (current_user.id, product_id, quantity))
             conn.commit()
 
-            # Get updated cart count
             new_count_result = conn.execute(
                 'SELECT SUM(quantity) as total FROM carts WHERE user_id = ?', (current_user.id,)
             ).fetchone()
@@ -891,11 +1080,10 @@ def add_to_cart(product_id):
         log_activity("Added to cart", user_id=current_user.id, details=f"Product ID: {product_id}, Quantity: {quantity}")
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': True, 'message': 'Item added to cart!', 'count': new_count})
-        else:
-            flash('Item added to cart!', 'success')
-            return redirect(request.referrer or url_for('index'))
+        flash('Item added to cart!', 'success')
+        return redirect(request.referrer or url_for('index'))
 
-    except sqlite3.IntegrityError: # Should be handled by ON CONFLICT
+    except sqlite3.IntegrityError:
         return jsonify({'success': False, 'message': 'Error adding item. Product may not exist or conflict.'}), 400
     except Exception as e:
         log_activity("Add to cart failed", user_id=current_user.id, details=f"Product ID: {product_id}, Error: {str(e)}")
@@ -929,9 +1117,12 @@ def update_cart_item(product_id):
                 return remove_from_cart(product_id)
 
             with get_db_connection() as conn:
-                product = conn.execute("SELECT stock FROM products WHERE id = ?", (product_id,)).fetchone()
+                product = conn.execute("SELECT id, name, stock FROM products WHERE id = ?", (product_id,)).fetchone()
                 if not product:
                     flash('Product not found in cart.', 'danger')
+                    return redirect(url_for('view_cart'))
+                if product['stock'] <= 0:
+                    flash(f"{product['name']} is currently out of stock. Cart not updated.", 'warning')
                     return redirect(url_for('view_cart'))
                 if product['stock'] < new_quantity:
                     flash(f"Not enough stock for {product['name']}. Only {product['stock']} available. Cart not updated.", 'warning')
@@ -1040,7 +1231,7 @@ class ProductForm(FlaskForm):
     original_price = FloatField('Original Price (Set if Current Price is a Sale Price, otherwise leave blank or same as Current Price)', 
     validators=[Optional(), NumberRange(min=0)])
     description = TextAreaField('Description', validators=[Optional(), Length(max=1000)]) # Changed from StringField with widget
-    category = StringField('Category', validators=[DataRequired(), Length(max=50)])
+    category = SelectField('Category', choices=PRODUCT_CATEGORY_CHOICES, validators=[DataRequired()])
     stock = IntegerField('Stock Quantity', validators=[DataRequired(), NumberRange(min=0)]) # Changed from StringField
     image = FileField('Product Image', validators=[Optional(), FileAllowed(['jpg', 'png', 'jpeg', 'gif'])])
     submit = SubmitField('Save Product')
@@ -2423,6 +2614,18 @@ def order_details(order_id): # Renamed from order_details_user to match your exi
             WHERE oi.order_id = ?
         ''', (order_id,)).fetchall()
 
+    # Build a dict so we can add a human-friendly date for the template
+    order_dict = dict(order)
+    raw_date = order_dict.get('order_date')
+    try:
+        if isinstance(raw_date, str):
+            raw_date = datetime.strptime(raw_date.split('.')[0], '%Y-%m-%d %H:%M:%S')
+        order_dict['order_date_formatted'] = raw_date.strftime('%b %d, %Y %H:%M')
+    except Exception:
+        order_dict['order_date_formatted'] = order_dict.get('order_date') or 'N/A'
+
+    return render_template('order_details_user.html', order=order_dict,
+                           order_items=order_items, title=f"Order #{order_id}")
 
 
 # app.py
@@ -2714,4 +2917,7 @@ def create_admin_command():
         # Log the exception for more details if needed
         # app.logger.error(f"CLI create-admin failed: {e}", exc_info=True)
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+    # Debug mode exposes an interactive console - only enable it locally: FLASK_DEBUG=1
+    app.run(debug=os.environ.get('FLASK_DEBUG', '0') == '1',
+            host=os.environ.get('FLASK_HOST', '127.0.0.1'),
+            port=int(os.environ.get('PORT', 5000)))

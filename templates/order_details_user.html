@@ -35,7 +35,7 @@
                     </p>
                 </div>
                 <div class="col-md-6">
-                    <p><strong>Total Amount:</strong> <span class="font-weight-bold text-success">${{ "%.2f"|format(order.total_amount) }}</span></p>
+                    <p><strong>Total Amount:</strong> <span class="font-weight-bold text-success">{{ order.total_amount|money }}</span></p>
                     <p><strong>Payment Method:</strong> {{ order.payment_method if order.payment_method else 'N/A' }}</p>
                     {% if order.transaction_id and order.payment_method == 'Lipa na M-Pesa' %}
                         <p><strong>M-Pesa Transaction ID:</strong> {{ order.transaction_id }}</p>
@@ -74,9 +74,9 @@
                         <td>
                             <a href="{{ url_for('product_details', product_id=item.product_id) }}" class="text-dark">{{ item.name }}</a>
                         </td>
-                        <td class="text-center">${{ "%.2f"|format(item.price) }}</td>
+                        <td class="text-center">{{ item.price|money }}</td>
                         <td class="text-center">{{ item.quantity }}</td>
-                        <td class="text-right">${{ "%.2f"|format(item.price * item.quantity) }}</td>
+                        <td class="text-right">{{ (item.price * item.quantity)|money }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

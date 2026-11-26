@@ -57,8 +57,8 @@
         <div class="col-xl-3 col-md-6 mb-4 dashboard-stat-card">
             <div class="card border-left-primary shadow h-100 py-2"><div class="card-body"><div class="row no-gutters align-items-center"><div class="col mr-2">
                 <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Sales (Paid)</div>
-                <div class="h5 mb-0 font-weight-bold text-gray-800">${{ "%.2f"|format(total_sales) }}</div>
-            </div><div class="col-auto"><i class="fas fa-dollar-sign fa-2x text-gray-300"></i></div></div></div></div>
+                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_sales|money }}</div>
+            </div><div class="col-auto"><i class="fas fa-money-bill-wave fa-2x text-gray-300"></i></div></div></div></div>
         </div>
         <div class="col-xl-3 col-md-6 mb-4 dashboard-stat-card">
             <div class="card border-left-success shadow h-100 py-2"><div class="card-body"><div class="row no-gutters align-items-center"><div class="col mr-2">
@@ -120,7 +120,7 @@
                                     <tr>
                                         <td><a href="{{ url_for('admin_order_details', order_id=order.id) }}">#{{ order.id }}</a></td>
                                         <td>{{ order.username }}</td>
-                                        <td>${{ "%.2f"|format(order.total_amount) }}</td>
+                                        <td>{{ order.total_amount|money }}</td>
                                         <td>{{ order.order_date_formatted }}</td>
                                         <td><span class="badge badge-{{ 'success' if order.status == 'Paid' or order.status == 'Delivered' else ('primary' if order.status == 'Shipped' else ('info' if order.status == 'Processing' else ('warning' if order.status == 'Pending' or order.status == 'Pending Payment' else 'secondary'))) }}">{{ order.status }}</span></td>
                                     </tr>
@@ -185,7 +185,7 @@
                                 {% if promo.image_path %}<img src="{{ url_for('static', filename=promo.image_path) }}" alt="{{ promo.title }}" class="small-promo-img my-1">{% endif %}
                                 <p class="mb-1 small text-muted">
                                     {% if promo.original_price and promo.promo_price and promo.original_price > promo.promo_price %}
-                                        Was: ${{ "%.2f"|format(promo.original_price) }}, Now: ${{ "%.2f"|format(promo.promo_price) }}
+                                        Was: {{ promo.original_price|money }}, Now: {{ promo.promo_price|money }}
                                     {% elif promo.discount_text %}{{ promo.discount_text }}
                                     {% else %}Target: {{ promo.target_url|truncate(30, True) if promo.target_url else "General" }}{% endif %}
                                 </p>

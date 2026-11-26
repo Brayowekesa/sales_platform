@@ -20,7 +20,7 @@
                             <h5 class="card-title">
                                 <a href="{{ url_for('product_details', product_id=product.id) }}">{{ product.name }}</a>
                             </h5>
-                            <p class="product-price">${{ "%.2f"|format(product.price) }}</p>
+                            <p class="product-price">{{ product.price|money }}</p>
                             {% if product.stock <= 0 %}
                                 <p class="text-danger font-weight-bold mt-1 mb-0">Out of Stock</p>
                             {% else %}
@@ -58,30 +58,12 @@
 {% endblock %}
 
 {% block scripts_extra %}
-    {# Include AJAX add to cart JS if you want the "Move to Cart" button to use it from wishlist page #}
     <script>
-    $(document).ready(function() {
-        $('.add-to-cart-form-js').on('submit', function(e) { // Re-using the same JS as index page
-            e.preventDefault();
-            var form = $(this);
-            var url = form.attr('action');
-            $.ajax({
-                type: "POST",
-                url: url,
-                data: form.serialize(),
-                success: function(response) {
-                    if(response.success) {
-                        $('#cart-count').text(response.count);
-                        // Optionally remove from wishlist visually or reload part of the page
-                        // For now, user will see it moved after next page load if successful
-                        // alert(response.message || 'Item moved to cart!');
-                        form.closest('.col-lg-4').fadeOut(500, function() { $(this).remove(); }); // Example visual removal
-                    } else {
-                        alert('Error: ' + (response.message || 'Could not move item.'));
-                    }
-                },
-                error: function(xhr) { /* ... */ }
-            });
+    // main.js performs the AJAX add-to-cart; here we only fade the card out on success
+    $(document).on('submit', '.add-to-cart-form-js', function() {
+        var f = $(this);
+        $(document).one('ajaxSuccess', function(e, xhr, opts, data) {
+            if (data && data.success) { f.closest('.col-lg-4, .col-md-6').fadeOut(400, function() { $(this).remove(); }); }
         });
     });
     </script>

@@ -10,30 +10,50 @@ $(document).ready(function() {
     //     }
     // });
 
+    // Toast helper (replaces alert() popups). Usage: showToast('Saved', 'success'|'danger'|'info')
+    window.showToast = function(message, type) {
+        var icons = {success: 'fa-check-circle', danger: 'fa-exclamation-circle', info: 'fa-info-circle'};
+        type = icons[type] ? type : 'info';
+        var $stack = $('#toast-stack');
+        if (!$stack.length) { $stack = $('<div id="toast-stack" aria-live="polite"></div>').appendTo('body'); }
+        var $t = $('<div class="toast-msg toast-' + type + '" role="status"></div>')
+            .append($('<i class="fas ' + icons[type] + '"></i>'))
+            .append($('<span></span>').text(message));
+        $stack.append($t);
+        setTimeout(function() { $t.addClass('show'); }, 10);
+        setTimeout(function() { $t.removeClass('show'); setTimeout(function() { $t.remove(); }, 300); }, 3200);
+    };
+
     // 1. AJAX Add to Cart (targets forms with class 'add-to-cart-form-js')
     $('body').on('submit', '.add-to-cart-form-js', function(e) {
         e.preventDefault();
         var form = $(this);
-        var url = form.attr('action');
+        var btn = form.find('button[type=submit]').prop('disabled', true);
         $.ajax({
             type: "POST",
-            url: url,
+            url: form.attr('action'),
             data: form.serialize(),
             success: function(response) {
-                if (response.success) {
+                if (response && response.success) {
                     $('#cart-count').text(response.count);
-                    var successMsg = $('<div class="alert alert-success alert-dismissible fade show fixed-top-right m-3" role="alert" style="z-index: 1050;">' +
-                                       (response.message || 'Item processed successfully!') +
-                                       '<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>' +
-                                       '</div>');
-                    $('body').append(successMsg);
-                    setTimeout(function() { successMsg.alert('close'); }, 3000);
+                    showToast(response.message || 'Added to cart', 'success');
                     if (form.closest('.card').parent().parent().parent().prev('h2').text().includes('Wishlist')) {
                          form.closest('.col-lg-4, .col-md-6').fadeOut(500, function() { $(this).remove(); });
                     }
-                } else { alert('Error: ' + (response.message || 'Could not process item.')); }
+                } else if (typeof response === 'string') {
+                    // Not logged in: the server redirected us to the login page
+                    showToast('Please log in to continue.', 'info');
+                    setTimeout(function() { window.location = '/login'; }, 1200);
+                } else {
+                    showToast((response && response.message) || 'Could not process item.', 'danger');
+                }
             },
-            error: function(xhr) { /* ... your error handling ... */ }
+            error: function(xhr) {
+                var msg = (xhr.responseJSON && xhr.responseJSON.message) ||
+                          (xhr.status === 400 ? 'Session expired - please refresh the page.' : 'Something went wrong. Please try again.');
+                showToast(msg, 'danger');
+            },
+            complete: function() { btn.prop('disabled', false); }
         });
     });
 

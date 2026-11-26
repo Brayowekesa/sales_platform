@@ -73,8 +73,8 @@
                             <td><a href="{{ url_for('admin_edit_product', product_id=item.product_id) }}">{{ item.product_name }}</a></td>
                             <td>{{ item.product_category }}</td>
                             <td>{{ item.total_quantity_sold }}</td>
-                            <td>${{ "%.2f"|format(item.average_selling_price) }}</td>
-                            <td>${{ "%.2f"|format(item.total_revenue_generated) }}</td>
+                            <td>{{ item.average_selling_price|money }}</td>
+                            <td>{{ item.total_revenue_generated|money }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>

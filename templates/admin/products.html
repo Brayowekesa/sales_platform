@@ -52,7 +52,7 @@
                             </td>
                             <td>{{ product.name }}</td>
                             <td>{{ product.category }}</td>
-                            <td>${{ "%.2f"|format(product.price) }}</td>
+                            <td>{{ product.price|money }}</td>
                             <td>
                                 {% if product.stock == 0 %}
                                     <span class="badge badge-danger">Out of Stock</span>

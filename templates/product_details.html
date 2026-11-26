@@ -17,7 +17,7 @@
         <div class="col-md-6">
             <h2>{{ product.name }}</h2>
             <p class="text-muted">Category: <a href="{{ url_for('index', category=product.category) }}">{{ product.category }}</a></p>
-            <h3 class="product-price my-3">${{ "%.2f"|format(product.price) }}</h3>
+            <h3 class="product-price my-3">{{ product.price|money }}</h3>
 
             {% if product.stock <= 0 %}
                 <p class="text-danger font-weight-bold mt-2 lead">Out of Stock</p>
@@ -27,12 +27,10 @@
                 <p class="text-success font-weight-bold mt-2">In Stock ({{ product.stock }} available)</p>
             {% endif %}
 
-            <p class="mt-3">{{ product.description|safe if product.description else "No detailed description available." }}</p> {# Use |safe if description contains HTML you trust #}
+            <p class="mt-3" style="white-space: pre-line;">{{ product.description if product.description else "No detailed description available." }}</p>
 
             <hr>
             {# Add to Cart Form #}
-            <form method="POST" action="{{ url_for('add_to_cart', product_id=product.id) }}" class="form-inline mb-3 add-to-cart-form-js">
-{# In templates/product_details.html #}
 <form method="POST" action="{{ url_for('add_to_cart', product_id=product.id) }}" class="form-inline mb-3 add-to-cart-form-js">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <div class="form-group mr-2">
@@ -88,15 +86,15 @@
             <form method="POST" action="{{ url_for('add_review', product_id=product.id) }}">
                 {{ review_form.hidden_tag() }} {# review_form is passed from the product_details route #}
                 <div class="form-group">
-                    {{ review_form.rating.label(class="form-control-label required") }}
+                    <label class="form-control-label required d-block">Rating</label>
                     {# Using the Select field from the ReviewForm if defined like in the corrected app.py #}
                     {# If review_form.rating is a StringField, this will just be a text input. Change ReviewForm.rating to SelectField for dropdown. #}
-                    {% if review_form.rating.widget.input_type == 'select' %}
-                        {{ review_form.rating(class="form-control" + (" is-invalid" if review_form.rating.errors else "")) }}
-                    {% else %}
-                        {# Fallback or alternative for StringField based rating (not ideal for UX) #}
-                        <input type="number" name="rating" class="form-control {% if review_form.rating.errors %}is-invalid{% endif %}" min="1" max="5" placeholder="1-5" value="{{ review_form.rating.data or '' }}">
-                    {% endif %}
+                    <div class="star-rating" role="radiogroup" aria-label="Rating">
+                        {% for n in [5,4,3,2,1] %}
+                        <input type="radio" id="star{{ n }}" name="rating" value="{{ n }}" required {% if review_form.rating.data|string == n|string %}checked{% endif %}>
+                        <label for="star{{ n }}" title="{{ n }} star{{ 's' if n > 1 }}"><i class="fas fa-star"></i></label>
+                        {% endfor %}
+                    </div>
                     {% if review_form.rating.errors %}
                         <div class="invalid-feedback">
                             {% for error in review_form.rating.errors %}<span>{{ error }}</span>{% endfor %}
@@ -121,36 +119,5 @@
 {% endblock %}
 
 {% block scripts_extra %}
-    {# JavaScript for AJAX form submission if using class '.add-to-cart-form-js' on product details page too #}
-    <script>
-    $(document).ready(function() {
-        $('.add-to-cart-form-js').on('submit', function(e) {
-            e.preventDefault();
-            var form = $(this);
-            var url = form.attr('action');
-            var csrfToken = form.find('input[name="csrf_token"]').val();
-
-            $.ajax({
-                type: "POST",
-                url: url,
-                data: form.serialize(),
-                success: function(response) {
-                    if(response.success) {
-                        $('#cart-count').text(response.count);
-                        // alert(response.message || 'Item processed!'); // Consider a toast notification
-                    } else {
-                        alert('Error: ' + (response.message || 'Could not process item.'));
-                    }
-                },
-                error: function(xhr) {
-                    var errorMsg = 'An error occurred.';
-                    if (xhr.responseJSON && xhr.responseJSON.message) {
-                        errorMsg = xhr.responseJSON.message;
-                    }
-                    alert(errorMsg);
-                }
-            });
-        });
-    });
-    </script>
+    {# Add-to-cart AJAX is handled globally in static/js/main.js #}
 {% endblock %}

@@ -10,14 +10,15 @@
     <!-- Font Awesome CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <!-- Your Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
     <style>
-        html, body {
-            height: 100%;
-        }
+        html { height: 100%; }
         body {
             display: flex;
             flex-direction: column;
+            min-height: 100%;
             /* Padding-top for navbar is only needed if navbar is visible and fixed */
             /* padding-top: 56px; */ 
         }
@@ -29,21 +30,18 @@
         .full-width-page-wrapper {
             display: flex;
             flex-grow: 1;
-            overflow: hidden;
         }
         #page-sidebar { /* This is for index.html etc. when logged in */
             width: 250px;
             flex-shrink: 0;
             background-color: #f8f9fa;
             padding: 0px 15px 20px 15px;
-            overflow-y: auto;
             border-right: 1px solid #dee2e6;
         }
         #main-content-area { /* This will contain the login form */
             flex-grow: 1;
             padding: 0; /* No padding here, login.html will add its own */
-            overflow-y: auto;
-            overflow-x: hidden;
+            min-width: 0;
             background-color: #f4f6f9; /* Light grey background for the whole content area on login */
         }
         .main-content-inner-container { /* Not directly used by login page's outer structure */

@@ -37,7 +37,7 @@
                                  <p class="small text-warning mb-0">Low stock!</p>
                             {% endif %}
                         </td>
-                        <td class="text-center">${{ "%.2f"|format(item.price) }}</td>
+                        <td class="text-center">{{ item.price|money }}</td>
                         <td class="text-center">
                             {# Update Quantity Form #}
                             <form action="{{ url_for('update_cart_item', product_id=item.id) }}" method="POST" class="form-inline justify-content-center cart-update-form">
@@ -46,7 +46,7 @@
                                 <button type="submit" class="btn btn-sm btn-outline-secondary ml-1" title="Update Quantity"><i class="fas fa-sync-alt"></i></button>
                             </form>
                         </td>
-                        <td class="text-right">${{ "%.2f"|format(item.price * item.quantity) }}</td>
+                        <td class="text-right">{{ (item.price * item.quantity)|money }}</td>
                         <td class="text-right">
                             {# Remove from Cart Form #}
                             <form action="{{ url_for('remove_from_cart', product_id=item.id) }}" method="POST">
@@ -70,12 +70,12 @@
                         <div>
                             <h6 class="my-0">Subtotal</h6>
                         </div>
-                        <span class="text-muted">${{ "%.2f"|format(total_price) }}</span>
+                        <span class="text-muted">{{ total_price|money }}</span>
                     </li>
                     {# You can add lines for Shipping, Tax etc. here if applicable #}
                     <li class="list-group-item d-flex justify-content-between">
                         <span>Total (USD)</span>
-                        <strong>${{ "%.2f"|format(total_price) }}</strong>
+                        <strong>{{ total_price|money }}</strong>
                     </li>
                 </ul>
 

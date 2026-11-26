@@ -1,0 +1,44 @@
+/* ===== Admin panel (builds on theme.css tokens) ===== */
+body.admin{display:block;background:var(--bg)}
+.admin-wrapper{display:flex;min-height:100vh}
+#admin-sidebar{width:248px;min-width:248px;background:var(--ink);color:#cbd5e1;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;z-index:1050;
+  transition:margin-left .3s ease,box-shadow .3s ease}
+#admin-sidebar.hidden-by-click{margin-left:-248px}
+#admin-sidebar.hover-active{margin-left:0;box-shadow:var(--shadow-lg)}
+#sidebar-hover-zone{position:fixed;left:0;top:0;width:18px;height:100vh;z-index:1040;display:none}
+#admin-sidebar.hidden-by-click ~ #sidebar-hover-zone{display:block}
+.sidebar-header{padding:1.1rem 1rem;text-align:center;border-bottom:1px solid rgba(255,255,255,.08)}
+.sidebar-header img{max-height:44px;width:auto}
+#admin-sidebar ul.components{flex:1;overflow-y:auto;padding:.9rem .7rem;margin:0}
+#admin-sidebar ul li a{display:flex;align-items:center;padding:.6rem .85rem;margin-bottom:2px;border-radius:10px;color:#cbd5e1;font-weight:500;font-size:.95rem;text-decoration:none}
+#admin-sidebar ul li a i{width:22px;opacity:.8}
+#admin-sidebar ul li a:hover{background:rgba(255,255,255,.07);color:#fff}
+#admin-sidebar ul li.active>a,#admin-sidebar ul li a[aria-expanded="true"]{background:var(--brand);color:#fff}
+#admin-sidebar ul li a.dropdown-toggle:after{margin-left:auto}
+#admin-sidebar ul ul{padding:.25rem 0 .25rem 1.2rem}
+#admin-sidebar ul ul a{font-size:.88rem!important;padding:.45rem .85rem!important;background:none!important;color:#94a3b8!important}
+#admin-sidebar ul ul a:hover{color:#fff!important}
+#admin-sidebar ul.CTAs{padding:.9rem;margin:0;border-top:1px solid rgba(255,255,255,.08)}
+#admin-sidebar ul.CTAs a,#admin-sidebar ul.CTAs button{border-radius:10px;margin-bottom:.4rem}
+#admin-content{flex:1;min-width:0;display:flex;flex-direction:column}
+.admin-topbar{display:flex;align-items:center;gap:1rem;background:var(--card);border-bottom:1px solid var(--line);padding:.7rem 1.5rem;position:sticky;top:0;z-index:1020}
+.admin-topbar .btn-toggle{border:1px solid var(--line);background:var(--card);color:var(--ink);width:38px;height:38px;border-radius:10px;padding:0}
+.admin-topbar .page-title{font-weight:700;font-size:1.05rem;margin:0}
+.admin-user{margin-left:auto;display:flex;align-items:center;gap:.6rem;font-size:.9rem}
+.admin-user .avatar{width:34px;height:34px;border-radius:50%;background:var(--brand-soft);color:var(--brand);display:flex;align-items:center;justify-content:center;font-weight:700}
+.admin-user small{display:block;color:var(--muted);line-height:1}
+.admin-main{padding:1.5rem;flex:1}
+.admin-main-footer{padding:1rem;text-align:center;font-size:.85rem;color:var(--muted)}
+/* Legacy dashboard stat cards (border-left-* classes) -> soft cards */
+.admin-main .card[class*="border-left"]{border-left:0!important;border:1px solid var(--line)!important}
+.admin-main .text-xs{font-size:.72rem}.admin-main .text-uppercase{letter-spacing:.06em}
+.admin-main .text-primary{color:var(--brand)!important}
+.admin-main .text-gray-300{color:#cbd5e1!important}
+.admin-main .card-header{font-weight:700;padding:1rem 1.25rem}
+.admin-main .table td,.admin-main .table th{vertical-align:middle;padding:.8rem 1rem}
+.admin-main .table-striped tbody tr:nth-of-type(odd){background:#f8fafc}
+.admin-main .table-hover tbody tr:hover{background:var(--brand-soft)}
+.admin-main h1,.admin-main h2{font-size:1.5rem}
+@media(max-width:991px){#admin-sidebar{position:fixed;margin-left:-248px}#admin-sidebar.hover-active{margin-left:0}.admin-main{padding:1rem}}
+.admin-main .table td{white-space:nowrap}
+.admin-main .card-body{overflow-x:auto}

@@ -7,72 +7,13 @@
     <title>{% block admin_title %}{{ title if title else "Admin Panel" }}{% endblock %} - ESA E-Shop</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>
-        body { display: flex; min-height: 100vh; flex-direction: column; background-color: #eaedf1; }
-        .admin-wrapper { display: flex; width: 100%; align-items: stretch; flex: 1; }
-        
-        #admin-sidebar {
-            min-width: 250px; max-width: 250px; background: #343a40; color: #fff;
-            transition: margin-left 0.3s ease-in-out, box-shadow 0.3s ease-in-out; /* Added box-shadow transition */
-            margin-left: 0; /* Default state: sidebar is visible */
-            z-index: 1050; /* Higher z-index for hover effect */
-            position: relative; /* Or fixed/absolute depending on desired scroll behavior */
-            display: flex; flex-direction: column;
-            box-shadow: 2px 0 8px rgba(0,0,0,0.1); /* Default shadow when visible */
-        }
-        
-        /* When sidebar is actively hidden by click */
-        #admin-sidebar.hidden-by-click {
-            margin-left: -250px;
-            box-shadow: none; /* No shadow when fully hidden */
-        }
-
-        /* State when sidebar is shown due to hover */
-        #admin-sidebar.hover-active {
-            margin-left: 0;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.15); /* Slightly stronger shadow on hover-show */
-        }
-        
-        #sidebar-hover-zone {
-            position: fixed; /* Fixed to viewport edge */
-            left: 0;
-            top: 0; /* Or align with navbar height if navbar is fixed */
-            width: 20px; /* Width of the hover trigger area */
-            height: 100vh;
-            z-index: 1040; /* Below sidebar when sidebar is shown by hover, but above content */
-            /* background: rgba(255,0,0,0.1); /* DEBUG: make it visible */
-            cursor: pointer; /* Indicates it's interactive */
-            display: none; /* Hidden by default */
-        }
-        /* Show hover zone only when sidebar is hidden by click */
-        #admin-sidebar.hidden-by-click ~ #sidebar-hover-zone { /* General sibling combinator */
-            display: block;
-        }
-
-        #admin-sidebar .sidebar-header { padding: 15px 10px; background: #23272b; text-align: center; border-bottom: 1px solid #454d55; }
-        #admin-sidebar .sidebar-header img { max-height: 75px; max-width: 200px; width: auto; object-fit: contain; }
-        #admin-sidebar ul.components { padding: 20px 0; border-bottom: 1px solid #454d55; flex-grow: 1; }
-        #admin-sidebar ul li a { padding: 10px 20px; font-size: 1.05em; display: block; color: #adb5bd; text-decoration: none; }
-        #admin-sidebar ul li a:hover { color: #fff; background: #495057; }
-        #admin-sidebar ul li.active > a, #admin-sidebar ul li a[aria-expanded="true"] { color: #fff; background: #007bff; }
-        #admin-sidebar ul ul a { font-size: 0.95em !important; padding-left: 40px !important; background: #40454a; }
-        #admin-sidebar ul ul a:hover { background: #495057; }
-        #admin-sidebar ul.CTAs { padding: 20px; margin-top: auto; }
-        #admin-sidebar ul.CTAs a, #admin-sidebar ul.CTAs button { text-align: center; font-size: 0.9em !important; display: block; border-radius: 5px; margin-bottom: 5px; }
-        
-        #admin-content {
-            width: 100%; padding: 20px; min-height: 100vh;
-            transition: margin-left 0.3s ease-in-out; 
-            background-color: #f8f9fa; overflow-y: auto;
-            /* If sidebar is position:fixed, content needs padding-left: 250px when sidebar is visible */
-            /* If sidebar uses margin-left, content might not need to move itself if wrapper handles it */
-        }
-        .admin-main-footer { background-color: #e9ecef; padding: 1rem; text-align: center; font-size: 0.9em; color: #6c757d; }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
     {% block admin_head_extra %}{% endblock %}
 </head>
-<body>
+<body class="admin">
     <div class="admin-wrapper">
         <nav id="admin-sidebar"> {# Default state is visible (no .hidden-by-click class) #}
             <div class="sidebar-header">
@@ -84,7 +25,7 @@
             <ul class="list-unstyled components">
                 <li class="{{ 'active' if request.endpoint == 'admin_dashboard' else '' }}"><a href="{{ url_for('admin_dashboard') }}"><i class="fas fa-tachometer-alt mr-2"></i>Dashboard</a></li>
                 <li class="{{ 'active' if request.endpoint.startswith('admin_product') else '' }}"><a href="{{ url_for('admin_products') }}"><i class="fas fa-box-open mr-2"></i>Products</a></li>
-                <li class="{{ 'active' if request.endpoint.startswith('admin_order') else '' }}"><a href="{{ url_for('admin_orders') }}"><i class="fas fa-file-invoice-dollar mr-2"></i>Orders</a></li>
+                <li class="{{ 'active' if request.endpoint.startswith('admin_order') else '' }}"><a href="{{ url_for('admin_orders') }}"><i class="fas fa-file-invoice mr-2"></i>Orders</a></li>
                 <li class="{{ 'active' if request.endpoint.startswith('admin_member') else '' }}"><a href="{{ url_for('admin_members') }}"><i class="fas fa-users-cog mr-2"></i>Members</a></li>
                 <li class="{{ 'active' if request.endpoint.startswith('admin_promotion') else '' }}"><a href="{{ url_for('admin_promotions') }}"><i class="fas fa-bullhorn mr-2"></i>Promotions</a></li>
                 <li class="{{ 'active' if request.endpoint.startswith('report_') else '' }}">
@@ -114,26 +55,26 @@
         <div id="sidebar-hover-zone"></div> 
 
         <div id="admin-content">
-            <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4 shadow-sm">
-                <div class="container-fluid">
-                    <button type="button" id="sidebarCollapse" class="btn btn-info" title="Toggle Sidebar">
-                        <i class="fas fa-align-left"></i>
-                    </button>
-                    <div class="ml-auto">
-                        {% if current_user.is_authenticated and current_user.is_admin %}
-                        <span class="navbar-text">Logged in as: <strong>{{ current_user.username }}</strong> (Admin)</span>
-                        {% endif %}
-                    </div>
+            <header class="admin-topbar">
+                <button type="button" id="sidebarCollapse" class="btn btn-toggle" title="Toggle sidebar"><i class="fas fa-bars"></i></button>
+                <span class="page-title">ESA E-Shop Admin</span>
+                {% if current_user.is_authenticated and current_user.is_admin %}
+                <div class="admin-user">
+                    <span class="avatar">{{ current_user.username[:1]|upper }}</span>
+                    <span><strong>{{ current_user.username }}</strong><small>Administrator</small></span>
                 </div>
-            </nav>
+                {% endif %}
+            </header>
+            <div class="admin-main">
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}{% for category, message in messages %}<div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
                     {{ message }}<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>
                 </div>{% endfor %}{% endif %}
             {% endwith %}
             {% block admin_content %}{% endblock %}
-            <footer class="admin-main-footer mt-auto py-3">
-                <div class="container text-center">ESA E-Shop Admin Panel © {{ SCRIPT_START_YEAR|default(current_year) }}{% if current_year > SCRIPT_START_YEAR|default(current_year) %}-{{ current_year }}{% endif %}. All Rights Reserved.</div>
+            </div>
+            <footer class="admin-main-footer">
+                <div>ESA E-Shop Admin Panel © {{ SCRIPT_START_YEAR|default(current_year) }}{% if current_year > SCRIPT_START_YEAR|default(current_year) %}-{{ current_year }}{% endif %}. All Rights Reserved.</div>
             </footer>
         </div>
     </div>
