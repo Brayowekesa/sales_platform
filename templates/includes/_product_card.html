@@ -8,7 +8,7 @@
                 {% set pct = ((P.original_price - P.price) / P.original_price * 100)|round|int %}
                 {% if pct > 0 %}<span class="badge badge-off">-{{ pct }}%</span>{% endif %}
             {% endif %}
-            <img class="card-img-top" src="{{ url_for('static', filename=(P.image if P.image else 'uploads/default.jpg')) }}" alt="{{ P.name }}" loading="lazy">
+            <img class="card-img-top" src="{{ product_img(P.image) }}" alt="{{ P.name }}" loading="lazy">
         </div>
     </a>
     <div class="card-body">

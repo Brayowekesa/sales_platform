@@ -48,7 +48,7 @@
                         <tr>
                             <td>{{ product.id }}</td>
                             <td>
-                                <img src="{{ url_for('static', filename=product.image if product.image else 'uploads/default.jpg') }}" alt="{{ product.name }}" class="product-thumbnail img-thumbnail">
+                                <img src="{{ product_img(product.image) }}" alt="{{ product.name }}" class="product-thumbnail img-thumbnail">
                             </td>
                             <td>{{ product.name }}</td>
                             <td>{{ product.category }}</td>

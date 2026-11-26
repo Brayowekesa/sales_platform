@@ -48,12 +48,17 @@
                     {% for promo in promotions %}
                     <div class="carousel-item {{ 'active' if loop.first }}" style="height: 100%; background-color: #f0f0f0;">
                         <a href="{{ promo.target_url if promo.target_url else '#' }}" style="display:block; width:100%; height:100%; position: relative;">
+                            {% set promo_has_image = promo.image_path and product_img(promo.image_path) != product_img(None) %}
+                            {% if promo_has_image %}
                             <img class="d-block w-100 h-100"
-                                 src="{{ url_for('static', filename=promo.image_path) if promo.image_path else 'https://via.placeholder.com/1600x350/eeeeee/999999?text=Promotion%20Banner' }}"
+                                 src="{{ product_img(promo.image_path) }}"
                                  alt="{{ promo.alt_text or promo.title }}"
                                  style="object-fit: contain;">
+                            {% else %}
+                            <div class="promo-noimg w-100 h-100"></div>
+                            {% endif %}
                             {% if promo.title or (promo.original_price and promo.promo_price and promo.original_price > promo.promo_price) or promo.discount_text %}
-                            <div class="carousel-caption d-none d-md-block">
+                            <div class="carousel-caption {{ 'd-none d-md-block' if promo_has_image else 'd-block' }}">
                                 {% if promo.title %}<h5>{{ promo.title }}</h5>{% endif %}
                                 {% if promo.original_price and promo.promo_price and promo.original_price > promo.promo_price %}
                                     <p>
@@ -79,8 +84,10 @@
                 {% endif %}
             </div>
             {% else %}
-            <div style="height: 350px; background-color: #f0f0f0; display:flex; align-items:center; justify-content:center; color: #777; border-radius: 0.25rem;">
-                <p>No active promotions currently.</p>
+            <div class="home-hero">
+                <h1>Shop smarter at ESA E-Shop</h1>
+                <p>Electronics, fashion, home appliances and more, delivered to your door. Pay with M-Pesa or cash on delivery.</p>
+                <a href="#all-products" class="btn btn-light">Browse products</a>
             </div>
             {% endif %}
         </div>
@@ -104,7 +111,7 @@
     {% endif %}
 
     <!-- All Products Grid -->
-    <section class="all-products-section">
+    <section class="all-products-section" id="all-products">
         <div class="section-title-bar">
             <div class="main-content-inner-container">
                 <h2>

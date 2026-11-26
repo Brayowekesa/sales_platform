@@ -125,3 +125,19 @@ h1,h2,h3,h4,h5{letter-spacing:-.01em;font-weight:700}
 .btn.is-wished{background:#fff1f2;border-color:#fecdd3;color:var(--danger)}
 .price-old{white-space:nowrap;display:inline-block}
 .product-price{white-space:nowrap;display:inline-block}
+
+/* ===== Fixes ===== */
+/* Let the banner column shrink so the category chips scroll instead of widening the page on mobile */
+.banner-section-wrapper{min-width:0;width:100%}
+/* Homepage hero shown when there are no active promotions */
+.home-hero{background:linear-gradient(135deg,var(--brand) 0%,#7c3aed 100%);color:#fff;border-radius:var(--radius);padding:2.5rem 2rem;box-shadow:var(--shadow)}
+.home-hero h1{font-size:2rem;font-weight:800;margin-bottom:.5rem;color:#fff}
+.home-hero p{color:rgba(255,255,255,.85);font-size:1.05rem;margin-bottom:1.25rem;max-width:34rem}
+.home-hero .btn-light{color:var(--brand);border-radius:10px;font-weight:600}
+@media(max-width:576px){.home-hero{padding:1.75rem 1.25rem}.home-hero h1{font-size:1.5rem}}
+/* Checkout order summary */
+.summary-title{color:var(--ink)}
+.summary-count{background:var(--brand);color:#fff}
+.home-hero{min-height:100%;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
+/* Promotion without an image: branded gradient with the caption on top */
+.promo-noimg{background:linear-gradient(135deg,var(--brand) 0%,#7c3aed 100%)}

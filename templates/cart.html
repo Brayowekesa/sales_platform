@@ -26,7 +26,7 @@
                     <tr>
                         <td>
                             <a href="{{ url_for('product_details', product_id=item.id) }}">
-                                <img src="{{ url_for('static', filename=item.image if item.image else 'uploads/default.jpg') }}" alt="{{ item.name }}" class="img-fluid rounded" style="max-height: 75px; object-fit: contain;">
+                                <img src="{{ product_img(item.image) }}" alt="{{ item.name }}" class="img-fluid rounded" style="max-height: 75px; object-fit: contain;">
                             </a>
                         </td>
                         <td>

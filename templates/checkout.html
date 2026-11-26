@@ -20,8 +20,8 @@
             {# Order Summary - Right Column on Larger Screens, Top on Smaller #}
             <div class="col-md-5 col-lg-4 order-md-last">
                 <h4 class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-primary">Your Cart</span>
-                    <span class="badge bg-primary rounded-pill text-white">{{ cart_items|length }}</span>
+                    <span class="summary-title">Order summary</span>
+                    <span class="badge summary-count">{{ cart_items|length }}</span>
                 </h4>
                 <ul class="list-group mb-3">
                     {% for item in cart_items %}
@@ -33,15 +33,8 @@
                             <span class="text-muted">{{ (item.price * item.quantity)|money }}</span>
                         </li>
                     {% endfor %}
-                    <li class="list-group-item d-flex justify-content-between bg-light">
-                        <div class="text-success">
-                            <h6 class="my-0">Promo code</h6>
-                            <small>EXAMPLECODE</small> {# Placeholder for promo code logic #}
-                        </div>
-                        <span class="text-success">−KSh 0</span> {# Placeholder for discount #}
-                    </li>
                     <li class="list-group-item d-flex justify-content-between">
-                        <span>Total (USD)</span>
+                        <span>Total</span>
                         <strong>{{ total_amount|money }}</strong>
                     </li>
                 </ul>
@@ -65,12 +58,12 @@
                     <div class="mb-3">
                         {{ form.shipping_address.label(class="form-label required") }}
                         {% if form.shipping_address.errors %}
-                            {{ form.shipping_address(class="form-control form-control-lg is-invalid", rows="3", placeholder="1234 Main St\nApartment, studio, or floor\nCity, State Zipcode") }}
+                            {{ form.shipping_address(class="form-control form-control-lg is-invalid", rows="3", placeholder="e.g. Moi Avenue, Bihi Towers 3rd floor, Nairobi") }}
                             <div class="invalid-feedback">
                                 {% for error in form.shipping_address.errors %}<span>{{ error }}</span>{% endfor %}
                             </div>
                         {% else %}
-                            {{ form.shipping_address(class="form-control form-control-lg", rows="3", placeholder="1234 Main St\nApartment, studio, or floor\nCity, State Zipcode") }}
+                            {{ form.shipping_address(class="form-control form-control-lg", rows="3", placeholder="e.g. Moi Avenue, Bihi Towers 3rd floor, Nairobi") }}
                         {% endif %}
                     </div>
 

@@ -36,7 +36,7 @@
                                 {% for item in order_items %}
                                 <tr>
                                     <td>
-                                        <img src="{{ url_for('static', filename=item.image if item.image else 'uploads/default.jpg') }}" alt="{{ item.name }}" style="max-width: 50px; max-height: 50px; object-fit: contain;">
+                                        <img src="{{ product_img(item.image) }}" alt="{{ item.name }}" style="max-width: 50px; max-height: 50px; object-fit: contain;">
                                     </td>
                                     <td>{{ item.name }}</td>
                                     <td class="text-center">{{ item.quantity }}</td>

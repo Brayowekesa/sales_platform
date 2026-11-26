@@ -1,4 +1,6 @@
 import os
+import uuid
+from urllib.parse import urlparse
 import sqlite3
 import random
 from functools import wraps # For decorators
@@ -50,6 +52,25 @@ app = Flask(__name__)
 CURRENCY_SYMBOL = os.environ.get('CURRENCY_SYMBOL', 'KSh')
 
 app.jinja_env.globals['CURRENCY_SYMBOL'] = CURRENCY_SYMBOL
+
+PLACEHOLDER_IMAGE = 'images/placeholder.svg'
+
+def product_img(path):
+    """Static URL for a product/promo image, falling back to a placeholder when the file is missing."""
+    if path and os.path.isfile(os.path.join(BASE_DIR, 'static', path)):
+        return url_for('static', filename=path)
+    return url_for('static', filename=PLACEHOLDER_IMAGE)
+
+app.jinja_env.globals['product_img'] = product_img
+
+
+def is_safe_next_url(target):
+    """Only allow redirects to paths on this site (blocks ?next=https://evil.example)."""
+    if not target:
+        return False
+    parsed = urlparse(target)
+    return not parsed.scheme and not parsed.netloc and target.startswith('/') and not target.startswith('//')
+
 
 @app.template_filter('money')
 def money_filter(value):
@@ -139,14 +160,6 @@ def get_db_connection():
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
-# Part of app.py
-# ... (imports and app setup before this) ...
-
-def get_db_connection(): # This should be defined before init_db
-    conn = sqlite3.connect(DATABASE) # Assuming DATABASE is defined (e.g., 'sales.db')
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
 
 def init_db():
     with app.app_context(): # Ensures we are within app context if get_db_connection needs it
@@ -594,6 +607,8 @@ def login():
                         log_activity('Logged in', user_id=user_obj.id)
                         flash('Logged in successfully.', 'success')
                         next_page = request.args.get('next')
+                        if not is_safe_next_url(next_page):
+                            next_page = None
                         return redirect(next_page or url_for('index'))
                     else:
                         flash('Please verify your email with the 6-digit code before logging in.', 'warning')
@@ -1518,7 +1533,7 @@ def admin_add_product():
                 if image_file.filename == '': # No file selected
                     image_filename = default_image_path_segment
                 elif allowed_file(image_file.filename):
-                    filename = secure_filename(image_file.filename)
+                    filename = f"{uuid.uuid4().hex[:8]}_{secure_filename(image_file.filename)}"
                     image_file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
                     image_filename = f"uploads/{filename}"
                 else: # File selected, but not allowed type
@@ -1596,7 +1611,7 @@ def admin_edit_product(product_id):
                             except OSError as ose:
                                 current_app.logger.error(f"Error deleting old image {old_image_path}: {ose}")
                     
-                    filename = secure_filename(image_file.filename)
+                    filename = f"{uuid.uuid4().hex[:8]}_{secure_filename(image_file.filename)}"
                     image_file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
                     image_filename = f"uploads/{filename}"
                 else:
@@ -1648,6 +1663,11 @@ def admin_delete_product(product_id):
     # This route is called from a form with a CSRF token in the template.
     try:
         with get_db_connection() as conn:
+            # Past orders reference this product, so it can't be removed (check before touching the image file)
+            in_orders = conn.execute("SELECT 1 FROM order_items WHERE product_id = ? LIMIT 1", (product_id,)).fetchone()
+            if in_orders:
+                flash('This product appears in past orders and cannot be deleted. Set its stock to 0 to stop selling it.', 'warning')
+                return redirect(url_for('admin_products'))
             product_data = conn.execute("SELECT image FROM products WHERE id = ?", (product_id,)).fetchone()
             if product_data:
                 # Delete associated image file if not default
@@ -1816,6 +1836,11 @@ def admin_delete_member(user_id):
         return redirect(url_for('admin_members'))
     try:
         with get_db_connection() as conn:
+            # Orders must keep their customer, so a member with orders can't be deleted
+            has_orders = conn.execute("SELECT 1 FROM orders WHERE user_id = ? LIMIT 1", (user_id,)).fetchone()
+            if has_orders:
+                flash('This member has orders and cannot be deleted. Remove their admin rights or reset their password instead.', 'warning')
+                return redirect(url_for('admin_members'))
             # Database schema's ON DELETE constraints should handle related data
             conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
             conn.commit()
@@ -2172,7 +2197,7 @@ def admin_add_promotion():
         if form.image.data and form.image.data.filename:
             image_file = form.image.data
             if allowed_file(image_file.filename): # Make sure allowed_file is defined
-                filename = secure_filename(image_file.filename)
+                filename = f"{uuid.uuid4().hex[:8]}_{secure_filename(image_file.filename)}"
                 # Ensure PROMOTIONS_UPLOAD_FOLDER is defined in app.config
                 promotions_folder = current_app.config.get('PROMOTIONS_UPLOAD_FOLDER', os.path.join(current_app.config.get('BASE_DIR', '.'), 'static', 'uploads', 'promotions'))
                 os.makedirs(promotions_folder, exist_ok=True) # Ensure folder exists
@@ -2270,7 +2295,7 @@ def admin_edit_promotion(promo_id):
                         except OSError as e_remove:
                             current_app.logger.error(f"Error deleting old promotion image {old_image_full_path}: {e_remove}")
                 
-                filename = secure_filename(image_file.filename)
+                filename = f"{uuid.uuid4().hex[:8]}_{secure_filename(image_file.filename)}"
                 promotions_folder = current_app.config.get('PROMOTIONS_UPLOAD_FOLDER', os.path.join(current_app.config.get('BASE_DIR', '.'), 'static', 'uploads', 'promotions'))
                 os.makedirs(promotions_folder, exist_ok=True)
                 save_path = os.path.join(promotions_folder, filename)
@@ -2338,6 +2363,16 @@ def admin_edit_promotion(promo_id):
             action='Edit',
             promotion=promotion_data_dict  # Pass promotion_data_dict for displaying current image
         )
+
+    # POST that failed validation (or failed to save): show the form again with its errors
+    return render_template(
+        'admin/add_edit_promotion.html',
+        form=form,
+        title='Edit Promotion',
+        action='Edit',
+        promotion=promotion_data_dict
+    )
+
 @app.route('/admin/promotions/delete/<int:promo_id>', methods=['POST'])
 @login_required
 @admin_required
