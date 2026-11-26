@@ -6,43 +6,15 @@
 
 {% block content %}
 <div class="container mt-5">
-    <h2 class="mb-4">Your Wishlist</h2>
+    <h2 class="mb-2">Your Wishlist</h2>
 
     {% if wishlist_items %}
-        <div class="row">
+        <p class="text-muted mb-4">{{ wishlist_items|length }} saved item{{ '' if wishlist_items|length == 1 else 's' }}. Moving an item to your cart removes it from this list.</p>
+        <div class="row wishlist-grid">
             {% for product in wishlist_items %}
-                <div class="col-lg-4 col-md-6 mb-4">
-                    <div class="card h-100 product-card">
-                        <a href="{{ url_for('product_details', product_id=product.id) }}">
-                            <img class="card-img-top" src="{{ product_img(product.image) }}" alt="{{ product.name }}" style="height: 200px; object-fit: contain; padding: 10px;">
-                        </a>
-                        <div class="card-body d-flex flex-column">
-                            <h5 class="card-title">
-                                <a href="{{ url_for('product_details', product_id=product.id) }}">{{ product.name }}</a>
-                            </h5>
-                            <p class="product-price">{{ product.price|money }}</p>
-                            {% if product.stock <= 0 %}
-                                <p class="text-danger font-weight-bold mt-1 mb-0">Out of Stock</p>
-                            {% else %}
-                                <p class="text-success font-weight-bold mt-1 mb-0">In Stock</p>
-                            {% endif %}
-                        </div>
-                        <div class="card-footer bg-white border-top-0 mt-auto pt-0">
-                            {% if product.stock > 0 %}
-                            <form action="{{ url_for('add_to_cart', product_id=product.id) }}" method="POST" class="mb-2 add-to-cart-form-js">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <input type="hidden" name="quantity" value="1">
-                                <button type="submit" class="btn btn-sm btn-primary btn-block"><i class="fas fa-cart-plus"></i> Move to Cart</button>
-                            </form>
-                            {% else %}
-                                 <button type="button" class="btn btn-sm btn-secondary btn-block" disabled>Out of Stock</button>
-                            {% endif %}
-                            <form action="{{ url_for('remove_from_wishlist', product_id=product.id) }}" method="POST">
-                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <button type="submit" class="btn btn-sm btn-outline-danger btn-block"><i class="fas fa-trash-alt"></i> Remove</button>
-                            </form>
-                        </div>
-                    </div>
+                <div class="col-6 col-md-4 col-lg-3 mb-4">
+                    {% set move_from_wishlist = True %}
+                    {% include 'includes/_product_card.html' %}
                 </div>
             {% endfor %}
         </div>
@@ -59,11 +31,11 @@
 
 {% block scripts_extra %}
     <script>
-    // main.js performs the AJAX add-to-cart; here we only fade the card out on success
-    $(document).on('submit', '.add-to-cart-form-js', function() {
-        var f = $(this);
+    // main.js does the AJAX add-to-cart; on the wishlist the item also leaves this list
+    $(document).on('submit', '.wishlist-grid .add-to-cart-form-js', function() {
+        var col = $(this).closest('.wishlist-grid > div');
         $(document).one('ajaxSuccess', function(e, xhr, opts, data) {
-            if (data && data.success) { f.closest('.col-lg-4, .col-md-6').fadeOut(400, function() { $(this).remove(); }); }
+            if (data && data.success) { col.fadeOut(300, function() { $(this).remove(); }); }
         });
     });
     </script>

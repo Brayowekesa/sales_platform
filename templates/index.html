@@ -46,53 +46,44 @@
                 <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-times mr-1"></i>Clear filter</a>
             </div>
             {% elif promotions %}
-            <div id="promoCarousel" class="carousel slide" data-ride="carousel">
-                {% if promotions|length > 1 %}
-                <ol class="carousel-indicators">
-                    {% for promo in promotions %}
-                        <li data-target="#promoCarousel" data-slide-to="{{ loop.index0 }}" class="{{ 'active' if loop.first }}"></li>
-                    {% endfor %}
-                </ol>
-                {% endif %}
-                <div class="carousel-inner" role="listbox" style="height: 380px;">
-                    {% for promo in promotions %}
-                    <div class="carousel-item {{ 'active' if loop.first }}" style="height: 100%; background-color: #f0f0f0;">
-                        <a href="{{ promo.target_url if promo.target_url else '#' }}" style="display:block; width:100%; height:100%; position: relative;">
-                            {% set promo_has_image = promo.image_path and product_img(promo.image_path) != product_img(None) %}
-                            {% if promo_has_image %}
-                            <img class="d-block w-100 h-100"
-                                 src="{{ product_img(promo.image_path) }}"
-                                 alt="{{ promo.alt_text or promo.title }}"
-                                 style="object-fit: contain;">
-                            {% else %}
-                            <div class="promo-noimg w-100 h-100"></div>
-                            {% endif %}
-                            {% if promo.title or (promo.original_price and promo.promo_price and promo.original_price > promo.promo_price) or promo.discount_text %}
-                            <div class="carousel-caption {{ 'd-none d-md-block' if promo_has_image else 'd-block' }}">
-                                {% if promo.title %}<h5>{{ promo.title }}</h5>{% endif %}
-                                {% if promo.original_price and promo.promo_price and promo.original_price > promo.promo_price %}
-                                    <p>
-                                        <span class="original-price">{{ promo.original_price|money }}</span>
-                                        Now <strong class="promo-now-price">{{ promo.promo_price|money }}</strong>
-                                        {% set percentage_saved = ((promo.original_price - promo.promo_price) / promo.original_price * 100)|round|int %}
-                                        {% if percentage_saved > 0 %}
-                                            <span class="badge badge-danger discount-badge">SAVE {{ percentage_saved }}%</span>
-                                        {% endif %}
-                                    </p>
+            <section class="promo-strip" aria-roledescription="carousel" aria-label="Current offers" data-count="{{ promotions|length }}">
+                <div class="promo-viewport">
+                    <div class="promo-track">
+                        {% for promo in promotions %}
+                        {% set has_img = promo.image_path and product_img(promo.image_path) != product_img(None) %}
+                        {% set has_prices = promo.original_price and promo.promo_price and promo.original_price > promo.promo_price %}
+                        <a class="promo-tile" href="{{ promo.target_url|safe_link }}" aria-roledescription="slide" aria-label="{{ loop.index }} of {{ loop.length }}: {{ promo.title }}">
+                            <div class="promo-media {% if not has_img %}is-plain{% endif %}">
+                                {% if has_img %}
+                                    <img src="{{ product_img(promo.image_path) }}" alt="{{ promo.alt_text or promo.title }}" loading="{{ 'eager' if loop.index <= 3 else 'lazy' }}">
+                                {% else %}
+                                    <i class="fas fa-tags" aria-hidden="true"></i>
+                                {% endif %}
+                                {% if has_prices %}
+                                    <span class="promo-pill">-{{ ((promo.original_price - promo.promo_price) / promo.original_price * 100)|round|int }}%</span>
                                 {% elif promo.discount_text %}
-                                    <p>{{ promo.discount_text }}</p>
+                                    <span class="promo-pill">{{ promo.discount_text }}</span>
                                 {% endif %}
                             </div>
-                            {% endif %}
+                            <div class="promo-body">
+                                <h3 class="promo-title">{{ promo.title }}</h3>
+                                {% if has_prices %}
+                                    <div class="promo-prices"><span class="promo-now">{{ promo.promo_price|money }}</span><span class="promo-was">{{ promo.original_price|money }}</span></div>
+                                {% elif promo.discount_text %}
+                                    <p class="promo-sub">{{ promo.discount_text }}</p>
+                                {% endif %}
+                                <span class="promo-cta">Shop now <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+                            </div>
                         </a>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
                 {% if promotions|length > 1 %}
-                <a class="carousel-control-prev" href="#promoCarousel" role="button" data-slide="prev"><span class="carousel-control-prev-icon"></span></a>
-                <a class="carousel-control-next" href="#promoCarousel" role="button" data-slide="next"><span class="carousel-control-next-icon"></span></a>
+                <button type="button" class="promo-nav promo-prev" aria-label="Previous offer"><i class="fas fa-chevron-left"></i></button>
+                <button type="button" class="promo-nav promo-next" aria-label="Next offer"><i class="fas fa-chevron-right"></i></button>
+                <div class="promo-dots" role="tablist" aria-label="Choose offer"></div>
                 {% endif %}
-            </div>
+            </section>
             {% else %}
             <div class="home-hero">
                 <h1>Shop smarter at {{ SITE_NAME }}</h1>
@@ -161,14 +152,5 @@
 {% endblock %}
 
 {% block scripts_extra %}
-<script>
-$(document).ready(function() {
-    // (Add-to-cart AJAX is handled globally in static/js/main.js)
-
-    // Initialize Bootstrap Carousel
-    $('#promoCarousel').carousel({
-        interval: 5000 
-    });
-});
-</script>
+    {# Promo strip and add-to-cart are handled in static/js/main.js #}
 {% endblock %}

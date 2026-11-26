@@ -71,9 +71,11 @@
     </style>
     {% block head_extra %}{% endblock %}
 </head>
-<body {% if current_user.is_authenticated %}class="with-navbar"{% endif %}> 
+{# Sign-in pages keep their focused, centred look; every other page gets the shop navbar and footer #}
+{% set auth_page = request.endpoint in ['login', 'register', 'verify_email', 'reset_request', 'reset_token'] %}
+<body {% if not auth_page %}class="with-navbar"{% endif %}>
 
-    {% if current_user.is_authenticated %}
+    {% if not auth_page %}
         {% include 'includes/_navbar.html' %}
     {% endif %}
 
@@ -104,7 +106,7 @@
         </main>
     </div>
 
-    {% if current_user.is_authenticated and self.sidebar() is defined %} {# Footer only with sidebar pages for now #}
+    {% if not auth_page %}
         {% include 'includes/_footer.html' %}
     {% endif %}
 

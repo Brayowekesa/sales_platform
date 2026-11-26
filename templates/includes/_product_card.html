@@ -1,38 +1,46 @@
 {# templates/includes/_product_card.html — expects 'product' or 'card_product' #}
 {% set P = product if product else card_product %}
 {% set on_sale = P.original_price and P.original_price > P.price %}
-<div class="card h-100">
-    <a href="{{ url_for('product_details', product_id=P.id) }}">
-        <div class="card-img-wrapper">
-            {% if on_sale %}
-                {% set pct = ((P.original_price - P.price) / P.original_price * 100)|round|int %}
-                {% if pct > 0 %}<span class="badge badge-off">-{{ pct }}%</span>{% endif %}
-            {% endif %}
-            <img class="card-img-top" src="{{ product_img(P.image) }}" alt="{{ P.name }}" loading="lazy">
-        </div>
-    </a>
-    <div class="card-body">
-        <h4 class="card-title"><a href="{{ url_for('product_details', product_id=P.id) }}">{{ P.name }}</a></h4>
-        <div>
-            <span class="product-price">{{ P.price|money }}</span>
-            {% if on_sale %}<span class="price-old">{{ P.original_price|money }}</span>{% endif %}
-        </div>
-        {% if P.description %}<p class="product-description">{{ P.description[:70] }}{% if P.description|length > 70 %}...{% endif %}</p>{% endif %}
+{% set in_stock = P.stock is not none and P.stock > 0 %}
+{% set in_wishlist = P.id in (wishlist_ids or []) %}
+<article class="product-card {% if not in_stock %}is-sold-out{% endif %}">
+    <div class="product-card-media">
+        <a href="{{ url_for('product_details', product_id=P.id) }}" class="product-card-image" tabindex="-1" aria-hidden="true">
+            <img src="{{ product_img(P.image) }}" alt="" loading="lazy">
+        </a>
+        {% if on_sale %}
+            {% set pct = ((P.original_price - P.price) / P.original_price * 100)|round|int %}
+            {% if pct > 0 %}<span class="product-card-badge">-{{ pct }}%</span>{% endif %}
+        {% endif %}
+        {% if not in_stock %}<span class="product-card-soldout">Sold out</span>{% endif %}
+        <form action="{{ url_for('remove_from_wishlist' if in_wishlist else 'add_to_wishlist', product_id=P.id) }}" method="POST" class="product-card-wish">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="wish-btn {% if in_wishlist %}is-wished{% endif %}"
+                    title="{{ 'Remove from wishlist' if in_wishlist else 'Save to wishlist' }}"
+                    aria-label="{{ 'Remove ' ~ P.name ~ ' from wishlist' if in_wishlist else 'Save ' ~ P.name ~ ' to wishlist' }}">
+                <i class="{{ 'fas' if in_wishlist else 'far' }} fa-heart"></i>
+            </button>
+        </form>
     </div>
-    <div class="card-footer">
-        {% if P.stock is not none and P.stock > 0 %}
+    <div class="product-card-body">
+        {% if P.category %}<span class="product-card-category">{{ P.category }}</span>{% endif %}
+        <h3 class="product-card-title"><a href="{{ url_for('product_details', product_id=P.id) }}">{{ P.name }}</a></h3>
+        <div class="product-card-price">
+            <span class="price-now {% if on_sale %}is-sale{% endif %}">{{ P.price|money }}</span>
+            {% if on_sale %}<span class="price-was">{{ P.original_price|money }}</span>{% endif %}
+        </div>
+        {% if in_stock and P.stock <= 5 %}<span class="product-card-stock">Only {{ P.stock }} left</span>{% endif %}
+    </div>
+    <div class="product-card-actions">
+        {% if in_stock %}
         <form action="{{ url_for('add_to_cart', product_id=P.id) }}" method="POST" class="add-to-cart-form-js">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="quantity" value="1">
-            <button type="submit" class="btn btn-primary btn-sm btn-block-sm"><i class="fas fa-shopping-cart mr-1"></i> Add to cart</button>
+            {% if move_from_wishlist %}<input type="hidden" name="from_wishlist" value="1">{% endif %}
+            <button type="submit" class="btn btn-cart btn-block"><i class="fas fa-cart-plus mr-1"></i> {{ 'Move to cart' if move_from_wishlist else 'Add to cart' }}</button>
         </form>
         {% else %}
-        <form class="flex-fill"><button type="button" class="btn btn-secondary btn-sm btn-block-sm" disabled>Out of stock</button></form>
+        <button type="button" class="btn btn-soldout btn-block" disabled>Out of stock</button>
         {% endif %}
-        {% set in_wishlist = P.id in (wishlist_ids or []) %}
-        <form action="{{ url_for('remove_from_wishlist' if in_wishlist else 'add_to_wishlist', product_id=P.id) }}" method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-outline-danger btn-sm {% if in_wishlist %}is-wished{% endif %}" title="{{ 'Remove from wishlist' if in_wishlist else 'Add to wishlist' }}"><i class="{{ 'fas' if in_wishlist else 'far' }} fa-heart"></i></button>
-        </form>
     </div>
-</div>
+</article>

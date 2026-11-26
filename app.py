@@ -3,6 +3,7 @@ import uuid
 from urllib.parse import urlparse
 import sqlite3
 import secrets
+import re
 import hmac
 import hashlib
 from functools import wraps # For decorators
@@ -84,6 +85,15 @@ def same_site_referrer():
     return None
 
 
+SAFE_LINK_RE = re.compile(r'^(/(?!/)[^\s]*|https?://[^\s]+)$', re.I)
+
+@app.template_filter('safe_link')
+def safe_link_filter(url):
+    """Only allow links to this site ('/...') or http(s) addresses; anything else (e.g. javascript:) becomes '#'."""
+    url = (url or '').strip()
+    return url if SAFE_LINK_RE.match(url) else '#'
+
+
 @app.template_filter('money')
 def money_filter(value):
     """Format a number as currency, e.g. KSh 8,999 or KSh 1,249.50"""
@@ -110,6 +120,12 @@ app.config['SECRET_KEY'] = _secret_key
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '0') == '1'
+# "Remember me" cookie gets the same protection, and logins expire after a while
+app.config['REMEMBER_COOKIE_HTTPONLY'] = True
+app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
+app.config['REMEMBER_COOKIE_SECURE'] = app.config['SESSION_COOKIE_SECURE']
+app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=14)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static', 'uploads')
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
@@ -150,6 +166,22 @@ s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info' # Optional: for styling flash messages
+
+
+@login_manager.unauthorized_handler
+def handle_needs_login():
+    """Guest tried something that needs an account (add to cart, wishlist, checkout...)."""
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': False, 'login_required': True, 'message': 'Please log in to continue.'}), 401
+    flash('Please log in to continue.', 'info')
+    if request.method == 'GET':
+        next_url = request.full_path.rstrip('?')
+    else:
+        # A form was posted (e.g. the wishlist heart): come back to the page it was on, not the POST address
+        ref = same_site_referrer()
+        parsed = urlparse(ref) if ref else None
+        next_url = (parsed.path + (f'?{parsed.query}' if parsed.query else '')) if parsed else None
+    return redirect(url_for('login', next=next_url))
 bootstrap = Bootstrap(app) # Initialize Bootstrap
 
 # --- Shared category choices for products and navigation ---
@@ -162,6 +194,36 @@ PRODUCT_CATEGORY_CHOICES = [
     ('Sports & Outdoors', 'Sports & Outdoors'),
     ('Office & School', 'Office & School'),
 ]
+
+# --- Security headers on every response ---
+CSP = "; ".join([
+    "default-src 'self'",
+    # inline <script>/<style> blocks are still used by the templates
+    "script-src 'self' 'unsafe-inline' https://code.jquery.com https://cdn.jsdelivr.net https://stackpath.bootstrapcdn.com",
+    "style-src 'self' 'unsafe-inline' https://stackpath.bootstrapcdn.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://cdn.jsdelivr.net",
+    "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+])
+
+@app.after_request
+def set_security_headers(response):
+    response.headers.setdefault('Content-Security-Policy', CSP)
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')     # don't guess file types
+    response.headers.setdefault('X-Frame-Options', 'DENY')               # no embedding in other sites (clickjacking)
+    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    response.headers.setdefault('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+    if app.config['SESSION_COOKIE_SECURE']:
+        response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+    # Pages for logged-in users must not be stored by shared caches
+    if current_user.is_authenticated and not request.path.startswith('/static/'):
+        response.headers.setdefault('Cache-Control', 'no-store')
+    return response
+
 
 # --- Database Setup ---
 DATABASE = os.path.join(BASE_DIR, 'sales.db')
@@ -289,6 +351,12 @@ def init_db():
             c.execute('ALTER TABLE users ADD COLUMN verification_code TEXT')
         if 'verification_code_expires' not in columns:
             c.execute('ALTER TABLE users ADD COLUMN verification_code_expires DATETIME')
+        c.execute('''CREATE TABLE IF NOT EXISTS rate_limit_events (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        kind TEXT NOT NULL,
+                        key TEXT NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_rate_limit ON rate_limit_events(kind, key, created_at)')
         if 'verification_attempts' not in columns:
             c.execute('ALTER TABLE users ADD COLUMN verification_attempts INTEGER DEFAULT 0')
 
@@ -345,6 +413,49 @@ def load_user(user_id):
         return None
 
 # --- Utility Functions ---
+# --- Rate limiting (stored in the database so it works with several server processes) ---
+def client_ip():
+    # Behind a proxy (e.g. nginx) configure werkzeug's ProxyFix so this is the real visitor IP
+    return request.remote_addr or 'unknown'
+
+def rate_limited(kind, key, limit, window_minutes):
+    """True if `key` already has `limit` or more `kind` events in the last `window_minutes`."""
+    with get_db_connection() as conn:
+        n = conn.execute(
+            "SELECT COUNT(*) FROM rate_limit_events WHERE kind = ? AND key = ? AND created_at > datetime('now', ?)",
+            (kind, key, f'-{int(window_minutes)} minutes')).fetchone()[0]
+    return n >= limit
+
+def record_rate_event(kind, key):
+    with get_db_connection() as conn:
+        conn.execute('INSERT INTO rate_limit_events (kind, key) VALUES (?, ?)', (kind, key))
+        # keep the table small
+        conn.execute("DELETE FROM rate_limit_events WHERE created_at < datetime('now', '-1 day')")
+        conn.commit()
+
+def clear_rate_events(kind, key):
+    with get_db_connection() as conn:
+        conn.execute('DELETE FROM rate_limit_events WHERE kind = ? AND key = ?', (kind, key))
+        conn.commit()
+
+LOGIN_MAX_FAILS_PER_ACCOUNT = 5     # per username/email, per 15 minutes
+LOGIN_MAX_FAILS_PER_IP = 20         # per visitor IP, per 15 minutes
+LOGIN_LOCK_MINUTES = 15
+
+
+# --- Upload checks ---
+IMAGE_SIGNATURES = (b'\x89PNG\r\n\x1a\n', b'\xff\xd8\xff', b'GIF87a', b'GIF89a')
+
+def is_real_image(file_storage):
+    """Check the file's first bytes really are PNG/JPEG/GIF (not just the file name)."""
+    head = file_storage.stream.read(16)
+    file_storage.stream.seek(0)
+    return any(head.startswith(sig) for sig in IMAGE_SIGNATURES)
+
+def valid_image_upload(file_storage):
+    return allowed_file(file_storage.filename) and is_real_image(file_storage)
+
+
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
@@ -428,7 +539,7 @@ def utility_processor():
 class RegistrationForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired(), Length(min=4, max=25)])
     email = StringField('Email', validators=[DataRequired(), Email()])
-    password = PasswordField('Password', validators=[DataRequired(), Length(min=6)])
+    password = PasswordField('Password', validators=[DataRequired(), Length(min=8, message="Use at least 8 characters.")])
     confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
     submit = SubmitField('Register')
 
@@ -444,7 +555,7 @@ class RequestResetForm(FlaskForm):
     submit = SubmitField('Request Password Reset')
 
 class ResetPasswordForm(FlaskForm):
-    password = PasswordField('Password', validators=[DataRequired(), Length(min=6)])
+    password = PasswordField('Password', validators=[DataRequired(), Length(min=8, message="Use at least 8 characters.")])
     confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
     submit = SubmitField('Reset Password')
 
@@ -509,6 +620,9 @@ def register():
     form = RegistrationForm()
     if form.validate_on_submit():
         email_value = form.email.data.strip().lower()
+        if rate_limited('register_ip', client_ip(), 10, 60):
+            flash('Too many sign-ups from your network. Please try again later.', 'warning')
+            return render_template('register.html', title='Register', form=form)
         if not is_allowed_registration_email(email_value):
             flash('This app is configured for approved email addresses only. Please use the registered administrator email.', 'danger')
             return render_template('register.html', title='Register', form=form)
@@ -523,6 +637,7 @@ def register():
                     (form.username.data, email_value, hashed_password, 0, code, expires_at)
                 )
                 conn.commit()
+            record_rate_event('register_ip', client_ip())
             sent = send_verification_email(email_value, code)
             if sent:
                 flash('Registration successful! Check your email for the 6-digit verification code.', 'success')
@@ -541,7 +656,7 @@ def register():
             else:
                 flash('This email is already registered.', 'danger')
         except Exception as e:
-            flash(f'An error occurred: {str(e)}', 'danger')
+            flash('Sorry, something went wrong. Please try again.', 'danger')
             log_activity("User registration failed", details=f"Username: {form.username.data}, Error: {str(e)}")
     return render_template('register.html', title='Register', form=form)
 
@@ -669,6 +784,15 @@ def login():
             else:
                 user_data = conn.execute("SELECT * FROM users WHERE username = ?", (login_identifier,)).fetchone()
 
+            # Too many wrong passwords for this account or from this network? Make them wait.
+            account_key = f"user:{user_data['id']}" if user_data else f"name:{login_identifier.strip().lower()}"
+            ip = client_ip()
+            if (rate_limited('login_fail_account', account_key, LOGIN_MAX_FAILS_PER_ACCOUNT, LOGIN_LOCK_MINUTES)
+                    or rate_limited('login_fail_ip', ip, LOGIN_MAX_FAILS_PER_IP, LOGIN_LOCK_MINUTES)):
+                log_activity('Login blocked (too many failed attempts)', user_id=user_data['id'] if user_data else None, details=f"IP: {ip}")
+                flash(f'Too many failed login attempts. Please wait {LOGIN_LOCK_MINUTES} minutes, or reset your password.', 'danger')
+                return render_template('login.html', title='Login', form=form)
+
             if user_data:
                 user_obj = User(
                     id=user_data['id'], username=user_data['username'], email=user_data['email'],
@@ -676,6 +800,7 @@ def login():
                     confirmed=user_data['confirmed']
                 )
                 if user_obj.verify_password(password):
+                    clear_rate_events('login_fail_account', account_key)
                     if user_obj.confirmed:
                         login_user(user_obj, remember=form.remember.data)
                         log_activity('Logged in', user_id=user_obj.id)
@@ -691,6 +816,11 @@ def login():
                     flash('Invalid username/email or password.', 'danger')
             else:
                 flash('Invalid username/email or password.', 'danger')
+            # Only reached on a failed login
+            record_rate_event('login_fail_account', account_key)
+            record_rate_event('login_fail_ip', ip)
+            if user_data:
+                log_activity('Failed login', user_id=user_data['id'], details=f"IP: {ip}")
     return render_template('login.html', title='Login', form=form)
 
 @app.route('/logout', methods=['POST']) # CORRECTED: Use POST for logout
@@ -724,6 +854,12 @@ def reset_request():
         return redirect(url_for('index'))
     form = RequestResetForm()
     if form.validate_on_submit():
+        email_key = form.email.data.strip().lower()
+        if rate_limited('reset_ip', client_ip(), 5, 60) or rate_limited('reset_email', email_key, 3, 60):
+            flash('Too many reset requests. Please try again in an hour.', 'warning')
+            return redirect(url_for('login'))
+        record_rate_event('reset_ip', client_ip())
+        record_rate_event('reset_email', email_key)
         with get_db_connection() as conn:
             user = conn.execute("SELECT * FROM users WHERE lower(email) = lower(?)", (form.email.data,)).fetchone()
         if user:
@@ -823,8 +959,7 @@ from flask_login import login_required # If you want the page to require login
 from datetime import datetime
 # Assuming get_db_connection and app (or current_app for logger) are defined elsewhere in your app.py
 
-@app.route('/')
-@login_required # Keep this if you want the homepage to require login
+@app.route('/')  # public: visitors can browse without an account # Keep this if you want the homepage to require login
 def index():
     category_filter = request.args.get('category', 'All')
     page = request.args.get('page', 1, type=int)
@@ -896,7 +1031,10 @@ def index():
             # Example: Fetch first 8 most recent products.
             # Customize this query (e.g., WHERE is_featured = 1) as needed.
             featured_products_raw = conn.execute(
-                'SELECT * FROM products ORDER BY added_at DESC LIMIT 8' # Adjust LIMIT as desired
+                '''SELECT * FROM products
+                   WHERE stock > 0
+                   ORDER BY (original_price IS NOT NULL AND original_price > price) DESC, added_at DESC
+                   LIMIT 8'''  # deals first, then newest in-stock items
             ).fetchall()
             
             for prod_row_featured in featured_products_raw:
@@ -1055,7 +1193,7 @@ def add_review(product_id):
         except sqlite3.IntegrityError: # Should be handled by ON CONFLICT now
             flash('You have already reviewed this product. Your review has been updated.', 'info')
         except Exception as e:
-            flash(f'Error submitting review: {str(e)}', 'danger')
+            flash('Sorry, your review could not be saved. Please try again.', 'danger')
             log_activity("Review submission failed", user_id=current_user.id, details=f"Product ID: {product_id}, Error: {str(e)}")
     else:
         # Collect form errors if any and flash them
@@ -1065,8 +1203,7 @@ def add_review(product_id):
     return redirect(url_for('product_details', product_id=product_id))
 
 
-@app.route('/search')
-@login_required
+@app.route('/search')  # public: visitors can browse without an account
 def search():
     query = request.args.get('query', '').strip()
     page = request.args.get('page', 1, type=int)
@@ -1094,7 +1231,7 @@ def search():
     total_pages = (total_results + per_page - 1) // per_page if total_results > 0 else 0
     
     if query: # Only log if there was an actual query
-        log_activity("Search performed", user_id=current_user.id, details=f"Query: {query}")
+        log_activity("Search performed", user_id=current_user.id if current_user.is_authenticated else None, details=f"Query: {query}")
 
     # Prepare query_params for pagination
     pagination_query_params = {'query': query}
@@ -1174,6 +1311,11 @@ def add_to_cart(product_id):
             ).fetchone()
             new_count = new_count_result['total'] if new_count_result and new_count_result['total'] else 0
 
+        if request.form.get('from_wishlist'):
+            # "Move to cart" on the wishlist page: the item leaves the wishlist
+            with get_db_connection() as conn:
+                conn.execute('DELETE FROM wishlists WHERE user_id = ? AND product_id = ?', (current_user.id, product_id))
+                conn.commit()
         log_activity("Added to cart", user_id=current_user.id, details=f"Product ID: {product_id}, Quantity: {quantity}")
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': True, 'message': 'Item added to cart!', 'count': new_count})
@@ -1185,7 +1327,7 @@ def add_to_cart(product_id):
     except Exception as e:
         log_activity("Add to cart failed", user_id=current_user.id, details=f"Product ID: {product_id}, Error: {str(e)}")
         app.logger.error(f"Error adding to cart: {e}")
-        return jsonify({'success': False, 'message': f'An error occurred: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': 'Sorry, something went wrong. Please try again.'}), 500
 
 
 @app.route('/cart/remove/<int:product_id>', methods=['POST'])
@@ -1198,7 +1340,7 @@ def remove_from_cart(product_id):
         flash('Item removed from cart.', 'success')
         log_activity("Removed from cart", user_id=current_user.id, details=f"Product ID: {product_id}")
     except Exception as e:
-        flash(f'Error removing item: {str(e)}', 'danger')
+        flash('Sorry, that item could not be removed. Please try again.', 'danger')
         log_activity("Remove from cart failed", user_id=current_user.id, details=f"Product ID: {product_id}, Error: {str(e)}")
     return redirect(url_for('view_cart'))
 
@@ -1235,7 +1377,7 @@ def update_cart_item(product_id):
         except ValueError:
             flash('Invalid quantity.', 'danger')
         except Exception as e:
-            flash(f'Error updating cart: {str(e)}', 'danger')
+            flash('Sorry, your cart could not be updated. Please try again.', 'danger')
             log_activity("Cart update failed", user_id=current_user.id, details=f"Product ID: {product_id}, Error: {str(e)}")
     else:
         flash('Invalid form submission for cart update.', 'danger')
@@ -1252,7 +1394,7 @@ def empty_cart():
         flash('Cart emptied successfully.', 'success')
         log_activity("Cart emptied", user_id=current_user.id)
     except Exception as e:
-        flash(f'Error emptying cart: {str(e)}', 'danger')
+        flash('Sorry, your cart could not be emptied. Please try again.', 'danger')
         log_activity("Cart empty failed", user_id=current_user.id, details=str(e))
     return redirect(url_for('view_cart'))
 
@@ -1271,7 +1413,7 @@ def cart_count_api(): # Renamed from original to avoid conflict if you had a tem
 def view_wishlist():
     with get_db_connection() as conn:
         wishlist_items = conn.execute('''
-            SELECT p.id, p.name, p.price, p.image, p.stock
+            SELECT p.id, p.name, p.price, p.original_price, p.category, p.image, p.stock
             FROM wishlists w
             JOIN products p ON w.product_id = p.id
             WHERE w.user_id = ?
@@ -1296,7 +1438,7 @@ def add_to_wishlist(product_id):
     except sqlite3.IntegrityError:
         flash('Item is already in your wishlist.', 'info')
     except Exception as e:
-        flash(f'Error adding to wishlist: {str(e)}', 'danger')
+        flash('Sorry, that item could not be added to your wishlist.', 'danger')
         log_activity("Add to wishlist failed", user_id=current_user.id, details=f"Product ID: {product_id}, Error: {str(e)}")
     return redirect(same_site_referrer() or url_for('view_wishlist'))
 
@@ -1310,7 +1452,7 @@ def remove_from_wishlist(product_id):
         flash('Item removed from wishlist.', 'success')
         log_activity("Removed from wishlist", user_id=current_user.id, details=f"Product ID: {product_id}")
     except Exception as e:
-        flash(f'Error removing item from wishlist: {str(e)}', 'danger')
+        flash('Sorry, that item could not be removed from your wishlist.', 'danger')
         log_activity("Remove from wishlist failed", user_id=current_user.id, details=f"Product ID: {product_id}, Error: {str(e)}")
     return redirect(same_site_referrer() or url_for('view_wishlist'))
 
@@ -1338,14 +1480,14 @@ class ProductForm(FlaskForm):
 class AdminUserForm(FlaskForm): # For Admin Add/Edit User
     username = StringField('Username', validators=[DataRequired(), Length(min=4, max=25)])
     email = StringField('Email', validators=[DataRequired(), Email()])
-    password = PasswordField('Password (leave blank to keep current)', validators=[Optional(), Length(min=6)])
+    password = PasswordField('Password (leave blank to keep current)', validators=[Optional(), Length(min=8, message="Use at least 8 characters.")])
     confirm_password = PasswordField('Confirm Password', validators=[EqualTo('password')])
     is_admin = BooleanField('Is Admin?')
     confirmed = BooleanField('Email Confirmed?') # Allow admin to manually confirm
     submit = SubmitField('Save User')
 
 class AdminResetPasswordForm(FlaskForm):
-    new_password = PasswordField('New Password', validators=[DataRequired(), Length(min=6)])
+    new_password = PasswordField('New Password', validators=[DataRequired(), Length(min=8, message="Use at least 8 characters.")])
     confirm_password = PasswordField('Confirm New Password', validators=[DataRequired(), EqualTo('new_password')])
     submit = SubmitField('Reset Password')
 
@@ -1618,7 +1760,7 @@ def admin_add_product():
                 image_file = form.image.data
                 if image_file.filename == '': # No file selected
                     image_filename = default_image_path_segment
-                elif allowed_file(image_file.filename):
+                elif valid_image_upload(image_file):
                     filename = f"{uuid.uuid4().hex[:8]}_{secure_filename(image_file.filename)}"
                     image_file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
                     image_filename = f"uploads/{filename}"
@@ -1688,7 +1830,7 @@ def admin_edit_product(product_id):
 
             if form.image.data and form.image.data.filename: # Check if a new file was actually uploaded
                 image_file = form.image.data
-                if allowed_file(image_file.filename):
+                if valid_image_upload(image_file):
                     # Optional: Delete old image file if it's not default.jpg and different
                     if product['image'] and product['image'] != 'uploads/default.jpg':
                         old_image_path = os.path.join(current_app.config['UPLOAD_FOLDER'], os.path.basename(product['image']))
@@ -2243,8 +2385,9 @@ class PromotionForm(FlaskForm):
     image = FileField('Promotion Image', 
                       validators=[Optional(), 
                                   FileAllowed(['jpg', 'png', 'jpeg', 'gif'], 'Images only!')])
-    target_url = StringField('Target URL (e.g., /category/electronics)', 
-                             validators=[Optional(), Length(max=255)])
+    target_url = StringField('Link (e.g. /?category=Electronics or /product/12)',
+                             validators=[Optional(), Length(max=255),
+                                         Regexp(r'^(/(?!/)\S*|https?://\S+)$', message='Use a link that starts with / (a page on this shop) or https://')])
     alt_text = StringField('Image Alt Text (for accessibility)', 
                            validators=[Optional(), Length(max=150)])
     
@@ -2274,7 +2417,7 @@ def admin_add_promotion():
         image_filename_for_db = None
         if form.image.data and form.image.data.filename:
             image_file = form.image.data
-            if allowed_file(image_file.filename): # Make sure allowed_file is defined
+            if valid_image_upload(image_file): # Make sure allowed_file is defined
                 filename = f"{uuid.uuid4().hex[:8]}_{secure_filename(image_file.filename)}"
                 # Ensure PROMOTIONS_UPLOAD_FOLDER is defined in app.config
                 promotions_folder = current_app.config.get('PROMOTIONS_UPLOAD_FOLDER', os.path.join(current_app.config.get('BASE_DIR', '.'), 'static', 'uploads', 'promotions'))
@@ -2345,7 +2488,7 @@ def admin_edit_promotion(promo_id):
 
         if form.image.data and form.image.data.filename: 
             image_file = form.image.data
-            if allowed_file(image_file.filename):
+            if valid_image_upload(image_file):
                 if promotion_data_dict['image_path']: # If there was an old image
                     # Define BASE_DIR or get from app.config
                     base_dir = current_app.config.get('BASE_DIR', os.path.dirname(os.path.abspath(__file__))) 
@@ -2530,10 +2673,10 @@ def lipa_na_mpesa_stk_push(amount, phone_number, order_id_ref):
 
     except requests.exceptions.RequestException as e:
         app.logger.error(f"M-Pesa RequestException: {e} - Response: {e.response.text if e.response else 'No response'}")
-        return {"ResponseCode": "1", "ResponseDescription": f"Network or API Error: {str(e)}"}
+        return {"ResponseCode": "1", "ResponseDescription": "M-Pesa is not reachable right now. Please try again or choose Cash on Delivery."}
     except Exception as e:
         app.logger.error(f"M-Pesa general error: {e}")
-        return {"ResponseCode": "1", "ResponseDescription": f"An unexpected error occurred: {str(e)}"}
+        return {"ResponseCode": "1", "ResponseDescription": "M-Pesa is not reachable right now. Please try again or choose Cash on Delivery."}
 
 
 @app.route('/checkout', methods=['GET', 'POST'])
