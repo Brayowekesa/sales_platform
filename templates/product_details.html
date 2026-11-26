@@ -17,7 +17,13 @@
         <div class="col-md-6">
             <h2>{{ product.name }}</h2>
             <p class="text-muted">Category: <a href="{{ url_for('index', category=product.category) }}">{{ product.category }}</a></p>
-            <h3 class="product-price my-3">{{ product.price|money }}</h3>
+            <div class="product-price-block my-3">
+                <span class="product-price-now">{{ product.price|money }}</span>
+                {% if product.original_price and product.original_price > product.price %}
+                    <span class="product-price-was">{{ product.original_price|money }}</span>
+                    <span class="badge badge-danger">-{{ ((product.original_price - product.price) / product.original_price * 100)|round|int }}%</span>
+                {% endif %}
+            </div>
 
             {% if product.stock <= 0 %}
                 <p class="text-danger font-weight-bold mt-2 lead">Out of Stock</p>
@@ -49,10 +55,17 @@
 </form>
 
             {# Add to Wishlist Button #}
-            <form action="{{ url_for('add_to_wishlist', product_id=product.id) }}" method="POST">
-                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                <button type="submit" class="btn btn-outline-danger"><i class="fas fa-heart"></i> Add to Wishlist</button>
+            {% if product.id in wishlist_ids %}
+            <form action="{{ url_for('remove_from_wishlist', product_id=product.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="btn btn-outline-danger"><i class="fas fa-heart text-danger"></i> Saved to Wishlist</button>
             </form>
+            {% else %}
+            <form action="{{ url_for('add_to_wishlist', product_id=product.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="btn btn-outline-danger"><i class="far fa-heart"></i> Add to Wishlist</button>
+            </form>
+            {% endif %}
         </div>
     </div>
 

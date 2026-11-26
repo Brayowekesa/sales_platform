@@ -52,7 +52,8 @@
         </nav>
         
         {# RE-ADD HOVER ZONE - Placed after sidebar in DOM for sibling selector to work #}
-        <div id="sidebar-hover-zone"></div> 
+        <div id="sidebar-hover-zone"></div>
+        <div class="admin-backdrop" id="admin-backdrop"></div> 
 
         <div id="admin-content">
             <header class="admin-topbar">
@@ -79,8 +80,7 @@
         </div>
     </div>
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script> 
     {% block admin_scripts_extra %}{% endblock %}
 </body>

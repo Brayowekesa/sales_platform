@@ -100,7 +100,20 @@ $(document).ready(function() {
             $adminSidebar.data('pinned-open', true);
         }
 
+        var $backdrop = $('#admin-backdrop');
+        function isSmallScreen() { return window.matchMedia('(max-width: 991px)').matches; }
+        function closeMobileSidebar() { $adminSidebar.removeClass('mobile-open'); $backdrop.removeClass('show'); }
+        $backdrop.on('click', closeMobileSidebar);
+        $(window).on('resize', function () { if (!isSmallScreen()) closeMobileSidebar(); });
+
         $sidebarCollapseButton.on('click', function () {
+            if (isSmallScreen()) {
+                // On phones the sidebar is a drawer: just open/close it
+                var open = !$adminSidebar.hasClass('mobile-open');
+                $adminSidebar.toggleClass('mobile-open', open);
+                $backdrop.toggleClass('show', open);
+                return;
+            }
             if ($adminSidebar.data('pinned-open')) {
                 // If it's pinned open, click hides it and enables hover
                 $adminSidebar.removeClass('hover-active').addClass('hidden-by-click');
@@ -135,6 +148,5 @@ $(document).ready(function() {
 
     // Initialize Bootstrap components like dropdowns, carousels if not auto-init by data attributes
     $('.carousel').carousel();
-    $('.dropdown-toggle').dropdown();
 
 });

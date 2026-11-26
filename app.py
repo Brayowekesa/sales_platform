@@ -2,7 +2,9 @@ import os
 import uuid
 from urllib.parse import urlparse
 import sqlite3
-import random
+import secrets
+import hmac
+import hashlib
 from functools import wraps # For decorators
 from datetime import datetime, timedelta
 import base64 # For M-Pesa if used, not directly for this part
@@ -36,7 +38,7 @@ from wtforms import (
     FloatField,
     SelectField  # Ensure SelectField is here
 )
-from wtforms.validators import DataRequired, Email, EqualTo, Length, Optional, NumberRange # Ensure NumberRange is here
+from wtforms.validators import DataRequired, Email, EqualTo, Length, Optional, NumberRange, Regexp # Ensure NumberRange is here
 from wtforms.widgets import TextArea 
 
 # Other Flask Extensions
@@ -52,6 +54,8 @@ app = Flask(__name__)
 CURRENCY_SYMBOL = os.environ.get('CURRENCY_SYMBOL', 'KSh')
 
 app.jinja_env.globals['CURRENCY_SYMBOL'] = CURRENCY_SYMBOL
+# Shop name shown in titles and footers (override with the SITE_NAME env var)
+app.jinja_env.globals['SITE_NAME'] = os.environ.get('SITE_NAME', 'ESA E-Shop')
 
 PLACEHOLDER_IMAGE = 'images/placeholder.svg'
 
@@ -70,6 +74,14 @@ def is_safe_next_url(target):
         return False
     parsed = urlparse(target)
     return not parsed.scheme and not parsed.netloc and target.startswith('/') and not target.startswith('//')
+
+
+def same_site_referrer():
+    """The page the request came from, but only if it is on this site."""
+    ref = request.referrer
+    if ref and urlparse(ref).netloc == request.host:
+        return ref
+    return None
 
 
 @app.template_filter('money')
@@ -277,12 +289,32 @@ def init_db():
             c.execute('ALTER TABLE users ADD COLUMN verification_code TEXT')
         if 'verification_code_expires' not in columns:
             c.execute('ALTER TABLE users ADD COLUMN verification_code_expires DATETIME')
+        if 'verification_attempts' not in columns:
+            c.execute('ALTER TABLE users ADD COLUMN verification_attempts INTEGER DEFAULT 0')
 
         # No explicit conn.commit() needed here due to 'with conn:'
         print("Database initialized (from init_db function).") # Added print statement
 
 # Ensure the required tables exist as soon as the app is imported/started.
 init_db()
+
+
+def product_category_choices(extra=None):
+    """Standard categories plus any category already used by a product, so editing an
+    older product never silently switches it to the first option."""
+    names = [c[0] for c in PRODUCT_CATEGORY_CHOICES]
+    try:
+        with get_db_connection() as conn:
+            for row in conn.execute("SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != '' ORDER BY category"):
+                if row['category'] not in names:
+                    names.append(row['category'])
+    except sqlite3.Error as e:
+        app.logger.error(f"Could not load product categories: {e}")
+    if extra and extra not in names:
+        names.append(extra)
+    return [(n, n) for n in names]
+
+
 
 # --- User Model and Authentication ---
 class User(UserMixin):
@@ -425,8 +457,10 @@ class VerifyEmailForm(FlaskForm):
 
 # ... (other form definitions) ...
 # --- User Authentication Routes ---
+MAX_VERIFICATION_ATTEMPTS = 5
+
 def generate_verification_code():
-    return str(random.randint(100000, 999999))
+    return f"{secrets.randbelow(1_000_000):06d}"
 
 
 def is_allowed_registration_email(email):
@@ -499,7 +533,7 @@ def register():
         except sqlite3.IntegrityError:
             with get_db_connection() as conn:
                 existing_username = conn.execute('SELECT id FROM users WHERE username = ?', (form.username.data.strip(),)).fetchone()
-                existing_email = conn.execute('SELECT id FROM users WHERE email = ?', (email_value,)).fetchone()
+                existing_email = conn.execute('SELECT id FROM users WHERE lower(email) = lower(?)', (email_value,)).fetchone()
             if existing_username and existing_email:
                 flash('This username and email are already registered.', 'danger')
             elif existing_username:
@@ -520,7 +554,7 @@ def verify_email():
         submitted_code = form.verification_code.data.strip()
 
         with get_db_connection() as conn:
-            user = conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
+            user = conn.execute('SELECT * FROM users WHERE lower(email) = lower(?)', (email,)).fetchone()
             if not user:
                 flash('No account found for that email.', 'danger')
                 return redirect(url_for('register'))
@@ -534,7 +568,7 @@ def verify_email():
                 new_code = generate_verification_code()
                 new_expires_at = (datetime.utcnow() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
                 conn.execute(
-                    'UPDATE users SET verification_code = ?, verification_code_expires = ? WHERE id = ?',
+                    'UPDATE users SET verification_code = ?, verification_code_expires = ?, verification_attempts = 0 WHERE id = ?',
                     (new_code, new_expires_at, user['id'])
                 )
                 conn.commit()
@@ -542,12 +576,28 @@ def verify_email():
                 flash('Your verification code expired. A new one has been sent to your email.', 'warning')
                 return redirect(url_for('verify_email', email=email))
 
-            if submitted_code != user['verification_code']:
-                flash('Invalid verification code.', 'danger')
+            if not secrets.compare_digest(submitted_code, user['verification_code'] or ''):
+                attempts = (user['verification_attempts'] or 0) + 1
+                if attempts >= MAX_VERIFICATION_ATTEMPTS:
+                    # Too many wrong guesses: throw this code away and send a fresh one
+                    new_code = generate_verification_code()
+                    new_expires_at = (datetime.utcnow() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
+                    conn.execute(
+                        'UPDATE users SET verification_code = ?, verification_code_expires = ?, verification_attempts = 0 WHERE id = ?',
+                        (new_code, new_expires_at, user['id'])
+                    )
+                    conn.commit()
+                    send_verification_email(user['email'], new_code)
+                    log_activity("Verification code reset after failed attempts", details=f"Email: {user['email']}")
+                    flash('Too many incorrect codes. We sent a new code to your email.', 'warning')
+                    return redirect(url_for('verify_email', email=user['email']))
+                conn.execute('UPDATE users SET verification_attempts = ? WHERE id = ?', (attempts, user['id']))
+                conn.commit()
+                flash(f'Invalid verification code. {MAX_VERIFICATION_ATTEMPTS - attempts} attempt(s) left.', 'danger')
                 return render_template('verify_email.html', title='Verify Email', form=form)
 
             conn.execute(
-                'UPDATE users SET confirmed = 1, verification_code = NULL, verification_code_expires = NULL WHERE id = ?',
+                'UPDATE users SET confirmed = 1, verification_code = NULL, verification_code_expires = NULL, verification_attempts = 0 WHERE id = ?',
                 (user['id'],)
             )
             conn.commit()
@@ -558,6 +608,30 @@ def verify_email():
 
     return render_template('verify_email.html', title='Verify Email', form=form)
 
+@app.route('/verify_email/resend', methods=['POST'])
+def resend_verification_code():
+    """Send a fresh verification code (at most one per minute per account)."""
+    email = (request.form.get('email') or '').strip().lower()
+    if email:
+        with get_db_connection() as conn:
+            user = conn.execute('SELECT * FROM users WHERE lower(email) = lower(?)', (email,)).fetchone()
+            if user and not user['confirmed']:
+                expires = user['verification_code_expires']
+                issued_at = (datetime.strptime(expires, '%Y-%m-%d %H:%M:%S') - timedelta(minutes=15)) if expires else None
+                if issued_at and datetime.utcnow() - issued_at < timedelta(seconds=60):
+                    flash('Please wait a minute before asking for another code.', 'warning')
+                    return redirect(url_for('verify_email', email=email))
+                code = generate_verification_code()
+                new_expires = (datetime.utcnow() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
+                conn.execute('UPDATE users SET verification_code = ?, verification_code_expires = ?, verification_attempts = 0 WHERE id = ?',
+                             (code, new_expires, user['id']))
+                conn.commit()
+                send_verification_email(user['email'], code)
+    # Same message whether or not the account exists
+    flash('If that account is waiting for verification, a new code has been sent.', 'info')
+    return redirect(url_for('verify_email', email=email))
+
+
 @app.route('/confirm/<token>')
 def confirm_email(token):
     try:
@@ -567,14 +641,14 @@ def confirm_email(token):
         return redirect(url_for('register'))
 
     with get_db_connection() as conn:
-        user = conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
+        user = conn.execute('SELECT * FROM users WHERE lower(email) = lower(?)', (email,)).fetchone()
         if not user:
             flash('User not found.', 'danger')
             return redirect(url_for('register'))
         if user['confirmed']:
             flash('Account already confirmed. Please login.', 'info')
             return redirect(url_for('login'))
-        conn.execute('UPDATE users SET confirmed = 1 WHERE email = ?', (email,))
+        conn.execute('UPDATE users SET confirmed = 1 WHERE lower(email) = lower(?)', (email,))
         conn.commit()
     flash('Your account has been confirmed! You can now log in.', 'success')
     log_activity("Email confirmed", details=f"Email: {email}")
@@ -591,7 +665,7 @@ def login():
         with get_db_connection() as conn:
             # Check if login_identifier is an email or username
             if '@' in login_identifier:
-                user_data = conn.execute("SELECT * FROM users WHERE email = ?", (login_identifier,)).fetchone()
+                user_data = conn.execute("SELECT * FROM users WHERE lower(email) = lower(?)", (login_identifier,)).fetchone()
             else:
                 user_data = conn.execute("SELECT * FROM users WHERE username = ?", (login_identifier,)).fetchone()
 
@@ -627,8 +701,12 @@ def logout():
     flash('You have been logged out.', 'success')
     return redirect(url_for('login'))
 
-def send_password_reset_email(user_email):
-    token = s.dumps(user_email, salt='password-reset')
+def _password_fingerprint(password_hash):
+    # Part of the current hash goes into the reset token, so the link stops working once the password changes
+    return (password_hash or '')[-16:]
+
+def send_password_reset_email(user_email, password_hash=''):
+    token = s.dumps([user_email, _password_fingerprint(password_hash)], salt='password-reset')
     reset_url = url_for('reset_token', token=token, _external=True)
     subject = "Password Reset Request"
     body = f"To reset your password, visit the following link: {reset_url}\nIf you did not make this request then simply ignore this email."
@@ -647,13 +725,11 @@ def reset_request():
     form = RequestResetForm()
     if form.validate_on_submit():
         with get_db_connection() as conn:
-            user = conn.execute("SELECT * FROM users WHERE email = ?", (form.email.data,)).fetchone()
+            user = conn.execute("SELECT * FROM users WHERE lower(email) = lower(?)", (form.email.data,)).fetchone()
         if user:
-            send_password_reset_email(user['email'])
-            flash('An email has been sent with instructions to reset your password.', 'info')
-        else:
-            # Generic message to avoid confirming if an email exists
-            flash('If an account with that email exists, a reset link has been sent.', 'info')
+            send_password_reset_email(user['email'], user['password_hash'])
+        # Same message either way so the form can't be used to check which emails have accounts
+        flash('If an account with that email exists, a reset link has been sent.', 'info')
         return redirect(url_for('login'))
     return render_template('reset_request.html', title='Reset Password', form=form)
 
@@ -662,16 +738,21 @@ def reset_token(token):
     if current_user.is_authenticated:
         return redirect(url_for('index'))
     try:
-        email = s.loads(token, salt='password-reset', max_age=3600) # 1 hour expiry
-    except:
-        flash('That is an invalid or expired token', 'warning')
+        email, fingerprint = s.loads(token, salt='password-reset', max_age=3600) # 1 hour expiry
+    except Exception:
+        flash('That reset link is invalid or has expired.', 'warning')
+        return redirect(url_for('reset_request'))
+    with get_db_connection() as conn:
+        user = conn.execute("SELECT id, password_hash FROM users WHERE lower(email) = lower(?)", (email,)).fetchone()
+    if not user or not secrets.compare_digest(fingerprint, _password_fingerprint(user['password_hash'])):
+        flash('That reset link has already been used. Please request a new one.', 'warning')
         return redirect(url_for('reset_request'))
 
     form = ResetPasswordForm()
     if form.validate_on_submit():
         hashed_password = generate_password_hash(form.password.data)
         with get_db_connection() as conn:
-            conn.execute("UPDATE users SET password_hash = ? WHERE email = ?", (hashed_password, email))
+            conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hashed_password, user['id']))
             conn.commit()
         flash('Your password has been updated! You are now able to log in.', 'success')
         log_activity("Password reset successfully", details=f"Email: {email}")
@@ -712,7 +793,7 @@ def internal_error(error):
 # --- Additional WTForms ---
 class ReviewForm(FlaskForm):
     rating = StringField('Rating', validators=[DataRequired()]) # Consider using SelectField for 1-5 stars
-    comment = StringField('Comment', validators=[Optional(), Length(max=500)])
+    comment = TextAreaField('Comment', validators=[Optional(), Length(max=500)])
     submit = SubmitField('Submit Review')
 
 class UpdateCartForm(FlaskForm): # For updating quantity in cart
@@ -857,6 +938,7 @@ def index():
         current_category=category_filter,
         current_page=page,
         total_pages=total_pages,
+        total_products=total_products,
         title='Home' if category_filter == 'All' else category_filter,
         endpoint='index',                       # For pagination
         query_params=pagination_query_params,   # For pagination
@@ -1096,7 +1178,7 @@ def add_to_cart(product_id):
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': True, 'message': 'Item added to cart!', 'count': new_count})
         flash('Item added to cart!', 'success')
-        return redirect(request.referrer or url_for('index'))
+        return redirect(same_site_referrer() or url_for('index'))
 
     except sqlite3.IntegrityError:
         return jsonify({'success': False, 'message': 'Error adding item. Product may not exist or conflict.'}), 400
@@ -1205,7 +1287,7 @@ def add_to_wishlist(product_id):
             product = conn.execute("SELECT id FROM products WHERE id = ?", (product_id,)).fetchone()
             if not product:
                 flash('Product not found.', 'danger')
-                return redirect(request.referrer or url_for('index'))
+                return redirect(same_site_referrer() or url_for('index'))
 
             conn.execute('INSERT INTO wishlists (user_id, product_id) VALUES (?, ?)', (current_user.id, product_id))
             conn.commit()
@@ -1216,7 +1298,7 @@ def add_to_wishlist(product_id):
     except Exception as e:
         flash(f'Error adding to wishlist: {str(e)}', 'danger')
         log_activity("Add to wishlist failed", user_id=current_user.id, details=f"Product ID: {product_id}, Error: {str(e)}")
-    return redirect(request.referrer or url_for('view_wishlist'))
+    return redirect(same_site_referrer() or url_for('view_wishlist'))
 
 @app.route('/wishlist/remove/<int:product_id>', methods=['POST'])
 @login_required
@@ -1230,7 +1312,7 @@ def remove_from_wishlist(product_id):
     except Exception as e:
         flash(f'Error removing item from wishlist: {str(e)}', 'danger')
         log_activity("Remove from wishlist failed", user_id=current_user.id, details=f"Product ID: {product_id}, Error: {str(e)}")
-    return redirect(url_for('view_wishlist'))
+    return redirect(same_site_referrer() or url_for('view_wishlist'))
 
 # Continue from Part 2 of app.py ...
 import requests # For M-Pesa, ensure 'requests' is installed: pip install requests
@@ -1272,7 +1354,10 @@ class CheckoutForm(FlaskForm):
     shipping_address = StringField('Shipping Address', validators=[DataRequired(), Length(max=200)])
     payment_method = StringField('Payment Method', validators=[DataRequired()]) # Consider RadioField with choices
     # For M-Pesa
-    phone_number = StringField('M-Pesa Phone Number (e.g., 2547XXXXXXXX)', validators=[Optional(), Length(min=10, max=12)])
+    phone_number = StringField('M-Pesa Phone Number', filters=[lambda v: v.replace(' ', '') if v else v], validators=[
+        Optional(),
+        Regexp(r'^(?:\+?254|0)[17]\d{8}$', message='Enter a Safaricom number like 0712345678 or +254712345678.')
+    ])
     submit = SubmitField('Place Order')
 
 
@@ -1516,6 +1601,7 @@ def admin_products():
 @admin_required
 def admin_add_product():
     form = ProductForm()
+    form.category.choices = product_category_choices()
     if form.validate_on_submit():
         try:
             name = form.name.data
@@ -1587,6 +1673,7 @@ def admin_edit_product(product_id):
         return redirect(url_for('admin_products'))
 
     form = ProductForm() # Create empty form first
+    form.category.choices = product_category_choices(product.get('category'))
 
     if form.validate_on_submit(): # POST request
         try:
@@ -1786,7 +1873,9 @@ def admin_edit_member(user_id):
         return redirect(url_for('admin_members'))
 
     form = AdminUserForm(obj=member) # Pre-populate
-    if form.validate_on_submit():
+    if form.validate_on_submit() and user_id == current_user.id and not form.is_admin.data:
+        flash("You can't remove your own admin rights. Ask another admin to do it.", 'warning')
+    elif form.validate_on_submit():
         try:
             with get_db_connection() as conn:
                 if form.password.data: # If new password is provided
@@ -1893,12 +1982,6 @@ def admin_orders():
     per_page = 15 # Number of orders per page
     status_filter = request.args.get('status', None)
 
-    # --- Start Debug Prints ---
-    print(f"\n--- admin_orders route called ---")
-    print(f"Request arguments: {request.args}")
-    print(f"Parsed status_filter: '{status_filter}'")
-    print(f"Parsed page: {page}")
-    # --- End Debug Prints ---
 
     # Initialize lists and counts
     orders = []
@@ -1931,28 +2014,20 @@ def admin_orders():
             final_count_sql = base_count_sql + where_clause_str
             final_select_sql = base_select_sql + where_clause_str + ' ORDER BY o.order_date DESC LIMIT ? OFFSET ?'
 
-            # --- Debug Prints for SQL ---
-            print(f"SQL filter params: {sql_filter_params}")
-            print(f"Final Count SQL: {final_count_sql}")
-            print(f"Final Select SQL: {final_select_sql}")
-            # --- End Debug Prints for SQL ---
 
             # Execute count query
             total_orders_data = conn.execute(final_count_sql, tuple(sql_filter_params)).fetchone()
             total_orders_count = total_orders_data[0] if total_orders_data and total_orders_data[0] is not None else 0
             
-            print(f"Total orders COUNT with filter: {total_orders_count}") # DEBUG
 
             # Calculate offset for pagination
             offset = (page - 1) * per_page
             
             # Parameters for the main select query (filter params + pagination params)
             select_query_full_params = tuple(sql_filter_params + [per_page, offset])
-            print(f"Full params for Select SQL (filter + pagination): {select_query_full_params}") # DEBUG
 
             # Execute select query for orders
             raw_orders = conn.execute(final_select_sql, select_query_full_params).fetchall()
-            print(f"Number of raw_orders FETCHED: {len(raw_orders)}") # DEBUG
             # if raw_orders: # DEBUG - Print first fetched order if any
             #     print(f"First raw_order content: {dict(raw_orders[0])}")
 
@@ -1992,8 +2067,6 @@ def admin_orders():
         total_orders_count = 0
         total_pages = 0
 
-    print(f"Rendering template with {len(orders)} orders, total_pages: {total_pages}") # DEBUG
-    print(f"--- admin_orders route finished ---\n") # DEBUG
 
     return render_template(
         'admin/orders.html',
@@ -2060,10 +2133,23 @@ def admin_update_order_status(order_id):
         return redirect(url_for('admin_order_details', order_id=order_id))
     try:
         with get_db_connection() as conn:
+            order = conn.execute("SELECT status FROM orders WHERE id = ?", (order_id,)).fetchone()
+            if not order:
+                flash('Order not found.', 'danger')
+                return redirect(url_for('admin_orders'))
+            old_status = order['status']
+            was_released = old_status in STOCK_RELEASED_STATUSES
+            now_released = new_status in STOCK_RELEASED_STATUSES
+            if now_released and not was_released:
+                release_order_stock(conn, order_id)   # cancelled: items go back on sale
+            elif was_released and not now_released:
+                reserve_order_stock(conn, order_id)   # reopened: take the items out of stock again
             conn.execute("UPDATE orders SET status = ? WHERE id = ?", (new_status, order_id))
             conn.commit()
         flash(f'Order #{order_id} status updated to {new_status}.', 'success')
         log_activity("Admin updated order status", user_id=current_user.id, details=f"Order ID: {order_id}, New Status: {new_status}")
+    except CheckoutError as ce:
+        flash(str(ce), 'warning')
     except Exception as e:
         app.logger.error(f"Error updating order status for {order_id}: {e}")
         flash(f'Error updating order status: {str(e)}', 'danger')
@@ -2153,7 +2239,6 @@ def admin_promotions():
 # ... (after PromotionForm definition and other routes) ...
 
 class PromotionForm(FlaskForm):
-    print("--- Defining PromotionForm class ---") # DEBUG: To see if this part of code is reached on startup
     title = StringField('Promotion Title', validators=[DataRequired(), Length(max=100)])
     image = FileField('Promotion Image', 
                       validators=[Optional(), 
@@ -2174,7 +2259,6 @@ class PromotionForm(FlaskForm):
     display_order = IntegerField('Display Order (0 is first)', default=0, 
                                  validators=[Optional(), NumberRange(min=0)])
     submit = SubmitField('Save Promotion')
-    print("--- PromotionForm class defined ---") # DEBUG
 
 # ... (ProductForm and other forms) ...
 
@@ -2184,15 +2268,9 @@ class PromotionForm(FlaskForm):
 @login_required
 @admin_required # Assuming you have this decorator
 def admin_add_promotion():
-    print("\n--- admin_add_promotion route called ---") # DEBUG
     form = PromotionForm()
-    print("--- PromotionForm instance created. Fields are: ---") # DEBUG
-    for field in form: # DEBUG
-        print(f"Field Name: {field.name}, Label: {field.label.text}, Type: {type(field)}") # DEBUG
-    print("--- End of form fields list ---") # DEBUG
 
     if form.validate_on_submit():
-        print("Form validated successfully on POST.") # DEBUG
         image_filename_for_db = None
         if form.image.data and form.image.data.filename:
             image_file = form.image.data
@@ -2205,7 +2283,6 @@ def admin_add_promotion():
                 try:
                     image_file.save(save_path)
                     image_filename_for_db = f"uploads/promotions/{filename}" # Path relative to static/
-                    print(f"Image saved: {image_filename_for_db}") # DEBUG
                 except Exception as e_save:
                     flash(f"Error saving promotion image: {str(e_save)}", "danger")
                     current_app.logger.error(f"Error saving promotion image: {e_save}")
@@ -2221,7 +2298,6 @@ def admin_add_promotion():
             "is_active": 1 if form.is_active.data else 0,
             "display_order": form.display_order.data if form.display_order.data is not None else 0
         }
-        print(f"Data to insert into DB: {promo_data_to_save}") # DEBUG
 
         try:
             with get_db_connection() as conn:
@@ -2236,21 +2312,14 @@ def admin_add_promotion():
                 conn.commit()
             flash('Promotion added successfully!', 'success')
             # log_activity("Admin added promotion", user_id=current_user.id, details=f"Title: {form.title.data}")
-            print("Promotion added to DB successfully.") # DEBUG
             return redirect(url_for('admin_promotions'))
         except sqlite3.Error as e_sql:
             current_app.logger.error(f"Database error adding promotion: {e_sql}")
             flash(f'Database error adding promotion: {str(e_sql)}', 'danger')
-            print(f"DB Error on INSERT: {e_sql}") # DEBUG
         except Exception as e_generic:
             current_app.logger.error(f"Unexpected error adding promotion: {e_generic}", exc_info=True)
             flash(f'An unexpected error occurred: {str(e_generic)}', 'danger')
-            print(f"Generic Error on INSERT: {e_generic}") # DEBUG
-    else:
-        if request.method == 'POST':
-            print(f"Form validation failed. Errors: {form.errors}") # DEBUG
 
-    print("Rendering add_edit_promotion.html for 'Add' action.") # DEBUG
     return render_template('admin/add_edit_promotion.html', form=form, title='Add Promotion', action='Add', promotion=None)
 
 
@@ -2258,13 +2327,11 @@ def admin_add_promotion():
 @login_required
 @admin_required # Assuming you have this decorator
 def admin_edit_promotion(promo_id):
-    print(f"\n--- admin_edit_promotion route called for promo_id: {promo_id} ---") # DEBUG
     promotion_data_dict = None
     with get_db_connection() as conn:
         promotion_data_raw = conn.execute('SELECT * FROM promotions WHERE id = ?', (promo_id,)).fetchone()
         if promotion_data_raw:
             promotion_data_dict = dict(promotion_data_raw)
-            print(f"Fetched promotion data from DB: {promotion_data_dict}") # DEBUG
 
     if not promotion_data_dict:
         flash('Promotion not found.', 'danger')
@@ -2272,13 +2339,8 @@ def admin_edit_promotion(promo_id):
 
     form = PromotionForm() # Create empty form first
     
-    print("--- PromotionForm instance created for edit. Fields are: ---") # DEBUG
-    for field in form: # DEBUG
-        print(f"Field Name: {field.name}, Label: {field.label.text}, Type: {type(field)}") # DEBUG
-    print("--- End of form fields list for edit ---") # DEBUG
 
     if form.validate_on_submit(): # POST request
-        print("Edit form validated successfully on POST.") # DEBUG
         new_image_filename_for_db = promotion_data_dict['image_path'] # Keep old image by default
 
         if form.image.data and form.image.data.filename: 
@@ -2291,7 +2353,6 @@ def admin_edit_promotion(promo_id):
                     if os.path.exists(old_image_full_path) and "default" not in promotion_data_dict['image_path'].lower() : # Don't delete default
                         try:
                             os.remove(old_image_full_path)
-                            print(f"Old image deleted: {old_image_full_path}") # DEBUG
                         except OSError as e_remove:
                             current_app.logger.error(f"Error deleting old promotion image {old_image_full_path}: {e_remove}")
                 
@@ -2302,7 +2363,6 @@ def admin_edit_promotion(promo_id):
                 try:
                     image_file.save(save_path)
                     new_image_filename_for_db = f"uploads/promotions/{filename}"
-                    print(f"New image saved: {new_image_filename_for_db}") # DEBUG
                 except Exception as e_save:
                     flash(f"Error saving new promotion image: {str(e_save)}", "danger")
                     current_app.logger.error(f"Error saving new promotion image: {e_save}")
@@ -2319,7 +2379,6 @@ def admin_edit_promotion(promo_id):
             "display_order": form.display_order.data if form.display_order.data is not None else 0,
             "promo_id": promo_id
         }
-        print(f"Data to update in DB: {promo_data_to_update}") # DEBUG
 
         try:
             with get_db_connection() as conn:
@@ -2333,19 +2392,15 @@ def admin_edit_promotion(promo_id):
                 conn.commit()
             flash('Promotion updated successfully!', 'success')
             # log_activity("Admin edited promotion", user_id=current_user.id, details=f"Promotion ID: {promo_id}")
-            print("Promotion updated in DB successfully.") # DEBUG
             return redirect(url_for('admin_promotions'))
         except sqlite3.Error as e_sql:
             current_app.logger.error(f"Database error updating promotion {promo_id}: {e_sql}")
             flash(f'Database error updating promotion: {str(e_sql)}', 'danger')
-            print(f"DB Error on UPDATE: {e_sql}") # DEBUG
         except Exception as e_generic:
             current_app.logger.error(f"Unexpected error updating promotion {promo_id}: {e_generic}", exc_info=True)
             flash(f'An unexpected error occurred: {str(e_generic)}', 'danger')
-            print(f"Generic Error on UPDATE: {e_generic}") # DEBUG
             
     elif request.method == 'GET': # Populate form for GET request
-        print("Populating form for GET request (edit)") # DEBUG
         form.title.data = promotion_data_dict['title']
         form.target_url.data = promotion_data_dict['target_url']
         form.alt_text.data = promotion_data_dict['alt_text']
@@ -2354,8 +2409,6 @@ def admin_edit_promotion(promo_id):
         form.discount_text.data = promotion_data_dict.get('discount_text')
         form.is_active.data = bool(promotion_data_dict['is_active'])
         form.display_order.data = promotion_data_dict['display_order']
-        print(f"Form populated with: original_price={form.original_price.data}, promo_price={form.promo_price.data}, discount_text='{form.discount_text.data}'") # DEBUG
-        print(f"Rendering add_edit_promotion.html for 'Edit' action. Promotion data: {promotion_data_dict}") # DEBUG
         return render_template(
             'admin/add_edit_promotion.html',
             form=form,
@@ -2400,6 +2453,38 @@ def admin_delete_promotion(promo_id):
 
 
 # --- Checkout and Payment Routes ---
+ALLOWED_PAYMENT_METHODS = ('Cash on Delivery', 'Lipa na M-Pesa')
+# Orders in these statuses no longer hold stock
+STOCK_RELEASED_STATUSES = ('Cancelled', 'Payment Failed')
+
+
+class CheckoutError(Exception):
+    """A checkout problem with a message that is safe to show the customer."""
+
+
+def mpesa_callback_signature(order_id):
+    """Secret per-order token added to the M-Pesa callback URL, so only Safaricom (who received
+    the URL from us) can report a payment for this order."""
+    return hmac.new(app.config['SECRET_KEY'].encode(), f"mpesa-callback:{order_id}".encode(), hashlib.sha256).hexdigest()
+
+
+def release_order_stock(conn, order_id):
+    """Put an order's items back into stock (order cancelled or payment failed)."""
+    for item in conn.execute('SELECT product_id, quantity FROM order_items WHERE order_id = ?', (order_id,)).fetchall():
+        conn.execute('UPDATE products SET stock = stock + ? WHERE id = ?', (item['quantity'], item['product_id']))
+
+
+def reserve_order_stock(conn, order_id):
+    """Take an order's items out of stock again (e.g. a cancelled order is reopened).
+    Raises CheckoutError if there isn't enough stock left."""
+    items = conn.execute('''SELECT oi.product_id, oi.quantity, p.name FROM order_items oi
+                            JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ?''', (order_id,)).fetchall()
+    for item in items:
+        cur = conn.execute('UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?',
+                           (item['quantity'], item['product_id'], item['quantity']))
+        if cur.rowcount == 0:
+            raise CheckoutError(f"Not enough stock of {item['name']} to reopen this order.")
+
 def lipa_na_mpesa_stk_push(amount, phone_number, order_id_ref):
     """Initiates an STK Push request to M-Pesa."""
     try:
@@ -2432,23 +2517,22 @@ def lipa_na_mpesa_stk_push(amount, phone_number, order_id_ref):
             "PartyA": phone_number, # Customer's phone number
             "PartyB": app.config['MPESA_BUSINESS_SHORT_CODE'], # Your organization's shortcode
             "PhoneNumber": phone_number, # Customer's phone number again
-            "CallBackURL": app.config['MPESA_CALLBACK_URL'] + f"?order_id={order_id_ref}", # Include order_id for tracking
+            "CallBackURL": app.config['MPESA_CALLBACK_URL'] + f"?order_id={order_id_ref}&sig={mpesa_callback_signature(order_id_ref)}", # order id + secret token
             "AccountReference": f"ORDER-{order_id_ref}", # Custom reference for the transaction
             "TransactionDesc": f"Payment for Order #{order_id_ref}"
         }
 
         response = requests.post(stk_push_url, json=payload, headers=headers)
         response.raise_for_status()
-        log_activity("M-Pesa STK Push initiated", details=f"Order ID: {order_id_ref}, Response: {response.json()}")
+        # (No log_activity here: checkout calls this while its database transaction is open)
+        app.logger.info(f"M-Pesa STK Push initiated for order {order_id_ref}: {response.json()}")
         return response.json() # Contains CheckoutRequestID, ResponseCode, etc.
 
     except requests.exceptions.RequestException as e:
         app.logger.error(f"M-Pesa RequestException: {e} - Response: {e.response.text if e.response else 'No response'}")
-        log_activity("M-Pesa STK Push failed", details=f"Order ID: {order_id_ref}, Error: {str(e)}")
         return {"ResponseCode": "1", "ResponseDescription": f"Network or API Error: {str(e)}"}
     except Exception as e:
         app.logger.error(f"M-Pesa general error: {e}")
-        log_activity("M-Pesa STK Push failed", details=f"Order ID: {order_id_ref}, Error: {str(e)}")
         return {"ResponseCode": "1", "ResponseDescription": f"An unexpected error occurred: {str(e)}"}
 
 
@@ -2477,7 +2561,10 @@ def checkout():
 
     if form.validate_on_submit():
         payment_method = form.payment_method.data
-        shipping_address = form.shipping_address.data
+        shipping_address = form.shipping_address.data.strip()
+        if payment_method not in ALLOWED_PAYMENT_METHODS:
+            flash('Please choose Cash on Delivery or Lipa na M-Pesa.', 'danger')
+            return render_template('checkout.html', form=form, cart_items=cart_items_raw, total_amount=total_amount, title='Checkout')
         # Begin transaction
         conn = get_db_connection()
         try:
@@ -2495,17 +2582,18 @@ def checkout():
                         INSERT INTO order_items (order_id, product_id, quantity, price)
                         VALUES (?, ?, ?, ?)
                     ''', (order_id, item['product_id'], item['quantity'], item['price']))
-                    # Decrease stock
-                    new_stock = item['stock'] - item['quantity']
-                    conn.execute("UPDATE products SET stock = ? WHERE id = ?", (new_stock, item['product_id']))
+                    # Decrease stock in one step, only if enough is still left (two shoppers can't both buy the last item)
+                    cur = conn.execute("UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?",
+                                       (item['quantity'], item['product_id'], item['quantity']))
+                    if cur.rowcount == 0:
+                        raise CheckoutError(f"Sorry, {item['name']} just sold out or has fewer items left. Please update your cart.")
 
                 # 3. Handle Payment (Example for M-Pesa)
                 transaction_id = None
                 if payment_method == 'Lipa na M-Pesa':
-                    mpesa_phone = form.phone_number.data
+                    mpesa_phone = (form.phone_number.data or '').replace(' ', '')
                     if not mpesa_phone:
-                        flash('M-Pesa phone number is required for this payment method.', 'danger')
-                        raise ValueError("M-Pesa phone number missing") # Will trigger rollback
+                        raise CheckoutError('M-Pesa phone number is required for this payment method.') # Will trigger rollback
 
                     mpesa_response = lipa_na_mpesa_stk_push(total_amount, mpesa_phone, order_id)
                     if mpesa_response.get('ResponseCode') == '0': # STK Push initiated successfully
@@ -2515,16 +2603,12 @@ def checkout():
                         # Order remains 'Pending Payment' until callback confirms
                     else:
                         error_desc = mpesa_response.get('ResponseDescription', 'M-Pesa payment initiation failed.')
-                        flash(f'M-Pesa Error: {error_desc}', 'danger')
-                        raise Exception(f"M-Pesa STK Push failed: {error_desc}") # Trigger rollback
+                        raise CheckoutError(f'M-Pesa could not start the payment: {error_desc}') # Trigger rollback
 
                 elif payment_method == 'Cash on Delivery':
                      conn.execute("UPDATE orders SET status = 'Processing' WHERE id = ?", (order_id,)) # Or 'Pending' then admin confirms
                      flash('Order placed successfully with Cash on Delivery! We will contact you shortly.', 'success')
 
-                else: # Other payment methods like 'Credit Card', 'PayPal' would need their own integration
-                     conn.execute("UPDATE orders SET status = 'Processing' WHERE id = ?", (order_id,)) # Placeholder
-                     flash('Order placed successfully! (Payment method needs integration)', 'success')
 
                 # 4. Clear Cart (only if everything up to payment initiation was successful)
                 conn.execute('DELETE FROM carts WHERE user_id = ?', (current_user.id,))
@@ -2535,12 +2619,14 @@ def checkout():
                  return redirect(url_for('order_details', order_id=order_id)) # Show pending order details
             return redirect(url_for('order_history')) # Or a specific thank you page
 
-        except ValueError as ve: # Specific error like missing phone number
-            # flash already handled
+        except CheckoutError as ce: # Problem the customer can fix (stock, phone number, M-Pesa refused)
+            flash(str(ce), 'danger')
+            log_activity("Order placement failed", user_id=current_user.id, details=str(ce))
             return render_template('checkout.html', form=form, cart_items=cart_items_raw, total_amount=total_amount, title='Checkout')
         except Exception as e:
             # conn.rollback() is handled by 'with conn:'
-            flash(f'Error placing order: {str(e)}', 'danger')
+            app.logger.error(f"Checkout failed: {e}", exc_info=True)
+            flash('Sorry, something went wrong while placing your order. Please try again.', 'danger')
             log_activity("Order placement failed", user_id=current_user.id, details=str(e))
             return render_template('checkout.html', form=form, cart_items=cart_items_raw, total_amount=total_amount, title='Checkout')
         finally:
@@ -2553,11 +2639,16 @@ def checkout():
 @csrf.exempt # M-Pesa callbacks won't have CSRF token
 def mpesa_callback():
     # This is where Safaricom will send the STK Push result
-    callback_data = request.get_json()
-    app.logger.info(f"M-Pesa Callback Received: {callback_data}")
-    log_activity("M-Pesa callback received", details=str(callback_data))
+    callback_data = request.get_json(silent=True) or {}
+    order_id_ref = request.args.get('order_id', '') # Get order_id from query param we set in CallBackURL
 
-    order_id_ref = request.args.get('order_id') # Get order_id from query param we set in CallBackURL
+    # Reject anything that doesn't carry the secret token we gave Safaricom for this order
+    if not hmac.compare_digest(request.args.get('sig', ''), mpesa_callback_signature(order_id_ref)):
+        app.logger.warning(f"M-Pesa callback rejected: bad signature for order {order_id_ref!r} from {request.remote_addr}")
+        log_activity("M-Pesa callback rejected (bad signature)", details=f"Order ref: {order_id_ref}")
+        return jsonify({"ResultCode": 1, "ResultDesc": "Rejected"}), 403
+
+    app.logger.info(f"M-Pesa Callback Received for order {order_id_ref}: {callback_data}")
 
     try:
         result_code = callback_data['Body']['stkCallback']['ResultCode']
@@ -2570,23 +2661,31 @@ def mpesa_callback():
                 app.logger.error(f"M-Pesa Callback: Order not found for CheckoutRequestID {checkout_request_id} and Order Ref {order_id_ref}")
                 return jsonify({"ResultCode": 1, "ResultDesc": "Order not found"}), 404 # Or 200 for M-Pesa
 
+            if order['status'] != 'Pending Payment':
+                # Already handled (Safaricom retries) or changed by an admin: don't overwrite it
+                return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"}), 200
+
             if result_code == 0:
-                # Payment successful
-                # StkCallback has Item array with MpesaReceiptNumber, Amount, etc.
-                # callback_metadata = callback_data['Body']['stkCallback']['CallbackMetadata']['Item']
-                # mpesa_receipt = next((item['Value'] for item in callback_metadata if item['Name'] == 'MpesaReceiptNumber'), None)
+                # Payment successful: check the amount actually paid before marking the order paid
+                items = callback_data['Body']['stkCallback'].get('CallbackMetadata', {}).get('Item', [])
+                meta = {i.get('Name'): i.get('Value') for i in items}
+                paid_amount = float(meta.get('Amount') or 0)
+                if paid_amount + 0.5 < round(order['total_amount']):
+                    app.logger.error(f"M-Pesa amount mismatch for order {order['id']}: paid {paid_amount}, expected {order['total_amount']}")
+                    log_activity("M-Pesa amount mismatch", user_id=order['user_id'], details=f"Order ID: {order['id']}, Paid: {paid_amount}, Expected: {order['total_amount']}")
+                    return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"}), 200
 
                 conn.execute("UPDATE orders SET status = 'Paid' WHERE id = ?", (order['id'],))
-                # Optionally, store MpesaReceiptNumber in orders table if you add a column for it
                 conn.commit()
-                log_activity("M-Pesa payment successful", user_id=order['user_id'], details=f"Order ID: {order['id']}, M-Pesa Data: {callback_data}")
+                log_activity("M-Pesa payment successful", user_id=order['user_id'], details=f"Order ID: {order['id']}, Receipt: {meta.get('MpesaReceiptNumber')}, Amount: {paid_amount}")
                 # TODO: Send order confirmation email to user
             else:
                 # Payment failed or cancelled
                 error_desc = callback_data['Body']['stkCallback'].get('ResultDesc', 'Payment failed.')
                 conn.execute("UPDATE orders SET status = 'Payment Failed' WHERE id = ?", (order['id'],))
+                release_order_stock(conn, order['id'])  # the items go back on sale
                 conn.commit()
-                log_activity("M-Pesa payment failed/cancelled", user_id=order['user_id'], details=f"Order ID: {order['id']}, M-Pesa Data: {callback_data}")
+                log_activity("M-Pesa payment failed/cancelled", user_id=order['user_id'], details=f"Order ID: {order['id']}, Reason: {error_desc}")
                 # TODO: Notify user of payment failure
 
         # Acknowledge receipt to M-Pesa
@@ -2748,11 +2847,6 @@ def report_sales_over_time():
         current_app.logger.error(f"Unexpected error fetching sales report: {e_gen}", exc_info=True)
         flash("An unexpected error occurred.", "danger")
 
-    # Debug prints (optional, can be removed in production)
-    print(f"--- DEBUG: report_sales_over_time ---")
-    print(f"Python list 'labels': {labels}")
-    print(f"Python list 'data_points': {data_points}")
-    print(f"------------------------------------")
 
     return render_template(
         'admin/report_sales_over_time.html',

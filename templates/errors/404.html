@@ -8,19 +8,6 @@
 <div class="container py-5">
     <div class="card shadow-sm border-0 mx-auto" style="max-width: 900px;">
         <div class="card-body p-4 p-md-5">
-            <header class="d-flex flex-column flex-md-row align-items-center justify-content-between mb-4">
-                <a href="{{ url_for('index') }}" class="d-flex align-items-center text-decoration-none text-dark mb-3 mb-md-0">
-                    <img src="{{ url_for('static', filename='images/logo_light.png') }}" alt="E-Shop Logo" style="height: 42px; width: auto;" class="mr-2">
-                    <span class="font-weight-bold">E-Shop</span>
-                </a>
-                <nav class="d-flex flex-wrap align-items-center gap-3 text-muted small">
-                    <a href="{{ url_for('index') }}" class="text-muted">Home</a>
-                    <a href="{{ url_for('index', category='Electronics') }}" class="text-muted">Categories</a>
-                    <a href="{{ url_for('view_cart') }}" class="text-muted">Cart {% if cart_item_count %}<span class="badge badge-primary">{{ cart_item_count }}</span>{% endif %}</a>
-                    <a href="{{ url_for('view_wishlist') }}" class="text-muted">Wishlist</a>
-                    <a href="{{ url_for('index') }}" class="text-muted">Browse</a>
-                </nav>
-            </header>
 
             <div class="text-center py-4">
                 <h1 class="display-1 font-weight-bold text-danger mb-3">404</h1>

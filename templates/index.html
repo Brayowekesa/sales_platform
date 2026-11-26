@@ -35,7 +35,17 @@
                     <a href="{{ url_for('index', category=cat_nav) }}" class="chip {% if current_category == cat_nav %}active{% endif %}">{{ cat_nav }}</a>
                 {% endfor %}
             </nav>
-            {% if promotions %}
+            {% set filtering = current_category and current_category != 'All' %}
+            {% if filtering %}
+            <div class="category-header">
+                <div>
+                    <span class="category-kicker">Category</span>
+                    <h1>{{ current_category }}</h1>
+                    <p>{{ total_products }} product{{ '' if total_products == 1 else 's' }}</p>
+                </div>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-times mr-1"></i>Clear filter</a>
+            </div>
+            {% elif promotions %}
             <div id="promoCarousel" class="carousel slide" data-ride="carousel">
                 {% if promotions|length > 1 %}
                 <ol class="carousel-indicators">
@@ -85,7 +95,7 @@
             </div>
             {% else %}
             <div class="home-hero">
-                <h1>Shop smarter at ESA E-Shop</h1>
+                <h1>Shop smarter at {{ SITE_NAME }}</h1>
                 <p>Electronics, fashion, home appliances and more, delivered to your door. Pay with M-Pesa or cash on delivery.</p>
                 <a href="#all-products" class="btn btn-light">Browse products</a>
             </div>
@@ -94,7 +104,7 @@
     </div>
 
     <!-- Featured Products -->
-    {% if featured_products %}
+    {% if featured_products and not filtering %}
     <section class="horizontal-scroll-section">
         <div class="section-title-bar">
             <div class="main-content-inner-container"><h3>Featured Products</h3></div>

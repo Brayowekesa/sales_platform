@@ -71,31 +71,17 @@
 
                     <h4 class="mb-3">Payment</h4>
 
-                    {# Payment Method Selection #}
-                    {# This uses simple radio buttons. For a real app, integrate actual payment gateways. #}
-                    {# The 'payment_method' field in CheckoutForm is currently a StringField.
-                       For better UX, it should be a RadioField in app.py:
-                       payment_method = RadioField('Payment Method', choices=[
-                           ('Credit Card', 'Credit Card (Not Implemented)'),
-                           ('PayPal', 'PayPal (Not Implemented)'),
-                           ('Cash on Delivery', 'Cash on Delivery'),
-                           ('Lipa na M-Pesa', 'Lipa na M-Pesa')
-                       ], validators=[DataRequired()])
-                    #}
-                    <div class="my-3">
-                        <div class="form-check">
-                            <input id="cod" name="payment_method" type="radio" class="form-check-input" value="Cash on Delivery" required {% if form.payment_method.data == 'Cash on Delivery' %}checked{% endif %}>
-                            <label class="form-check-label" for="cod">Cash on Delivery</label>
-                        </div>
-                        <div class="form-check">
-                            <input id="mpesa" name="payment_method" type="radio" class="form-check-input" value="Lipa na M-Pesa" required {% if form.payment_method.data == 'Lipa na M-Pesa' %}checked{% endif %}>
-                            <label class="form-check-label" for="mpesa">Lipa na M-Pesa</label>
-                        </div>
-                        {# Add other payment methods as needed #}
-                        <div class="form-check">
-                            <input id="credit" name="payment_method" type="radio" class="form-check-input" value="Credit Card" disabled required {% if form.payment_method.data == 'Credit Card' %}checked{% endif %}>
-                            <label class="form-check-label" for="credit">Credit card (Not implemented)</label>
-                        </div>
+                    <div class="payment-options my-3">
+                        <label class="payment-option" for="cod">
+                            <input id="cod" name="payment_method" type="radio" value="Cash on Delivery" required {% if form.payment_method.data == 'Cash on Delivery' %}checked{% endif %}>
+                            <span class="payment-icon"><i class="fas fa-money-bill-wave"></i></span>
+                            <span><strong>Cash on Delivery</strong><small>Pay when your order arrives</small></span>
+                        </label>
+                        <label class="payment-option" for="mpesa">
+                            <input id="mpesa" name="payment_method" type="radio" value="Lipa na M-Pesa" required {% if form.payment_method.data == 'Lipa na M-Pesa' %}checked{% endif %}>
+                            <span class="payment-icon mpesa"><i class="fas fa-mobile-alt"></i></span>
+                            <span><strong>Lipa na M-Pesa</strong><small>Get a payment prompt on your phone</small></span>
+                        </label>
                         {% if form.payment_method.errors %}
                             <div class="text-danger small mt-2">
                                 {% for error in form.payment_method.errors %}<span>{{ error }}</span><br>{% endfor %}
@@ -108,18 +94,16 @@
                         <div class="col-md-6 mb-3">
                              {{ form.phone_number.label(class="form-label") }}
                             {% if form.phone_number.errors %}
-                                {{ form.phone_number(class="form-control form-control-lg is-invalid", placeholder="2547XXXXXXXX") }}
+                                {{ form.phone_number(class="form-control form-control-lg is-invalid", placeholder="07XX XXX XXX") }}
                                 <div class="invalid-feedback">
                                     {% for error in form.phone_number.errors %}<span>{{ error }}</span>{% endfor %}
                                 </div>
                             {% else %}
-                                {{ form.phone_number(class="form-control form-control-lg", placeholder="2547XXXXXXXX") }}
+                                {{ form.phone_number(class="form-control form-control-lg", placeholder="07XX XXX XXX") }}
                             {% endif %}
-                            <small class="text-muted">Required for M-Pesa payment.</small>
+                            <small class="text-muted">The M-Pesa prompt will be sent to this number.</small>
                         </div>
                     </div>
-                    {# Placeholder for Credit Card details if that method was implemented #}
-                    {# <hr class="my-4"> #}
 
                     {{ form.submit(class="w-100 btn btn-primary btn-lg") }}
                 </form>
@@ -130,49 +114,5 @@
 {% endblock %}
 
 {% block scripts_extra %}
-<script>
-    // JavaScript to show/hide M-Pesa phone number field based on payment method selection
-    document.addEventListener('DOMContentLoaded', function () {
-        const paymentMethodRadios = document.querySelectorAll('input[name="payment_method"]');
-        const mpesaDetailsDiv = document.getElementById('mpesa-details');
-        const mpesaPhoneNumberInput = document.querySelector('input[name="phone_number"]');
-
-        function toggleMpesaDetails() {
-            const selectedPaymentMethod = document.querySelector('input[name="payment_method"]:checked');
-            if (selectedPaymentMethod && selectedPaymentMethod.value === 'Lipa na M-Pesa') {
-                mpesaDetailsDiv.style.display = 'block'; // Or 'flex' if it's a flex container
-                if (mpesaPhoneNumberInput) mpesaPhoneNumberInput.required = true;
-            } else {
-                mpesaDetailsDiv.style.display = 'none';
-                if (mpesaPhoneNumberInput) {
-                    mpesaPhoneNumberInput.required = false;
-                    // mpesaPhoneNumberInput.value = ''; // Optionally clear if hiding
-                }
-            }
-        }
-
-        paymentMethodRadios.forEach(function (radio) {
-            radio.addEventListener('change', toggleMpesaDetails);
-        });
-
-        // Initial check on page load
-        toggleMpesaDetails();
-
-        // Example starter JavaScript for disabling form submissions if there are invalid fields (Bootstrap 5)
-        // (function () {
-        //   'use strict'
-        //   var forms = document.querySelectorAll('.needs-validation')
-        //   Array.prototype.slice.call(forms)
-        //     .forEach(function (form) {
-        //       form.addEventListener('submit', function (event) {
-        //         if (!form.checkValidity()) {
-        //           event.preventDefault()
-        //           event.stopPropagation()
-        //         }
-        //         form.classList.add('was-validated')
-        //       }, false)
-        //     })
-        // })()
-    });
-</script>
+    {# The M-Pesa phone field toggle lives in static/js/main.js #}
 {% endblock %}
