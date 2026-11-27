@@ -111,10 +111,13 @@
                         {% if order.delivered_with_pin %}
                         <p class="text-success font-weight-bold mb-0"><i class="fas fa-check-circle"></i> Delivered and confirmed with the customer's PIN.</p>
                         {% else %}
-                        <p class="text-warning font-weight-bold mb-0"><i class="fas fa-exclamation-triangle"></i> Marked delivered <u>without</u> the customer's PIN (see history for the reason).</p>
+                        <p class="text-warning font-weight-bold mb-0"><i class="fas fa-exclamation-triangle"></i> Marked delivered <u>without</u> the customer's PIN.</p>
+                        {% if order.delivery_override_reason %}<p class="small mb-0 mt-1"><strong>Staff reason (not shown to the customer):</strong> {{ order.delivery_override_reason }}</p>{% endif %}
                         {% endif %}
                     {% else %}
                         <p class="small text-muted">The customer has a 4-digit PIN (SMS, email and their order page). The order becomes <em>Delivered</em> when the PIN is entered.</p>
+                        {% if (order.pin_attempts or 0) >= 10 %}<div class="alert alert-danger py-2 small mb-2"><i class="fas fa-lock"></i> The PIN is locked after 10 wrong tries. Call the customer; mark it Delivered with a reason below once you're sure they have it.</div>
+                        {% elif order.pin_attempts %}<p class="small text-warning mb-2"><i class="fas fa-exclamation-triangle"></i> {{ order.pin_attempts }} wrong PIN tries so far (locks at 10).</p>{% endif %}
                         {% if rider_link %}
                         <label class="font-weight-bold small mb-1">Rider link - send it to whoever delivers</label>
                         <div class="input-group input-group-sm mb-2">

@@ -395,6 +395,13 @@ def _migration_7_group_deals(conn):
     conn.execute(f"ALTER TABLE orders ADD COLUMN deal_refund_due {t['MONEY']}")
 
 
+def _migration_8_order_safety(conn):
+    conn.execute('ALTER TABLE orders ADD COLUMN stock_released INTEGER DEFAULT 0')   # 1 = items were put back on sale
+    conn.execute('ALTER TABLE orders ADD COLUMN pin_attempts INTEGER DEFAULT 0')     # wrong delivery-PIN tries for the current PIN
+    conn.execute('ALTER TABLE orders ADD COLUMN delivery_override_reason TEXT')      # staff-only: why it was delivered without the PIN
+    conn.execute("UPDATE orders SET stock_released = 1 WHERE status IN ('Cancelled', 'Payment Failed')")
+
+
 # Add new schema changes at the end as (version, description, function). Never edit old ones.
 MIGRATIONS = [
     (1, 'initial schema', _migration_1_initial_schema),
@@ -404,6 +411,7 @@ MIGRATIONS = [
     (5, 'delivery landmark and map pin', _migration_5_landmarks),
     (6, 'gift orders (Tuma kwa Mama)', _migration_6_gifts),
     (7, 'Pamoja group deals', _migration_7_group_deals),
+    (8, 'order safety: stock flag, PIN attempts, staff-only override reason', _migration_8_order_safety),
 ]
 
 

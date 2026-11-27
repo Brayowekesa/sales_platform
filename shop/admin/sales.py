@@ -200,20 +200,25 @@ def admin_update_order_status(order_id):
             if new_status == 'Delivered' and old_status != 'Delivered' and pin_row['delivery_pin'] and not override_reason:
                 flash("Enter the customer's delivery PIN below, or give a reason for marking it delivered without the PIN.", 'warning')
                 return redirect(url_for('admin.admin_order_details', order_id=order_id))
-            was_released = old_status in STOCK_RELEASED_STATUSES
-            now_released = new_status in STOCK_RELEASED_STATUSES
-            if now_released and not was_released:
-                release_order_stock(conn, order_id)   # cancelled: items go back on sale
-            elif was_released and not now_released:
-                reserve_order_stock(conn, order_id)   # reopened: take the items out of stock again
-            conn.execute("UPDATE orders SET status = ? WHERE id = ?", (new_status, order_id))
+            # Change the status only if nobody else changed it meanwhile (double-click, two staff tabs)
+            if conn.execute('UPDATE orders SET status = ? WHERE id = ? AND status = ?', (new_status, order_id, old_status)).rowcount == 0:
+                flash('This order was just changed by someone else - check it and try again.', 'warning')
+                return redirect(url_for('admin.admin_order_details', order_id=order_id))
+            if new_status in STOCK_RELEASED_STATUSES:
+                release_order_stock(conn, order_id)   # cancelled: items go back on sale (only once)
+            elif new_status != 'Refunded':
+                reserve_order_stock(conn, order_id)   # active again: take the items out of stock (only if they were put back)
             if new_status == 'Shipped' and old_status != 'Shipped':
-                # Customer gets a PIN to give the rider (or show at pickup) only once they have the parcel
-                conn.execute('UPDATE orders SET delivery_pin = ?, delivered_with_pin = 0 WHERE id = ?', (new_delivery_pin(), order_id))
+                # Customer gets a PIN to give the rider (or show at pickup) only once they have the parcel.
+                # A new PIN also makes older rider links stop working.
+                conn.execute('UPDATE orders SET delivery_pin = ?, delivered_with_pin = 0, pin_attempts = 0 WHERE id = ?',
+                             (new_delivery_pin(), order_id))
             if new_status != old_status:
                 note = (request.form.get('note') or '').strip()[:200] or None
                 if new_status == 'Delivered' and override_reason:
-                    note = f'Marked delivered without PIN by {current_user.username}: {override_reason}'
+                    note = 'Marked delivered by our staff'            # the reason stays staff-only
+                    conn.execute('UPDATE orders SET delivery_override_reason = ? WHERE id = ?',
+                                 (f'{current_user.username}: {override_reason}', order_id))
                 record_order_status(conn, order_id, new_status, note)
             conn.commit()
         flash(f'Order #{order_id} status updated to {new_status}.', 'success')

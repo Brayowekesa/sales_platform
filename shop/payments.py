@@ -45,7 +45,12 @@ def record_order_status(conn, order_id, status, note=None):
 
 
 def release_order_stock(conn, order_id):
-    """Put an order's items back into stock (order cancelled or payment failed)."""
+    """Put an order's items back into stock (order cancelled or payment failed).
+
+    Safe to call twice (double-click, M-Pesa retry): the stock_released flag makes only the first call count.
+    """
+    if conn.execute('UPDATE orders SET stock_released = 1 WHERE id = ? AND COALESCE(stock_released, 0) = 0', (order_id,)).rowcount == 0:
+        return
     for item in conn.execute('SELECT product_id, quantity FROM order_items WHERE order_id = ?', (order_id,)).fetchall():
         conn.execute('UPDATE products SET stock = stock + ? WHERE id = ?', (item['quantity'], item['product_id']))
 
@@ -53,6 +58,8 @@ def release_order_stock(conn, order_id):
 def reserve_order_stock(conn, order_id):
     """Take an order's items out of stock again (e.g. a cancelled order is reopened).
     Raises CheckoutError if there isn't enough stock left."""
+    if conn.execute('UPDATE orders SET stock_released = 0 WHERE id = ? AND stock_released = 1', (order_id,)).rowcount == 0:
+        return                                    # stock is already taken for this order
     items = conn.execute('''SELECT oi.product_id, oi.quantity, p.name FROM order_items oi
                             JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ?''', (order_id,)).fetchall()
     for item in items:
@@ -113,7 +120,8 @@ def lipa_na_mpesa_stk_push(amount, phone_number, order_id_ref):
         return {"ResponseCode": "1", "ResponseDescription": "M-Pesa is not reachable right now. Please try again or choose Cash on Delivery."}
 
 
-PIN_MAX_ATTEMPTS = 5   # per order, per 15 minutes
+PIN_MAX_ATTEMPTS = 5          # per order, per 15 minutes
+PIN_LIFETIME_ATTEMPTS = 10    # per PIN; after that the PIN is locked and staff must confirm with a reason
 
 
 def confirm_delivery_with_pin(order_id, pin, who):
@@ -133,6 +141,11 @@ def confirm_delivery_with_pin(order_id, pin, who):
             return True, 'This order is already marked delivered.'
         if order['status'] != 'Shipped' or not order['delivery_pin']:
             return False, 'This order is not out for delivery yet.'
+        # Count the try first, in one step, so many requests at once can't get extra guesses
+        if conn.execute('UPDATE orders SET pin_attempts = COALESCE(pin_attempts, 0) + 1 WHERE id = ? AND COALESCE(pin_attempts, 0) < ?',
+                        (order_id, PIN_LIFETIME_ATTEMPTS)).rowcount == 0:
+            return False, 'This PIN is locked after too many wrong tries. Call the shop - staff will confirm the delivery.'
+        conn.commit()
         if not secrets.compare_digest(pin, order['delivery_pin']):
             record_rate_event('pin_fail', key)
             log_activity('Wrong delivery PIN', details=f'Order ID: {order_id}, by {who}')
@@ -141,7 +154,9 @@ def confirm_delivery_with_pin(order_id, pin, who):
         cur = conn.execute("UPDATE orders SET status = 'Delivered', delivered_with_pin = 1 WHERE id = ? AND status = 'Shipped'", (order_id,))
         if cur.rowcount == 0:
             return True, 'This order is already marked delivered.'
-        record_order_status(conn, order_id, 'Delivered', f"Confirmed with the customer's PIN ({who})")
+        record_order_status(conn, order_id, 'Delivered',
+                            "Confirmed with the customer's PIN" + (' by the rider' if who == 'rider' else ' by our staff'))
+        conn.execute('UPDATE orders SET pin_attempts = 0 WHERE id = ?', (order_id,))
     log_activity('Delivery confirmed with PIN', details=f'Order ID: {order_id}, by {who}')
     notify_order_event(order_id, 'status')
     return True, 'Delivered - confirmed with the customer\'s PIN. Thank you!'

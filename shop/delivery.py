@@ -1,11 +1,12 @@
 """Packing proof (photos/video of the exact item before dispatch) and the delivery PIN."""
+import hashlib
+import hmac
 import os
 import secrets
 import uuid
 
 from flask import current_app
 from itsdangerous import BadSignature, SignatureExpired
-from werkzeug.utils import secure_filename
 
 from shop.extensions import token_serializer
 from shop.security import is_real_image
@@ -45,7 +46,8 @@ def classify_proof_upload(file_storage):
 
 def save_proof_file(file_storage):
     """Save into the private proof folder; returns the stored file name."""
-    name = f"{uuid.uuid4().hex}_{secure_filename(file_storage.filename)[-60:]}"
+    ext = _extension(file_storage.filename or '')
+    name = uuid.uuid4().hex + (f'.{ext}' if ext in PHOTO_EXTENSIONS | VIDEO_EXTENSIONS else '')   # keep the type, drop the name
     file_storage.save(os.path.join(current_app.config['PROOF_FOLDER'], name))
     return name
 
@@ -70,14 +72,25 @@ def new_delivery_pin():
     return f'{secrets.randbelow(10000):04d}'
 
 
+def _pin_tag(order_id):
+    """Short fingerprint of the order's current PIN: a new PIN (order sent again) retires old rider links."""
+    from shop.db import get_db_connection
+    with get_db_connection() as conn:
+        row = conn.execute('SELECT delivery_pin FROM orders WHERE id = ?', (order_id,)).fetchone()
+    pin = (row['delivery_pin'] if row else None) or ''
+    return hmac.new(current_app.config['SECRET_KEY'].encode(), f'rider:{order_id}:{pin}'.encode(), hashlib.sha256).hexdigest()[:12]
+
+
 def rider_token(order_id):
-    return token_serializer().dumps({'o': order_id}, salt='rider-link')
+    return token_serializer().dumps({'o': order_id, 'p': _pin_tag(order_id)}, salt='rider-link')
 
 
 def order_from_rider_token(token):
-    """Order id from a rider link, or None if the link is invalid or older than RIDER_LINK_DAYS."""
+    """Order id from a rider link, or None if the link is invalid, older than RIDER_LINK_DAYS,
+    or made for an earlier PIN."""
     try:
         data = token_serializer().loads(token, salt='rider-link', max_age=current_app.config['RIDER_LINK_DAYS'] * 86400)
-        return int(data['o'])
+        order_id = int(data['o'])
     except (BadSignature, SignatureExpired, KeyError, TypeError, ValueError):
         return None
+    return order_id if hmac.compare_digest(str(data.get('p', '')), _pin_tag(order_id)) else None

@@ -110,7 +110,11 @@ def test_staff_confirm_and_override_rules(login, db, order):
     status, with_pin = db().execute('SELECT status, delivered_with_pin FROM orders WHERE id=?', (order,)).fetchone()
     assert (status, with_pin) == ('Delivered', 0)
     note = db().execute("SELECT note FROM order_status_history WHERE order_id=? AND status='Delivered'", (order,)).fetchone()[0]
-    assert 'without PIN by admin' in note and 'neighbour received' in note
+    assert note == 'Marked delivered by our staff'                       # customers don't see staff names or reasons
+    reason = db().execute('SELECT delivery_override_reason FROM orders WHERE id=?', (order,)).fetchone()[0]
+    assert reason == 'admin: Customer phone off, neighbour received'
+    assert b'neighbour received' in admin.get(f'/admin/orders/{order}').data
+    assert b'neighbour received' not in login('jane', 'janepass').get(f'/orders/{order}').data
 
 
 def test_staff_can_confirm_with_pin_at_pickup(login, db, checkout_details):

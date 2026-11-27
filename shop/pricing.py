@@ -15,6 +15,7 @@ from shop.db import get_db_connection
 VERIFY_DAYS = 14
 LOOKBACK_DAYS = 90
 MAX_SALE_DAYS = 60
+PRICE_DROP_DAYS = 30     # a "price drop" alert needs a price lower than anything in the last 30 days
 
 
 def utcnow():
@@ -63,6 +64,28 @@ def check_was_price(conn, product_id, was_price):
     return days >= VERIFY_DAYS, days
 
 
+def sale_started_at(conn, product_id, was_price):
+    """When the current sale began: start of the latest unbroken run of prices below `was_price`.
+
+    Worked out from the price history, so changing or re-entering the "was" price can't restart
+    the 60-day limit - only selling at the full price again ends a sale.
+    """
+    started = None
+    for r in conn.execute('SELECT price, changed_at FROM price_history WHERE product_id = ? ORDER BY changed_at DESC, id DESC',
+                          (product_id,)).fetchall():
+        if float(r['price']) >= float(was_price) - 0.005:
+            break
+        started = r['changed_at']
+    started = _as_datetime(started)
+    return started.strftime('%Y-%m-%d %H:%M:%S') if started else None
+
+
+def lowest_recent_price(conn, product_id, days=PRICE_DROP_DAYS):
+    """Lowest selling price in the last `days` days (including the price in force at the start)."""
+    rows = history(conn, product_id, days)
+    return min((float(r['price']) for r in rows if r['price'] is not None), default=None)
+
+
 def apply_price_change(conn, product_id, old, new_price, new_original, new_stock):
     """Call after saving a product. Records history, (re)checks the discount, and says which alerts to send.
 
@@ -71,17 +94,19 @@ def apply_price_change(conn, product_id, old, new_price, new_original, new_stock
     price_changed = old is None or float(old['price']) != float(new_price) or (old['original_price'] or None) != (new_original or None)
     # Re-check the discount on every save (an older "was" price may have become provable since)
     verified, _ = check_was_price(conn, product_id, new_original) if new_original and new_original > new_price else (False, 0)
-    started = utcnow().strftime('%Y-%m-%d %H:%M:%S') if verified else None
-    if verified and old is not None and old.get('was_price_verified') and (old['original_price'] or None) == new_original:
-        started = old.get('discount_started_at') or started              # same sale continues: keep its start date
-    conn.execute('UPDATE products SET was_price_verified = ?, discount_started_at = ? WHERE id = ?',
-                 (1 if verified else 0, started, product_id))
+    lowest_before = lowest_recent_price(conn, product_id) if old is not None else None
     if price_changed:
         conn.execute('INSERT INTO price_history (product_id, price, original_price) VALUES (?, ?, ?)',
                      (product_id, new_price, new_original))
+    started = (sale_started_at(conn, product_id, new_original) or utcnow().strftime('%Y-%m-%d %H:%M:%S')) if verified else None
+    conn.execute('UPDATE products SET was_price_verified = ?, discount_started_at = ? WHERE id = ?',
+                 (1 if verified else 0, started, product_id))
     alerts = []
-    if old is not None and float(new_price) < float(old['price']) - 0.005:
-        alerts.append(('price_drop', float(old['price'])))
+    # Only a real drop: lower than the current price AND lower than anything in the last 30 days
+    # (raising the price for a day and dropping it back is not a "price drop")
+    if old is not None and float(new_price) < float(old['price']) - 0.005 and \
+            (lowest_before is None or float(new_price) < lowest_before - 0.005):
+        alerts.append(('price_drop', lowest_before if lowest_before is not None else float(old['price'])))
     if old is not None and (old['stock'] or 0) <= 0 and (new_stock or 0) > 0:
         alerts.append(('back_in_stock', None))
     return alerts
@@ -149,7 +174,7 @@ def send_wishlist_alerts(product_id, alerts):
     site = current_app.config['SITE_NAME']
     if kind == 'price_drop':
         headline = f"Price drop: {product['name']}"
-        message = f"Good news - {product['name']} on your wishlist is now {current_app.jinja_env.filters['money'](product['price'])} (was {current_app.jinja_env.filters['money'](old_price)})."
+        message = f"Good news - {product['name']} on your wishlist is now {current_app.jinja_env.filters['money'](product['price'])} - lower than any price in the last 30 days (lowest before: {current_app.jinja_env.filters['money'](old_price)})."
     else:
         headline = f"Back in stock: {product['name']}"
         message = f"{product['name']} from your wishlist is back in stock. Get it before it sells out again."

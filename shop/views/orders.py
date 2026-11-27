@@ -10,10 +10,10 @@ from shop.extensions import csrf
 from shop.forms import CheckoutForm
 from shop.helpers import active_delivery_zones, delivery_fee_for, localtime_filter
 from shop.deals import apply_deal_prices, close_due_deals, deal_info
-from shop.gifts import order_from_gift_token, recipient_sms
+from shop.gifts import GIFT_ORDERS_PER_DAY, gift_message_problem, order_from_gift_token, recipient_sms
 from shop.notifications import notify_order_event, send_sms, sms_enabled, to_international
 from shop.payments import ALLOWED_PAYMENT_METHODS, CheckoutError, confirm_delivery_with_pin, lipa_na_mpesa_stk_push, mpesa_callback_signature, order_progress, record_order_status, release_order_stock
-from shop.security import client_ip, log_activity, rate_limited, record_rate_event
+from shop.security import client_ip, log_activity, rate_limited, record_rate_event, utc_minutes_ago
 
 
 bp = Blueprint('orders', __name__)
@@ -105,6 +105,16 @@ def checkout():
                 return show_form()
             sender_name, sender_phone = form.contact_name.data.strip(), contact_phone
             gift_message = (form.gift_message.data or '').strip() or None
+            problem = gift_message_problem(gift_message)
+            if problem:
+                form.gift_message.errors.append(problem)
+                return show_form()
+            with get_db_connection() as conn:
+                recent = conn.execute('SELECT COUNT(*) FROM orders WHERE user_id = ? AND is_gift = 1 AND order_date > ?',
+                                      (current_user.id, utc_minutes_ago(24 * 60))).fetchone()[0]
+            if recent >= GIFT_ORDERS_PER_DAY:
+                flash(f"You can send up to {GIFT_ORDERS_PER_DAY} gift orders a day. Please try again tomorrow, or contact us.", 'warning')
+                return show_form()
         # Begin transaction
         conn = get_db_connection()
         try:
@@ -352,9 +362,13 @@ def proof_response(order_id):
         flash("Please tell us what's wrong so we can fix it before sending.", 'warning')
         return redirect(url_for('orders.order_details', order_id=order_id))
     with get_db_connection() as conn:
-        order = conn.execute('SELECT id FROM orders WHERE id = ? AND user_id = ?', (order_id, current_user.id)).fetchone()
+        order = conn.execute('SELECT id, status FROM orders WHERE id = ? AND user_id = ?', (order_id, current_user.id)).fetchone()
         if not order:
             abort(404)
+        has_proof = conn.execute('SELECT 1 FROM order_proofs WHERE order_id = ?', (order_id,)).fetchone()
+        if not has_proof or order['status'] not in ('Pending', 'Pending Payment', 'Processing', 'Paid'):
+            flash('This order is past the checking step - contact us if something is wrong.', 'info')
+            return redirect(url_for('orders.order_details', order_id=order_id))
         conn.execute('UPDATE orders SET proof_response = ?, proof_response_note = ?, proof_response_at = CURRENT_TIMESTAMP WHERE id = ?',
                      (answer, note or None, order_id))
         record_order_status(conn, order_id, 'Customer checked the item',
