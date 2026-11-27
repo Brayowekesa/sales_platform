@@ -16,6 +16,7 @@ Staff run everything from the admin panel at `/admin`.
 | **WhatsApp buttons** | "Ask on WhatsApp" on product pages, a chat button on every page, and WhatsApp links for staff on the order page. |
 | **Landmark + map pin** | At checkout the customer can add a landmark ("green gate opposite the petrol station") and their phone's GPS location. The rider gets an *Open in Google Maps* button. |
 | **Installable app + offline page** | The shop can be added to the phone's home screen. With no network it shows a friendly offline page. |
+| **Pamoja deals (buy together)** | The price drops as more people join a deal (e.g. 1 buyer KSh 2,500, 5 buyers KSh 2,100). Everyone pays the lowest price reached when the deal ends. Deal pages are made for sharing on WhatsApp. |
 | **Tuma kwa Mama (gift orders)** | Send an order to someone else. The receiver gets SMS updates and a tracking link without prices (except the amount to pay for cash on delivery). |
 | **M-Pesa + cash on delivery** | STK push to the customer's phone, with a protected callback. Or pay when the parcel arrives. |
 | **Delivery zones and pickup points** | Each zone has its own fee, optional free-delivery amount and delivery time. Pickup points have no address form. |
@@ -133,7 +134,7 @@ docker compose exec web flask --app app create-admin
 Backups: `sh deploy/backup.sh`. Restore: `sh deploy/restore.sh`.
 
 The full step-by-step guide, all settings, backups, updates and troubleshooting are in
-**[docs/OPERATIONS.md](docs/OPERATIONS.md)**. [DEPLOY.md](DEPLOY.md) is a shorter version of the same setup.
+**[docs/OPERATIONS.md](docs/OPERATIONS.md)**.
 
 ## Project layout
 
@@ -168,7 +169,6 @@ deploy/                 Caddyfile, backup.sh, restore.sh
 
 - [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) - for shop staff: orders, packing proof, riders, products, settings
 - [docs/OPERATIONS.md](docs/OPERATIONS.md) - for whoever runs the server: settings, deployment, backups, security, troubleshooting
-- [DEPLOY.md](DEPLOY.md) - short deployment guide
 
 ## Keep these out of git
 

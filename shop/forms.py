@@ -59,7 +59,7 @@ class ProductForm(FlaskForm):
     description = TextAreaField('Description', validators=[Optional(), Length(max=1000)]) # Changed from StringField with widget
     category = SelectField('Category', choices=PRODUCT_CATEGORY_CHOICES, validators=[DataRequired()])
     stock = IntegerField('Stock Quantity', validators=[InputRequired(message='Enter the stock (0 if sold out).'), NumberRange(min=0)]) # Changed from StringField
-    image = FileField('Product Image', validators=[Optional(), FileAllowed(['jpg', 'png', 'jpeg', 'gif'])])
+    image = FileField('Product Image', validators=[Optional(), FileAllowed(['jpg', 'png', 'jpeg', 'gif', 'webp'])])
     submit = SubmitField('Save Product')
 
 
@@ -130,7 +130,7 @@ class PromotionForm(FlaskForm):
     title = StringField('Promotion Title', validators=[DataRequired(), Length(max=100)])
     image = FileField('Promotion Image', 
                       validators=[Optional(), 
-                                  FileAllowed(['jpg', 'png', 'jpeg', 'gif'], 'Images only!')])
+                                  FileAllowed(['jpg', 'png', 'jpeg', 'gif', 'webp'], 'Images only!')])
     target_url = StringField('Link (e.g. /?category=Electronics or /product/12)',
                              validators=[Optional(), Length(max=255),
                                          Regexp(r'^(/(?!/)\S*|https?://\S+)$', message='Use a link that starts with / (a page on this shop) or https://')])

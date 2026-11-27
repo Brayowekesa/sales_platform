@@ -255,6 +255,15 @@ Add to `crontab -e`:
 15 2 * * * cd /opt/shop && sh deploy/backup.sh >> backups/backup.log 2>&1
 ```
 
+### Ending Pamoja deals on time
+
+Deals end by themselves when someone opens a deal, order or admin page after the end time. To end
+them exactly on time even when nobody is browsing, also add:
+
+```
+*/5 * * * * cd /opt/shop && docker compose exec -T web flask --app app close-deals >> backups/deals.log 2>&1
+```
+
 **Keep a copy off the server.** If the server is lost, backups on it are lost too. For example,
 copy `backups/` every night to cloud storage with [rclone](https://rclone.org).
 
@@ -417,7 +426,8 @@ The limits, from outside in:
   `TRUSTED_PROXY_COUNT=1` behind Caddy/nginx.
 - **HTTPS certificate not issued:** the DNS A record must point at the server, and ports 80 and 443
   must be open. See `docker compose logs caddy`.
-- **Admin locked out of two-step login:** `docker compose exec web flask --app app reset-2fa USERNAME`.
+- **Admin locked out of two-step login:** `docker compose exec web flask --app app reset-2fa USERNAME
+docker compose exec web flask --app app close-deals      # end Pamoja deals whose time is up`.
 - **Customers cannot check out:** at least one option in **Admin → Delivery** must have
   "Show at checkout" ticked.
 

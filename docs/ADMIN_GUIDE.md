@@ -4,7 +4,7 @@ For shop staff. It explains the daily work in the admin panel: orders, packing p
 products, prices, delivery options and settings.
 
 Open the admin panel at `https://YOUR-SHOP/admin` and log in with your admin account. The menu on
-the left has: **Dashboard, Products, Orders, Members, Delivery, Promotions, Reports, Shop settings,
+the left has: **Dashboard, Products, Orders, Members, Delivery, Pamoja deals, Promotions, Reports, Shop settings,
 Activity Logs** and **View Live Site**.
 
 Contents:
@@ -23,6 +23,7 @@ Contents:
 12. [Reports](#12-reports)
 13. [Activity logs](#13-activity-logs)
 14. [Two-step login for admins](#14-two-step-login-for-admins)
+15. [Pamoja deals (buy together)](#15-pamoja-deals-buy-together)
 
 ---
 
@@ -152,7 +153,9 @@ it before.
 ### Wrong PIN
 
 After 5 wrong PINs in 15 minutes the order is locked for 15 minutes ("Too many wrong PINs").
-Each wrong PIN is written in the Activity Logs.
+After **10 wrong PINs in total** the PIN is locked for good: the order page shows a red
+"PIN is locked" box. Call the customer, and once you are sure they have the parcel, use the
+override below. Each wrong PIN is written in the Activity Logs.
 
 ### The customer lost the PIN
 
@@ -164,7 +167,8 @@ Each wrong PIN is written in the Activity Logs.
    it, use the override below.
 
 Do **not** set the order back to Processing and then Shipped again unless you mean to: every time an
-order is set to Shipped, a **new** PIN is made and the old one stops working.
+order is set to Shipped, a **new** PIN is made and the old one stops working - and so does the old
+rider link (send the rider the new link).
 
 ### Marking delivered without the PIN (override)
 
@@ -176,8 +180,9 @@ phone is off).
    collected, phone off".
 3. Click **Update Status**.
 
-Without a reason the shop refuses and asks for the PIN. The reason and your username go into the
-order history, and the Delivery confirmation box shows "Marked delivered without the customer's PIN".
+Without a reason the shop refuses and asks for the PIN. The reason and your username are saved and
+shown **only on the admin order page** (Delivery confirmation box). The customer just sees
+"Marked delivered by our staff".
 
 ---
 
@@ -216,6 +221,13 @@ A customer can send an order to someone else (family, friends). The order page s
   says "they pay KSh ... on delivery". The receiver's first SMS and tracking page also show this amount.
   Tell the rider to collect exactly that amount.
 - If there is a problem with the packing proof, call the **buyer**, not the receiver.
+
+### Limits that protect the shop's SMS
+
+- The buyer's message is sent in our SMS, so it may not contain links or phone numbers (checkout
+  refuses them). Only the buyer's first name is used.
+- Each customer can place at most **3 gift orders a day**. If a real customer needs more, they can
+  contact you.
 
 ---
 
@@ -432,3 +444,42 @@ flask --app app reset-2fa USERNAME
 (On the Docker setup: `docker compose exec web flask --app app reset-2fa USERNAME`.)
 This turns two-step login off for that account. Log in with your password and turn it on again
 straight away.
+
+---
+
+## 15. Pamoja deals (buy together)
+
+A Pamoja deal lowers the price as more people buy. Example: 1 buyer KSh 2,500, 5 buyers KSh 2,100,
+10 buyers KSh 1,900. **Everyone pays the lowest price reached when the deal ends**, even the people
+who joined first. Customers share the deal page on WhatsApp to bring in their chama, workmates or
+family.
+
+### Starting a deal
+
+1. Open **Pamoja deals** in the menu.
+2. Under **Start a deal** choose the product, an optional headline, the **price steps**
+   (`buyers:price`, e.g. `1:2500, 5:2100, 10:1900`), the end date and time (shop time), and
+   **Max per person**.
+3. Click **Start deal**. Then open the deal page (click its name) and share it on WhatsApp.
+
+Rules: the first step is for 1 buyer and can't be above the normal price; each step needs more
+buyers and a lower price; up to 5 steps; one running deal per product. Buyers are counted per
+person, not per item.
+
+### While the deal runs
+
+- Customers join from the deal page; the item goes to checkout at the current deal price.
+- **Don't send deal orders yet.** The order page shows "In a Pamoja deal" and the shop refuses
+  *Shipped* or *Delivered* until the deal has ended, because the final price isn't known.
+- You can **Extend** a deal (only later, never earlier) or **End now**.
+
+### When the deal ends
+
+The deal ends by itself at the end time (see "Ending deals on time" in OPERATIONS.md), or when you
+click **End now**. Then:
+
+- Every buyer's order is lowered to the final price, and they get an email/SMS.
+- **Cash on delivery:** collect the new, lower total shown on the order.
+- **Paid by M-Pesa:** the order page shows a blue box "Refund KSh ... to the customer's M-Pesa".
+  Send that amount back; the deals list shows how many refunds are due for each deal.
+- Now pack and send the orders as usual.

@@ -312,7 +312,7 @@ DEFAULT_DELIVERY_ZONES = [
     ('Nairobi suburbs', 'delivery', 250, 3000, 'Same or next day', 'Westlands, Kilimani, Kileleshwa, South B/C, Eastlands, Kasarani and nearby.', 1),
     ('Greater Nairobi', 'delivery', 400, 5000, '1-2 days', 'Kiambu, Ruiru, Thika Road, Rongai, Kitengela, Syokimau, Athi River.', 2),
     ('Rest of Kenya (courier)', 'delivery', 600, None, '2-4 days', 'Sent by courier to your nearest town office.', 3),
-    ('Pick up from our shop', 'pickup', 0, None, 'Ready within 24 hours', 'Set your shop address and opening hours in Admin -> Delivery.', 4),
+    ('Pick up from our shop', 'pickup', 0, None, 'Ready within 24 hours', 'Set your shop address and opening hours in Admin -> Shop settings.', 4),
 ]
 
 
@@ -402,6 +402,11 @@ def _migration_8_order_safety(conn):
     conn.execute("UPDATE orders SET stock_released = 1 WHERE status IN ('Cancelled', 'Payment Failed')")
 
 
+def _migration_9_pickup_text(conn):
+    # the default pickup point pointed staff to the wrong admin page
+    conn.execute('UPDATE delivery_zones SET details = ? WHERE details = ?', ('Set your shop address and opening hours in Admin -> Shop settings.', 'Set your shop address and opening hours in Admin -> Delivery.'))
+
+
 # Add new schema changes at the end as (version, description, function). Never edit old ones.
 MIGRATIONS = [
     (1, 'initial schema', _migration_1_initial_schema),
@@ -412,6 +417,7 @@ MIGRATIONS = [
     (6, 'gift orders (Tuma kwa Mama)', _migration_6_gifts),
     (7, 'Pamoja group deals', _migration_7_group_deals),
     (8, 'order safety: stock flag, PIN attempts, staff-only override reason', _migration_8_order_safety),
+    (9, 'fix default pickup point text', _migration_9_pickup_text),
 ]
 
 
