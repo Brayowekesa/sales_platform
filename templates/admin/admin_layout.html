@@ -30,6 +30,7 @@
                 <li class="{{ 'active' if request.endpoint.startswith('admin.admin_order') else '' }}"><a href="{{ url_for('admin.admin_orders') }}"><i class="fas fa-file-invoice mr-2"></i>Orders</a></li>
                 <li class="{{ 'active' if request.endpoint.startswith('admin.admin_member') else '' }}"><a href="{{ url_for('admin.admin_members') }}"><i class="fas fa-users-cog mr-2"></i>Members</a></li>
                 <li class="{{ 'active' if request.endpoint in ['admin.admin_delivery', 'admin.admin_edit_delivery'] else '' }}"><a href="{{ url_for('admin.admin_delivery') }}"><i class="fas fa-truck mr-2"></i>Delivery</a></li>
+                <li class="{{ 'active' if request.endpoint == 'admin.admin_deals' else '' }}"><a href="{{ url_for('admin.admin_deals') }}"><i class="fas fa-users mr-2"></i>Pamoja deals</a></li>
                 <li class="{{ 'active' if request.endpoint.startswith('admin.admin_promotion') else '' }}"><a href="{{ url_for('admin.admin_promotions') }}"><i class="fas fa-bullhorn mr-2"></i>Promotions</a></li>
                 <li class="{{ 'active' if request.endpoint.startswith('admin.report_') else '' }}">
                     <a href="#reportsSubmenu" data-toggle="collapse" aria-expanded="{{ 'true' if request.endpoint.startswith('admin.report_') else 'false' }}" class="dropdown-toggle">

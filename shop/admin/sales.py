@@ -4,6 +4,7 @@ from shop.payments import confirm_delivery_with_pin
 from datetime import datetime
 from flask import current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from shop.deals import close_due_deals, open_deal_ids_for_order
 from shop.db import DatabaseError, get_db_connection
 from shop.notifications import notify_order_event, sms_enabled
 from shop.payments import CheckoutError, STOCK_RELEASED_STATUSES, record_order_status, release_order_stock, reserve_order_stock
@@ -16,6 +17,7 @@ from shop.admin import bp
 @login_required
 @admin_required
 def admin_orders():
+    close_due_deals()
     page = request.args.get('page', 1, type=int)
     per_page = 15 # Number of orders per page
     status_filter = request.args.get('status', None)
@@ -123,6 +125,7 @@ def admin_orders():
 @login_required
 @admin_required
 def admin_order_details(order_id):
+    close_due_deals()
     with get_db_connection() as conn:
         raw_order = conn.execute('''
             SELECT o.*, u.username, u.email
@@ -151,6 +154,7 @@ def admin_order_details(order_id):
             'SELECT status, note, created_at FROM order_status_history WHERE order_id = ? ORDER BY created_at, id',
             (order_id,)).fetchall()
         proofs = conn.execute('SELECT id, kind, created_at FROM order_proofs WHERE order_id = ? ORDER BY id', (order_id,)).fetchall()
+        deals_open = open_deal_ids_for_order(conn, order_id)
         order_items = conn.execute('''
             SELECT oi.quantity, oi.price, p.name, p.image, p.id as product_id
             FROM order_items oi
@@ -161,6 +165,7 @@ def admin_order_details(order_id):
     rider_link = url_for('orders.rider_delivery', token=rider_token(order_id), _external=True) \
         if order.get('status') == 'Shipped' and order.get('delivery_method') != 'pickup' else None
     return render_template('admin/order_details.html', order=order, order_items=order_items, history=history,
+                           open_deal=deals_open[0] if deals_open else None,
                            proofs=proofs, rider_link=rider_link, max_proof_files=MAX_PROOF_FILES,
                            sms_enabled=sms_enabled(), title=f'Order #{order_id}')
 
@@ -188,6 +193,10 @@ def admin_update_order_status(order_id):
             old_status = order['status']
             pin_row = conn.execute('SELECT delivery_pin, delivered_with_pin FROM orders WHERE id = ?', (order_id,)).fetchone()
             override_reason = (request.form.get('override_reason') or '').strip()[:200]
+            if new_status in ('Shipped', 'Delivered') and open_deal_ids_for_order(conn, order_id):
+                flash("This order is in a Pamoja deal that hasn't ended yet - the final price isn't known. "
+                      "End the deal (Admin > Pamoja deals) or wait for it to finish, then send it.", 'warning')
+                return redirect(url_for('admin.admin_order_details', order_id=order_id))
             if new_status == 'Delivered' and old_status != 'Delivered' and pin_row['delivery_pin'] and not override_reason:
                 flash("Enter the customer's delivery PIN below, or give a reason for marking it delivered without the PIN.", 'warning')
                 return redirect(url_for('admin.admin_order_details', order_id=order_id))

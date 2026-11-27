@@ -22,7 +22,8 @@
                     </a>
                     <div class="cart-info">
                         <a href="{{ url_for('store.product_details', product_id=item.id) }}" class="cart-name">{{ item.name }}</a>
-                        <span class="cart-unit">{{ item.price|money }} each</span>
+                        <span class="cart-unit">{{ item.price|money }} each{% if item.deal %} <span class="deal-chip"><i class="fas fa-users"></i> Pamoja price</span>{% endif %}</span>
+                        {% if item.deal %}<p class="small text-muted mb-0">Drops to {{ item.deal.best_price|money }} if {{ item.deal.tiers[-1].buyers }} people buy. You pay the lowest price reached. Max {{ item.deal.max_per_buyer }} per person.</p>{% endif %}
                         {% if item.quantity > item.stock %}
                             <p class="small text-danger mb-0">Note: Requested quantity ({{ item.quantity }}) exceeds available stock ({{ item.stock }}). Please adjust.</p>
                         {% elif item.stock < 5 %}

@@ -129,7 +129,10 @@ def notify_order_event(order_id, event):
         is_pickup = order.get('delivery_method') == 'pickup'
         is_gift = bool(order.get('is_gift'))
         receiver = (order.get('contact_name') or '').split(' ')[0]
-        if event == 'proof':
+        if event == 'deal_closed':
+            headline = 'Your Pamoja deal has ended'
+            message = (last['note'] if last else 'The deal has ended.') + f" Order total now: KSh {order['total_amount']:,.0f}."
+        elif event == 'proof':
             headline = 'Check your item before we send it'
             message = ("We've added photos/video of the exact item we're packing for you. "
                        "Please take a look and tell us if it looks right.")

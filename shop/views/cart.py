@@ -2,6 +2,7 @@
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from shop.db import IntegrityError, get_db_connection
+from shop.deals import apply_deal_prices
 from shop.forms import UpdateCartForm
 from shop.security import log_activity, same_site_referrer
 
@@ -14,12 +15,12 @@ bp = Blueprint('cart', __name__)
 def view_cart():
     update_forms = {} # To hold a form for each item
     with get_db_connection() as conn:
-        cart_items = conn.execute('''
-            SELECT p.id, p.name, p.price, p.image, p.stock, c.quantity
+        cart_items = apply_deal_prices(conn, conn.execute('''
+            SELECT p.id, p.name, p.price, p.image, p.stock, c.quantity, c.deal_id
             FROM carts c
             JOIN products p ON c.product_id = p.id
             WHERE c.user_id = ?
-        ''', (current_user.id,)).fetchall()
+        ''', (current_user.id,)).fetchall(), current_user.id)
 
         # Prepare update forms for each cart item
         for item in cart_items:

@@ -1,0 +1,100 @@
+{% extends "admin/admin_layout.html" %}
+{% block admin_title %}Pamoja deals{% endblock %}
+{% block admin_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-3">
+        <h1 class="h3 mb-0">Pamoja deals</h1>
+        <a href="{{ url_for('deals.deal_list') }}" target="_blank" class="btn btn-outline-secondary btn-sm"><i class="fas fa-external-link-alt"></i> See deals page</a>
+    </div>
+    <p class="text-muted">Group buying: the price drops as more people join, and everyone pays the lowest price reached when the deal ends.
+        Deal orders are held until then. Cash on delivery orders get the lower total automatically; for M-Pesa orders you'll see the amount to refund.</p>
+
+    <div class="row">
+        <div class="col-12 mb-4">
+            <div class="card shadow">
+                <div class="card-header"><h6 class="m-0 font-weight-bold text-primary">Deals</h6></div>
+                <div class="card-body p-0">
+                    {% if deals %}
+                    <div class="table-responsive">
+                    <table class="table mb-0 align-middle">
+                        <thead><tr><th>Product</th><th>Price steps</th><th>Buyers</th><th>Price now</th><th>Ends</th><th></th></tr></thead>
+                        <tbody>
+                        {% for d in deals %}
+                        <tr>
+                            <td><a href="{{ url_for('deals.deal_page', deal_id=d.id) }}" target="_blank"><strong>{{ d.title or d.product_name }}</strong></a>{% if d.title %}<br><small class="text-muted">{{ d.product_name }}</small>{% endif %}
+                                <br><small class="text-muted">Max {{ d.max_per_buyer }} per person</small></td>
+                            <td><small>{% for t in d.tiers %}{{ t.buyers }}: {{ t.price|money }}{% if not loop.last %}<br>{% endif %}{% endfor %}</small></td>
+                            <td><strong>{{ d.buyers }}</strong>{% if d.next_tier and d.is_open %}<br><small class="text-muted">{{ d.next_tier.needed }} more for next step</small>{% endif %}</td>
+                            <td>{{ d.current_price|money }}</td>
+                            <td>
+                                {% if d.is_open %}<span class="badge badge-success">Running</span><br><small>{{ d.ends_at|localtime }}</small>
+                                {% elif d.status == 'active' %}<span class="badge badge-warning">Ending...</span>
+                                {% else %}<span class="badge badge-secondary">Ended</span><br><small>{{ d.closed_at|localtime }}</small>{% endif %}
+                                {% if d.refunds_due and d.refunds_due[0] %}<br><span class="badge badge-info">{{ d.refunds_due[0] }} M-Pesa refund(s): {{ d.refunds_due[1]|money }}</span>{% endif %}
+                            </td>
+                            <td class="text-nowrap">
+                                {% if d.status == 'active' %}
+                                <form method="POST" action="{{ url_for('admin.admin_extend_deal', deal_id=d.id) }}" class="form-inline mb-1">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="datetime-local" name="ends_at" class="form-control form-control-sm mr-1" required aria-label="New end time">
+                                    <button class="btn btn-sm btn-outline-primary">Extend</button>
+                                </form>
+                                <form method="POST" action="{{ url_for('admin.admin_end_deal', deal_id=d.id) }}" onsubmit="return confirm('End this deal now at {{ d.current_price|money }}? Buyers get this price and their orders can be sent.');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button class="btn btn-sm btn-outline-danger">End now</button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted p-4 mb-0">No deals yet. Start one on the right - pick a popular product and share the deal link in WhatsApp groups.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow">
+                <div class="card-header"><h6 class="m-0 font-weight-bold text-primary">Start a deal</h6></div>
+                <div class="card-body">
+                    {% for e in errors %}<div class="alert alert-danger py-2 small">{{ e }}</div>{% endfor %}
+                    <form method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="form-group">
+                            <label for="product_id">Product</label>
+                            <select name="product_id" id="product_id" class="form-control" required>
+                                <option value="">Choose...</option>
+                                {% for p in products %}<option value="{{ p.id }}" {% if form.product_id == p.id|string %}selected{% endif %}>{{ p.name }} - {{ p.price|money }} ({{ p.stock }} in stock)</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="title">Headline <small class="text-muted">(optional)</small></label>
+                            <input type="text" name="title" id="title" class="form-control" maxlength="120" value="{{ form.title }}" placeholder="e.g. Back-to-school blender deal">
+                        </div>
+                        <div class="form-group">
+                            <label for="tiers">Price steps (buyers:price)</label>
+                            <input type="text" name="tiers" id="tiers" class="form-control" required value="{{ form.tiers }}" placeholder="1:2500, 5:2100, 10:1900">
+                            <small class="form-text text-muted">Start with 1 buyer. Each step needs more buyers and a lower price. Up to 5 steps. Buyers are counted per person.</small>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group col-7">
+                                <label for="ends_at">Ends</label>
+                                <input type="datetime-local" name="ends_at" id="ends_at" class="form-control" required value="{{ form.ends_at }}">
+                            </div>
+                            <div class="form-group col-5">
+                                <label for="max_per_buyer">Max per person</label>
+                                <input type="number" name="max_per_buyer" id="max_per_buyer" class="form-control" min="1" max="20" value="{{ form.max_per_buyer }}">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary btn-block"><i class="fas fa-users"></i> Start deal</button>
+                        <p class="small text-muted mt-2 mb-0">Tip: set the deal to end automatically by running <code>flask --app app close-deals</code> every few minutes (cron). Deals also end when someone opens a deal or order page after the end time.</p>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

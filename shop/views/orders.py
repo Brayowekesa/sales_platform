@@ -9,6 +9,7 @@ from shop.db import get_db_connection
 from shop.extensions import csrf
 from shop.forms import CheckoutForm
 from shop.helpers import active_delivery_zones, delivery_fee_for, localtime_filter
+from shop.deals import apply_deal_prices, close_due_deals, deal_info
 from shop.gifts import order_from_gift_token, recipient_sms
 from shop.notifications import notify_order_event, send_sms, sms_enabled, to_international
 from shop.payments import ALLOWED_PAYMENT_METHODS, CheckoutError, confirm_delivery_with_pin, lipa_na_mpesa_stk_push, mpesa_callback_signature, order_progress, record_order_status, release_order_stock
@@ -23,11 +24,11 @@ bp = Blueprint('orders', __name__)
 def checkout():
     form = CheckoutForm()
     with get_db_connection() as conn:
-        cart_items_raw = conn.execute('''
-            SELECT p.id as product_id, p.name, p.price, p.stock, c.quantity
+        cart_items_raw = apply_deal_prices(conn, conn.execute('''
+            SELECT p.id as product_id, p.name, p.price, p.stock, c.quantity, c.deal_id
             FROM carts c JOIN products p ON c.product_id = p.id
             WHERE c.user_id = ?
-        ''', (current_user.id,)).fetchall()
+        ''', (current_user.id,)).fetchall(), current_user.id)
         saved_phone = conn.execute('SELECT phone FROM users WHERE id = ?', (current_user.id,)).fetchone()['phone']
 
     if not cart_items_raw:
@@ -83,6 +84,10 @@ def checkout():
             landmark = None
             shipping_address = f"Pickup: {selected_zone['name']}"
         contact_phone = form.contact_phone.data
+        for item in cart_items_raw:
+            if item['deal'] and item['quantity'] > item['deal']['max_per_buyer']:
+                flash(f"The Pamoja deal for {item['name']} allows {item['deal']['max_per_buyer']} per person - please lower the quantity in your cart.", 'warning')
+                return redirect(url_for('cart.view_cart'))
         # Tuma kwa Mama: the recipient becomes the order's contact (rider calls them, they get the PIN)
         is_gift = bool(form.is_gift.data)
         receiver_name, receiver_phone = form.contact_name.data.strip(), contact_phone
@@ -118,9 +123,13 @@ def checkout():
                 # 2. Create Order Items and Update Product Stock
                 for item in cart_items_raw:
                     conn.execute('''
-                        INSERT INTO order_items (order_id, product_id, quantity, price)
-                        VALUES (?, ?, ?, ?)
-                    ''', (order_id, item['product_id'], item['quantity'], item['price']))
+                        INSERT INTO order_items (order_id, product_id, quantity, price, deal_id)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (order_id, item['product_id'], item['quantity'], item['price'], item['deal_id']))
+                    if item['deal']:
+                        record_order_status(conn, order_id, 'Joined Pamoja deal',
+                                            f"{item['name']}: you pay the lowest price reached when the deal ends - never more than "
+                                            f"KSh {item['price']:,.0f} each. We send your order after the deal ends.")
                     # Decrease stock in one step, only if enough is still left (two shoppers can't both buy the last item)
                     cur = conn.execute("UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?",
                                        (item['quantity'], item['product_id'], item['quantity']))
@@ -277,6 +286,7 @@ def order_history():
 @bp.route('/orders/<int:order_id>') # This is order_details for the user
 @login_required
 def order_details(order_id): # Renamed from order_details_user to match your existing route
+    close_due_deals()
     with get_db_connection() as conn:
         # Ensure user can only see their own order
         order = conn.execute('''
@@ -299,6 +309,9 @@ def order_details(order_id): # Renamed from order_details_user to match your exi
             'SELECT status, note, created_at FROM order_status_history WHERE order_id = ? ORDER BY created_at, id',
             (order_id,)).fetchall()
         proofs = conn.execute('SELECT id, kind FROM order_proofs WHERE order_id = ? ORDER BY id', (order_id,)).fetchall()
+        deal_rows = conn.execute('''SELECT DISTINCT d.* FROM order_items oi JOIN group_deals d ON d.id = oi.deal_id
+                                    WHERE oi.order_id = ? AND d.status = 'active' ''', (order_id,)).fetchall()
+        open_deal = deal_info(conn, deal_rows[0], current_user.id) if deal_rows else None
 
     order_dict = dict(order)
     gift_link = None
@@ -308,7 +321,7 @@ def order_details(order_id): # Renamed from order_details_user to match your exi
     order_dict['order_date_formatted'] = localtime_filter(order_dict.get('order_date')) or 'N/A'
     return render_template('order_details_user.html', order=order_dict, order_items=order_items,
                            history=history, proofs=proofs, just_placed=request.args.get('placed') == '1',
-                           gift_link=gift_link, sms_on=sms_enabled(),
+                           gift_link=gift_link, sms_on=sms_enabled(), open_deal=open_deal,
                            progress=order_progress(order_dict), title=f"Order #{order_id}")
 
 

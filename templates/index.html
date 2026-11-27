@@ -129,6 +129,29 @@
     </section>
     {% endif %}
 
+    <!-- Pamoja deals -->
+    {% if home_deals and not filtering %}
+    <section class="home-deals" aria-labelledby="deals-title">
+        <div class="home-deals-head">
+            <h2 id="deals-title"><i class="fas fa-users"></i> Pamoja deals <small>buy together, pay less</small></h2>
+            <a href="{{ url_for('deals.deal_list') }}">See all <i class="fas fa-chevron-right"></i></a>
+        </div>
+        <div class="deal-grid">
+            {% for deal in home_deals %}
+            <a class="deal-card" href="{{ url_for('deals.deal_page', deal_id=deal.id) }}">
+                <img src="{{ product_img(deal.product_image, 'card') }}" alt="" loading="lazy">
+                <div class="deal-card-body">
+                    <strong class="deal-card-title">{{ deal.title or deal.product_name }}</strong>
+                    <div class="deal-card-price"><span>{{ deal.current_price|money }}</span> <small>now · down to {{ deal.best_price|money }}</small></div>
+                    <div class="deal-progress" aria-hidden="true"><span style="width: {{ deal.progress }}%"></span></div>
+                    <small class="text-muted">{{ deal.buyers }} joined{% if deal.next_tier %} · {{ deal.next_tier.needed }} more for {{ deal.next_tier.price|money }}{% endif %}</small>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
     <!-- Featured Products -->
     {% if featured_products and not filtering %}
     <section class="horizontal-scroll-section">

@@ -374,6 +374,27 @@ def _migration_6_gifts(conn):
         conn.execute(f'ALTER TABLE orders ADD COLUMN {col} {ddl}')
 
 
+def _migration_7_group_deals(conn):
+    t = _TYPES[conn.dialect]
+    conn.execute(f'''CREATE TABLE IF NOT EXISTS group_deals (
+        id {t['ID']},
+        product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        title TEXT,
+        tiers TEXT NOT NULL,
+        max_per_buyer INTEGER NOT NULL DEFAULT 3,
+        ends_at {t['TS']} NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        final_price {t['MONEY']},
+        final_buyers INTEGER,
+        closed_at {t['TS']},
+        created_at {t['TS']} DEFAULT CURRENT_TIMESTAMP)''')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_group_deals_status ON group_deals(status, ends_at)')
+    conn.execute('ALTER TABLE carts ADD COLUMN deal_id INTEGER')
+    conn.execute('ALTER TABLE order_items ADD COLUMN deal_id INTEGER')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_order_items_deal ON order_items(deal_id)')
+    conn.execute(f"ALTER TABLE orders ADD COLUMN deal_refund_due {t['MONEY']}")
+
+
 # Add new schema changes at the end as (version, description, function). Never edit old ones.
 MIGRATIONS = [
     (1, 'initial schema', _migration_1_initial_schema),
@@ -382,6 +403,7 @@ MIGRATIONS = [
     (4, 'price history (honest prices)', _migration_4_price_history),
     (5, 'delivery landmark and map pin', _migration_5_landmarks),
     (6, 'gift orders (Tuma kwa Mama)', _migration_6_gifts),
+    (7, 'Pamoja group deals', _migration_7_group_deals),
 ]
 
 

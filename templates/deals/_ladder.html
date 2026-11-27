@@ -1,0 +1,16 @@
+{# Price steps + progress for a deal (dict from shop.deals.deal_info) #}
+<div class="deal-ladder" role="list" aria-label="Price steps">
+    {% for t in deal.tiers %}
+    <div class="deal-step {{ 'is-reached' if t.reached }}" role="listitem">
+        <span class="deal-step-buyers"><i class="fas fa-user{{ 's' if t.buyers > 1 }}"></i> {{ t.buyers }}{{ '+' if not loop.first }} buyer{{ 's' if t.buyers > 1 }}</span>
+        <span class="deal-step-price">{{ t.price|money }}</span>
+        {% if t.reached %}<span class="deal-step-tick"><i class="fas fa-check"></i></span>{% endif %}
+    </div>
+    {% endfor %}
+</div>
+<div class="deal-progress" aria-hidden="true"><span style="width: {{ deal.progress }}%"></span></div>
+<p class="deal-progress-text">
+    <strong>{{ deal.buyers }}</strong> {{ 'person has' if deal.buyers == 1 else 'people have' }} joined.
+    {% if deal.next_tier and deal.is_open %}<strong>{{ deal.next_tier.needed }} more</strong> to unlock {{ deal.next_tier.price|money }}.
+    {% elif deal.is_open %}Lowest price unlocked!{% endif %}
+</p>

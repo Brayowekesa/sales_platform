@@ -65,13 +65,14 @@ def create_app(overrides=None):
 
     # --- pages ---
     from shop.admin import bp as admin_bp
-    from shop.views import account, auth, cart, orders, pages, store
-    for bp in (store.bp, cart.bp, orders.bp, auth.bp, account.bp, pages.bp):
+    from shop.views import account, auth, cart, deals, orders, pages, store
+    for bp in (store.bp, cart.bp, orders.bp, auth.bp, account.bp, pages.bp, deals.bp):
         app.register_blueprint(bp)
     app.register_blueprint(admin_bp, url_prefix='/admin')
 
     # --- command line: flask --app app init-db / create-admin / copy-to-postgres ---
-    from shop.cli import copy_to_postgres_command, create_admin_command, init_db_command, reset_2fa_command
+    from shop.cli import close_deals_command, copy_to_postgres_command, create_admin_command, init_db_command, reset_2fa_command
+    app.cli.add_command(close_deals_command)
     app.cli.add_command(reset_2fa_command)
     app.cli.add_command(init_db_command)
     app.cli.add_command(create_admin_command)

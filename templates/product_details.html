@@ -62,6 +62,15 @@
             </details>
             {% endif %}
 
+            {% if deal and deal.is_open and product.stock > 0 %}
+            <a class="deal-box" href="{{ url_for('deals.deal_page', deal_id=deal.id) }}">
+                <span class="deal-box-icon"><i class="fas fa-users"></i></span>
+                <span class="deal-box-text"><strong>Pamoja deal: buy together from {{ deal.join_price|money }}</strong>
+                    <small>{{ deal.buyers }} joined · drops to {{ deal.best_price|money }} with {{ deal.tiers[-1].buyers }} buyers · ends {{ deal.ends_at|localtime('%d %b, %H:%M') }}</small></span>
+                <span class="deal-box-go">Join <i class="fas fa-chevron-right"></i></span>
+            </a>
+            {% endif %}
+
             {% if product.stock <= 0 %}
                 <p class="text-danger font-weight-bold mt-2 lead">Out of Stock</p>
             {% elif product.stock < 10 %}

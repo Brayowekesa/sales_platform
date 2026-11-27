@@ -67,6 +67,20 @@
         {% endif %}
     </div>
 
+    {# ---------- Pamoja deal still running / refund due ---------- #}
+    {% if open_deal %}
+    <a class="deal-box mb-4" href="{{ url_for('deals.deal_page', deal_id=open_deal.id) }}">
+        <span class="deal-box-icon"><i class="fas fa-users"></i></span>
+        <span class="deal-box-text"><strong>Your Pamoja deal is still running - price now {{ open_deal.current_price|money }}</strong>
+            <small>{{ open_deal.buyers }} joined{% if open_deal.next_tier %} · {{ open_deal.next_tier.needed }} more to drop to {{ open_deal.next_tier.price|money }}{% endif %}.
+            We send your order when the deal ends ({{ open_deal.ends_at|localtime('%d %b, %H:%M') }}). Share it to bring the price down!</small></span>
+        <span class="deal-box-go">Share <i class="fas fa-chevron-right"></i></span>
+    </a>
+    {% endif %}
+    {% if order.deal_refund_due %}
+    <div class="alert alert-info"><i class="fas fa-undo mr-1"></i> Good news: the Pamoja deal ended at a lower price. We'll send <strong>{{ order.deal_refund_due|money }}</strong> back to your M-Pesa.</div>
+    {% endif %}
+
     {# ---------- Tuma kwa Mama: who it's going to ---------- #}
     {% if order.is_gift %}
     <div class="gift-card">

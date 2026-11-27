@@ -4,6 +4,7 @@
     flask --app app create-admin                  add an admin account
     flask --app app copy-to-postgres sales.db     move an existing SQLite shop into PostgreSQL (DATABASE_URL)
     flask --app app reset-2fa USERNAME            turn off two-step login for someone who lost their phone
+    flask --app app close-deals                   end Pamoja deals whose time is up (run every few minutes from cron)
 """
 import os
 import re
@@ -60,8 +61,16 @@ def reset_2fa_command(username):
     click.echo(f"Two-step login turned off for '{username}'. They should turn it on again after logging in.")
 
 
+@click.command('close-deals')
+@with_appcontext
+def close_deals_command():
+    """End Pamoja deals whose time is up and give every buyer the final price."""
+    from shop.deals import close_due_deals
+    click.echo(f'Closed {close_due_deals()} deal(s).')
+
+
 # Parents before children, so foreign keys are satisfied while copying
-COPY_ORDER = ['users', 'products', 'promotions', 'delivery_zones', 'settings', 'orders', 'order_items',
+COPY_ORDER = ['users', 'products', 'group_deals', 'promotions', 'delivery_zones', 'settings', 'orders', 'order_items',
               'order_status_history', 'reviews', 'wishlists', 'carts', 'product_images', 'activity_logs']
 
 

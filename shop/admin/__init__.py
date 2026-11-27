@@ -19,6 +19,6 @@ def require_admin():
         return redirect(url_for('account.setup'))
 
 
-from shop.admin import catalog, dashboard, people, sales, settings  # noqa: E402  (importing registers the admin pages)
+from shop.admin import catalog, dashboard, deals, people, sales, settings  # noqa: E402  (importing registers the admin pages)
 
-__all__ = ['bp', 'catalog', 'dashboard', 'people', 'sales', 'settings']
+__all__ = ['bp', 'catalog', 'dashboard', 'deals', 'people', 'sales', 'settings']

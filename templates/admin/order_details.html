@@ -153,6 +153,8 @@
                     {% endif %}
                     <hr>
                     <h6 class="font-weight-bold">{{ 'Pickup' if order.delivery_method == 'pickup' else 'Delivery' }}</h6>
+                    {% if open_deal %}<div class="alert alert-warning py-2 small"><i class="fas fa-users"></i> <strong>In a Pamoja deal</strong> that ends {{ open_deal.ends_at|localtime }}. Don't send it yet - the final price is set when the deal ends. <a href="{{ url_for('admin.admin_deals') }}">Manage deals</a></div>{% endif %}
+                    {% if order.deal_refund_due %}<div class="alert alert-info py-2 small"><i class="fas fa-undo"></i> <strong>Refund {{ order.deal_refund_due|money }}</strong> to the customer's M-Pesa: the Pamoja deal ended at a lower price than they paid.</div>{% endif %}
                     {% if order.is_gift %}<p class="mb-2"><span class="badge badge-warning"><i class="fas fa-gift"></i> Gift order</span> from <strong>{{ order.sender_name }}</strong> ({{ order.sender_phone }}){% if order.gift_message %}<br><small class="text-muted">Message: "{{ order.gift_message }}"</small>{% endif %}<br><small class="text-muted">Don't show prices to the receiver{% if order.payment_method == 'Cash on Delivery' %} - they pay {{ order.total_amount|money }} on delivery{% endif %}.</small></p>{% endif %}
                     {% if order.contact_name %}<p class="mb-1"><strong>Receiver:</strong> {{ order.contact_name }}</p>{% endif %}
                     {% if order.contact_phone %}

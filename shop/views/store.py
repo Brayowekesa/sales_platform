@@ -1,4 +1,5 @@
 """Shop front: home page, product pages, reviews, search."""
+from shop.deals import deal_info, open_deal_for_product, open_deals
 from shop.pricing import price_chart
 from datetime import datetime
 from flask import Blueprint, flash, redirect, render_template, request, url_for
@@ -121,8 +122,16 @@ def index():
     # if search_term: 
     #     pagination_query_params['q'] = search_term
 
+    home_deals = []
+    if category_filter == 'All':
+        with get_db_connection() as conn:
+            for row in open_deals(conn, limit=3):
+                info = deal_info(conn, row)
+                info.update(product_name=row['product_name'], product_image=row['product_image'])
+                home_deals.append(info)
     return render_template(
         'index.html',
+        home_deals=home_deals,
         products=products,                      # Main paginated product list
         featured_products=featured_products,    # NEW: For the horizontal scroll section
         # categories=page_categories,           # Only if you fetch page_categories specifically here
@@ -197,8 +206,11 @@ def product_details(product_id):
     with get_db_connection() as conn:
         photos = product_photos(conn, product_id, product_data_for_template.get('image')) or [None]
         chart = price_chart(conn, product_id)
+        deal_row = open_deal_for_product(conn, product_id)
+        deal = deal_info(conn, deal_row, current_user.id if current_user.is_authenticated else None) if deal_row else None
     return render_template(
         'product_details.html',
+        deal=deal,
         photos=photos,
         chart=chart,
         product=product_data_for_template,  # Pass the (potentially processed) product dict
