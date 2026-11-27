@@ -323,9 +323,15 @@ def _migration_1_initial_schema(conn):
                          DEFAULT_DELIVERY_ZONES)
 
 
+def _migration_2_two_factor(conn):
+    for col, ddl in [('totp_secret', 'TEXT'), ('totp_enabled', 'INTEGER DEFAULT 0'), ('recovery_codes', 'TEXT')]:
+        conn.execute(f'ALTER TABLE users ADD COLUMN {col} {ddl}')
+
+
 # Add new schema changes at the end as (version, description, function). Never edit old ones.
 MIGRATIONS = [
     (1, 'initial schema', _migration_1_initial_schema),
+    (2, 'two-step login (authenticator app)', _migration_2_two_factor),
 ]
 
 

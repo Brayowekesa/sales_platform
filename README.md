@@ -8,6 +8,7 @@ An online shop for Kenya, built with Python and Flask:
 - Order tracking, with email updates and optional SMS (Africa's Talking)
 - Admin panel: products, promotions, orders, members, delivery options, shop settings, reports
 - Security:
+  - two-step login with an authenticator app (required for admins on the live site)
   - login limits and email verification
   - CSRF protection and security headers
   - upload checks and admin-only areas

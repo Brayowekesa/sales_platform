@@ -28,6 +28,15 @@ def create_app(overrides=None):
         app.config['SECRET_KEY'] = secrets.token_hex(32)
         print("WARNING: FLASK_SECRET_KEY is not set - using a temporary random key (sessions reset on restart).")
 
+    if app.config.get('SENTRY_DSN') and not app.testing:
+        try:
+            import sentry_sdk
+            from sentry_sdk.integrations.flask import FlaskIntegration
+            sentry_sdk.init(dsn=app.config['SENTRY_DSN'], integrations=[FlaskIntegration()],
+                            send_default_pii=False, traces_sample_rate=0.0)
+        except ImportError:
+            print('WARNING: SENTRY_DSN is set but sentry-sdk is not installed.')
+
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['PROMOTIONS_UPLOAD_FOLDER'], exist_ok=True)
 
@@ -37,8 +46,10 @@ def create_app(overrides=None):
     mail.init_app(app)
     bootstrap.init_app(app)
     login_manager.init_app(app)
-    from shop import models  # noqa: F401  (registers the user loader)
-    from shop.security import handle_needs_login  # noqa: F401  (registers the "please log in" handler)
+    # Importing these registers the user loader and the "please log in" handler with Flask-Login
+    from shop.models import load_user
+    from shop.security import handle_needs_login
+    assert load_user and handle_needs_login
 
     # --- templates: globals, filters, shared values, security headers ---
     from shop.helpers import localtime_filter, money_filter, product_img, safe_link_filter, utility_processor
@@ -52,13 +63,14 @@ def create_app(overrides=None):
 
     # --- pages ---
     from shop.admin import bp as admin_bp
-    from shop.views import auth, cart, orders, pages, store
-    for bp in (store.bp, cart.bp, orders.bp, auth.bp, pages.bp):
+    from shop.views import account, auth, cart, orders, pages, store
+    for bp in (store.bp, cart.bp, orders.bp, auth.bp, account.bp, pages.bp):
         app.register_blueprint(bp)
     app.register_blueprint(admin_bp, url_prefix='/admin')
 
     # --- command line: flask --app app init-db / create-admin / copy-to-postgres ---
-    from shop.cli import copy_to_postgres_command, create_admin_command, init_db_command
+    from shop.cli import copy_to_postgres_command, create_admin_command, init_db_command, reset_2fa_command
+    app.cli.add_command(reset_2fa_command)
     app.cli.add_command(init_db_command)
     app.cli.add_command(create_admin_command)
     app.cli.add_command(copy_to_postgres_command)

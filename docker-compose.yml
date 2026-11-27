@@ -27,6 +27,7 @@ services:
       TRUSTED_PROXY_COUNT: "1"     # Caddy sits in front
       SESSION_COOKIE_SECURE: "1"   # cookies only over HTTPS
       AUTO_MIGRATE: "0"            # the entrypoint migrates once before starting workers
+      REQUIRE_ADMIN_2FA: "1"       # admins must use two-step login
       FLASK_DEBUG: "0"
     volumes:
       - uploads:/app/static/uploads

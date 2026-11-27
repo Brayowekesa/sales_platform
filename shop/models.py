@@ -6,13 +6,14 @@ from shop.extensions import login_manager
 
 
 class User(UserMixin):
-    def __init__(self, id, username, email, password_hash, is_admin=0, confirmed=0):
+    def __init__(self, id, username, email, password_hash, is_admin=0, confirmed=0, totp_enabled=0):
         self.id = id
         self.username = username
         self.email = email
         self.password_hash = password_hash
         self.is_admin = is_admin
-        self.confirmed = confirmed # ADDED
+        self.confirmed = confirmed
+        self.totp_enabled = bool(totp_enabled)   # two-step login turned on
 
     def verify_password(self, password):
         return check_password_hash(self.password_hash, password)
@@ -29,6 +30,7 @@ def load_user(user_id):
                 email=user_data['email'],
                 password_hash=user_data['password_hash'],
                 is_admin=user_data['is_admin'],
-                confirmed=user_data['confirmed'] # ADDED
+                confirmed=user_data['confirmed'],
+                totp_enabled=user_data['totp_enabled'],
             )
         return None

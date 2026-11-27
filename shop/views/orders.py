@@ -1,4 +1,5 @@
 """Checkout, M-Pesa callback and the customer's orders."""
+import ipaddress
 import hmac
 import re
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
@@ -9,7 +10,7 @@ from shop.forms import CheckoutForm
 from shop.helpers import active_delivery_zones, delivery_fee_for, localtime_filter
 from shop.notifications import notify_order_event
 from shop.payments import ALLOWED_PAYMENT_METHODS, CheckoutError, lipa_na_mpesa_stk_push, mpesa_callback_signature, order_progress, record_order_status, release_order_stock
-from shop.security import log_activity
+from shop.security import client_ip, log_activity
 
 
 bp = Blueprint('orders', __name__)
@@ -147,6 +148,19 @@ def mpesa_callback():
     # This is where Safaricom will send the STK Push result
     callback_data = request.get_json(silent=True) or {}
     order_id_ref = request.args.get('order_id', '') # Get order_id from query param we set in CallBackURL
+
+    # Optional: only Safaricom's servers may call this (MPESA_CALLBACK_ALLOWED_IPS)
+    allowed = current_app.config.get('MPESA_CALLBACK_ALLOWED_IPS')
+    if allowed:
+        try:
+            ip = ipaddress.ip_address(client_ip())
+            ok = any(ip in ipaddress.ip_network(net, strict=False) for net in allowed)
+        except ValueError:
+            ok = False
+        if not ok:
+            current_app.logger.warning(f'M-Pesa callback rejected: {client_ip()} is not an allowed IP')
+            log_activity('M-Pesa callback rejected (IP not allowed)', details=f'IP: {client_ip()}')
+            return jsonify({'ResultCode': 1, 'ResultDesc': 'Rejected'}), 403
 
     # Reject anything that doesn't carry the secret token we gave Safaricom for this order
     if not hmac.compare_digest(request.args.get('sig', ''), mpesa_callback_signature(order_id_ref)):

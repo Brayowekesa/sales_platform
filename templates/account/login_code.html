@@ -1,0 +1,26 @@
+{% extends "layout.html" %}
+{% block title %}Enter your code - {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="login-page-container">
+    <div class="col-11 col-sm-10 col-md-8 col-lg-6 col-xl-5">
+        <div class="text-center mb-4">
+            <img src="{{ url_for('static', filename='images/logo_dark.png') }}" alt="{{ SITE_NAME }}" class="auth-logo">
+        </div>
+        <div class="card shadow-sm">
+            <div class="card-header text-center bg-primary text-white"><h4 class="mb-0">Two-step login</h4></div>
+            <div class="card-body p-4">
+                <p class="text-center text-muted">Open your authenticator app and enter the 6-digit code for {{ SITE_NAME }}.</p>
+                <form method="POST" action="{{ url_for('account.login_code') }}" autocomplete="off">
+                    {{ form.hidden_tag() }}
+                    <div class="form-group">
+                        {{ form.code(class="form-control form-control-lg code-input", inputmode="numeric", autocomplete="one-time-code", autofocus=true, placeholder="123456") }}
+                    </div>
+                    {{ form.submit(class="btn btn-lg btn-primary btn-block") }}
+                </form>
+                <p class="text-center small text-muted mt-3 mb-0">Lost your phone? Enter one of your recovery codes instead (e.g. <code>a1b2-c3d4-e5f6</code>).</p>
+                <p class="text-center small mt-2 mb-0"><a href="{{ url_for('auth.login') }}">Back to login</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

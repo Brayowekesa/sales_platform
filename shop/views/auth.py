@@ -1,4 +1,5 @@
 """Accounts: register, verify email, login/logout, password reset."""
+from shop.views.account import start_two_factor_login
 import secrets
 from datetime import datetime, timedelta
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
@@ -223,6 +224,10 @@ def login():
                 )
                 if user_obj.verify_password(password):
                     clear_rate_events('login_fail_account', account_key)
+                    if user_obj.confirmed and user_data['totp_enabled']:
+                        # Password is right; now ask for the authenticator code before logging in
+                        start_two_factor_login(user_obj.id, form.remember.data, request.args.get('next'))
+                        return redirect(url_for('account.login_code'))
                     if user_obj.confirmed:
                         login_user(user_obj, remember=form.remember.data)
                         log_activity('Logged in', user_id=user_obj.id)

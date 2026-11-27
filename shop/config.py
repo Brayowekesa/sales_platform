@@ -28,6 +28,8 @@ class Config:
     AUTO_MIGRATE = env('AUTO_MIGRATE', '1') == '1'
     # Number of reverse proxies in front of the app (Caddy/nginx = 1). Needed for real visitor IPs and https links.
     TRUSTED_PROXY_COUNT = int(env('TRUSTED_PROXY_COUNT', 0))
+    # Admins must turn on two-step login before using the admin panel (the Docker setup sets 1)
+    REQUIRE_ADMIN_2FA = env('REQUIRE_ADMIN_2FA', '0') == '1'
     # Browsers may cache CSS/JS/images for a day
     SEND_FILE_MAX_AGE_DEFAULT = 86400
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
@@ -62,3 +64,8 @@ class Config:
     MPESA_BUSINESS_SHORT_CODE = env('MPESA_BUSINESS_SHORT_CODE', '174379')
     MPESA_PASSKEY = env('MPESA_PASSKEY', 'your_mpesa_passkey')
     MPESA_CALLBACK_URL = env('MPESA_CALLBACK_URL', 'https://yourdomain.com/mpesa_callback')
+    # Optional: only accept payment callbacks from these IPs/ranges (comma-separated, e.g. Safaricom's published list)
+    MPESA_CALLBACK_ALLOWED_IPS = [x.strip() for x in env('MPESA_CALLBACK_ALLOWED_IPS', '').split(',') if x.strip()]
+
+    # Optional error monitoring (https://sentry.io): crashes are reported with details, without customer data
+    SENTRY_DSN = env('SENTRY_DSN', '')

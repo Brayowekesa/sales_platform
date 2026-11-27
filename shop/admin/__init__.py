@@ -1,5 +1,5 @@
 """Admin panel (/admin/...). Every page here requires an admin account."""
-from flask import Blueprint, flash, redirect, url_for
+from flask import Blueprint, current_app, flash, redirect, url_for
 from flask_login import current_user
 
 bp = Blueprint('admin', __name__)
@@ -14,6 +14,11 @@ def require_admin():
     if not current_user.is_admin:
         flash('Unauthorized access. Admin privileges required.', 'danger')
         return redirect(url_for('store.index'))
+    if current_app.config.get('REQUIRE_ADMIN_2FA') and not current_user.totp_enabled:
+        flash('For security, admins must turn on two-step login before using the admin panel.', 'warning')
+        return redirect(url_for('account.setup'))
 
 
-from shop.admin import catalog, dashboard, people, sales, settings  # noqa: E402,F401  (register the admin pages)
+from shop.admin import catalog, dashboard, people, sales, settings  # noqa: E402  (importing registers the admin pages)
+
+__all__ = ['bp', 'catalog', 'dashboard', 'people', 'sales', 'settings']

@@ -375,3 +375,22 @@ a.contact-card:hover{border-color:var(--sky);box-shadow:var(--shadow);text-decor
 .gallery-thumb img{width:100%;height:100%;object-fit:contain}
 .gallery-thumb.is-active,.gallery-thumb:hover{border-color:var(--sky)}
 .gallery-thumb:focus-visible{outline:none;box-shadow:var(--focus)}
+
+/* ===== Account security ===== */
+.security-icon{width:48px;height:48px;border-radius:12px;background:var(--bg);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex:0 0 auto}
+.security-icon.is-on{background:#dcfce7;color:var(--ok)}
+.setup-steps{padding-left:1.2rem}
+.setup-steps>li{margin-bottom:1.4rem}
+.qr-box{width:220px;height:220px;margin:.75rem 0;padding:6px;background:#fff;border:1px solid var(--line);border-radius:12px}
+.qr-box svg{width:100%;height:100%}
+.setup-key{font-size:.95rem;letter-spacing:.05em;word-break:break-all}
+.recovery-codes{list-style:none;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;max-width:420px}
+.recovery-codes code{display:block;font-size:1.05rem;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--ink);text-align:center}
+@media print{.shop-nav,.site-footer-pro,.btn{display:none!important}}
+/* Navbar: keep labels on one line on small laptops (992-1199px) */
+.shop-nav .nav-link{white-space:nowrap}
+@media(min-width:992px) and (max-width:1199px){
+  .shop-nav .search-pill{min-width:170px}
+  .shop-nav .nav-link{padding:.45rem .5rem!important}
+}
+.setup-key{color:var(--navy)}

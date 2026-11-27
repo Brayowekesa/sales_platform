@@ -3,6 +3,7 @@
     flask --app app init-db                       create/upgrade the database
     flask --app app create-admin                  add an admin account
     flask --app app copy-to-postgres sales.db     move an existing SQLite shop into PostgreSQL (DATABASE_URL)
+    flask --app app reset-2fa USERNAME            turn off two-step login for someone who lost their phone
 """
 import os
 import re
@@ -44,6 +45,19 @@ def create_admin_command():
         raise click.ClickException(f"An account with username '{username}' or email '{email}' already exists.")
     log_activity('Admin user created via CLI', details=f'Username: {username}')
     click.echo(f"Admin user '{username}' created.")
+
+
+@click.command('reset-2fa')
+@click.argument('username')
+@with_appcontext
+def reset_2fa_command(username):
+    """Turn off two-step login for USERNAME (e.g. an admin who lost their phone)."""
+    with get_db_connection() as conn:
+        cur = conn.execute('UPDATE users SET totp_secret = NULL, totp_enabled = 0, recovery_codes = NULL WHERE username = ?', (username,))
+    if not cur.rowcount:
+        raise click.ClickException(f"No user called '{username}'.")
+    log_activity('Two-step login reset via CLI', details=f'Username: {username}')
+    click.echo(f"Two-step login turned off for '{username}'. They should turn it on again after logging in.")
 
 
 # Parents before children, so foreign keys are satisfied while copying

@@ -67,7 +67,16 @@ Open `https://YOUR_DOMAIN`. The first visit can take a few seconds while Caddy g
 docker compose exec web flask --app app create-admin
 ```
 
-Then log in, and fill in **Admin → Shop settings** and **Admin → Delivery**.
+Then log in. On the live site, admins **must turn on two-step login** before the admin panel opens
+(`REQUIRE_ADMIN_2FA=1` in `docker-compose.yml`). Have an authenticator app ready on your phone
+(Google Authenticator, Microsoft Authenticator or Authy), and save the recovery codes it shows you.
+After that, fill in **Admin → Shop settings** and **Admin → Delivery**.
+
+If an admin loses their phone and their recovery codes:
+
+```bash
+docker compose exec web flask --app app reset-2fa USERNAME
+```
 
 ### Moving an existing shop (SQLite) over
 
@@ -130,6 +139,20 @@ docker compose down                    # stop everything (data is kept in volume
 - [ ] Automatic security updates: `sudo apt install unattended-upgrades`
 - [ ] Nightly backups run, and a copy goes off the server
 - [ ] The M-Pesa callback URL in Daraja is `https://YOUR_DOMAIN/mpesa_callback`
+- [ ] Every admin has two-step login on, and their recovery codes are stored safely
+- [ ] `SENTRY_DSN` is set (or you check `docker compose logs web` regularly)
+
+## Monitoring
+
+- **Errors:** create a free project at [sentry.io](https://sentry.io) and put its DSN in `.env`
+  (`SENTRY_DSN=...`). Crashes are then emailed to you with details. Customer data is not sent.
+- **Uptime:** point a free uptime checker (UptimeRobot, Better Stack) at `https://YOUR_DOMAIN/healthz`.
+  It returns 200 when the shop and its database work.
+- **Code checks:** every push to GitHub runs the tests (SQLite and PostgreSQL), a code check, a scan
+  for vulnerable packages and a Docker build (`.github/workflows/checks.yml`). The vulnerability
+  scan also runs every Monday. If it fails, update the package it names in `requirements.txt`.
+- **M-Pesa:** optionally limit payment callbacks to Safaricom's servers with
+  `MPESA_CALLBACK_ALLOWED_IPS`, using the IP list in Safaricom's Daraja documentation.
 
 ## Managed platforms (Render, Railway, Fly.io)
 
