@@ -9,7 +9,7 @@ from flask_login import current_user
 from werkzeug.utils import secure_filename
 from shop.config import Config
 from shop.db import DatabaseError, get_db_connection
-from shop.security import valid_image_upload
+from shop.security import is_real_image
 
 
 SITE_NAME = Config.SITE_NAME
@@ -170,6 +170,20 @@ def _delete_upload(path):
                 current_app.logger.error(f"Could not delete {full}: {e}")
 
 
+def valid_photo_upload(file_storage):
+    """A real PNG, JPG, GIF or WebP photo (checked by its content, not just the name)."""
+    from shop.delivery import is_real_webp
+    name = file_storage.filename or ''
+    ext = name.rsplit('.', 1)[-1].lower() if '.' in name else ''
+    allowed = current_app.config.get('PHOTO_EXTENSIONS', {'png', 'jpg', 'jpeg', 'gif', 'webp'})
+    return ext in allowed and (is_real_image(file_storage) or (ext == 'webp' and is_real_webp(file_storage)))
+
+
+def max_upload_mb():
+    """The upload limit per form (MAX_CONTENT_LENGTH) in whole MB, for help texts and the 413 page."""
+    return int((current_app.config.get('MAX_CONTENT_LENGTH') or 0) // (1024 * 1024))
+
+
 def save_product_photos(product_id):
     """Apply the photo section of the product form: remove ticked photos, add uploads, pick the main photo."""
     with get_db_connection() as conn:
@@ -190,8 +204,8 @@ def save_product_photos(product_id):
             if len(photos) >= MAX_PRODUCT_PHOTOS:
                 skipped += 1
                 continue
-            if not valid_image_upload(f):
-                flash(f'"{f.filename}" is not a PNG, JPG or GIF image and was skipped.', 'warning')
+            if not valid_photo_upload(f):
+                flash(f'"{f.filename}" is not a PNG, JPG, GIF or WebP image and was skipped.', 'warning')
                 continue
             filename = f"{uuid.uuid4().hex[:8]}_{secure_filename(f.filename)}"
             f.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))

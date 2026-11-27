@@ -35,10 +35,14 @@ class Config:
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
     PROMOTIONS_UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads', 'promotions')
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+    # Product and promotion photos (WebP too; checked by content in shop.helpers.valid_photo_upload)
+    PHOTO_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
     MAX_CONTENT_LENGTH = 30 * 1024 * 1024  # 30 MB per request (a short packing video fits)
     # Packing-proof photos/videos can show customer details, so they are NOT in static/ (not public)
     PROOF_FOLDER = env('PROOF_FOLDER', os.path.join(BASE_DIR, 'private_uploads', 'proofs'))
     RIDER_LINK_DAYS = int(env('RIDER_LINK_DAYS', 7))
+    # Admin dashboard/report: products with this many or fewer left count as "low stock"
+    LOW_STOCK_THRESHOLD = int(env('LOW_STOCK_THRESHOLD', 5))
 
     # Cookies
     SESSION_COOKIE_HTTPONLY = True

@@ -17,6 +17,15 @@ def not_found_error(error):
     return render_template('errors/404.html', title="Page Not Found"), 404
 
 
+@bp.app_errorhandler(413)
+def too_large_error(error):
+    """An upload bigger than MAX_CONTENT_LENGTH (e.g. many photos or a long video at once)."""
+    from shop.helpers import max_upload_mb
+    from shop.security import same_site_referrer
+    return render_template('errors/413.html', title="File Too Big", limit_mb=max_upload_mb(),
+                           back_url=same_site_referrer()), 413
+
+
 @bp.app_errorhandler(500)
 def internal_error(error):
     # It's good practice to rollback the DB session in case the error was DB related
