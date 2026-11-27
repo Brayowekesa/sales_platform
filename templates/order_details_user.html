@@ -1,6 +1,7 @@
 {% extends "layout.html" %}
 
 {% block title %}Order #{{ order.id }} - {{ SITE_NAME }}{% endblock %}
+{% block wa_text %}Hi, I have a question about my order #{{ order.id }}.{% endblock %}
 
 {% block content %}
 <div class="container order-page my-4 my-md-5">
@@ -122,7 +123,7 @@
                 <ul class="order-items">
                     {% for item in order_items %}
                     <li>
-                        <a href="{{ url_for('store.product_details', product_id=item.product_id) }}" class="thumb"><img src="{{ product_img(item.image) }}" alt=""></a>
+                        <a href="{{ url_for('store.product_details', product_id=item.product_id) }}" class="thumb"><img src="{{ product_img(item.image, 'thumb') }}" alt=""></a>
                         <div class="info">
                             <a href="{{ url_for('store.product_details', product_id=item.product_id) }}">{{ item.name }}</a>
                             <small class="text-muted">{{ item.quantity }} × {{ item.price|money }}</small>
@@ -148,13 +149,17 @@
                     {% if order.contact_phone %}<dt>Phone</dt><dd>{{ order.contact_phone }}</dd>{% endif %}
                     {% if order.delivery_zone %}<dt>{{ 'Pickup point' if order.delivery_method == 'pickup' else 'Area' }}</dt><dd>{{ order.delivery_zone }}</dd>{% endif %}
                     {% if order.shipping_address and order.delivery_method != 'pickup' %}<dt>Address</dt><dd style="white-space: pre-line;">{{ order.shipping_address }}</dd>{% endif %}
+                    {% if order.delivery_landmark and order.delivery_method != 'pickup' %}<dt>Landmark</dt><dd>{{ order.delivery_landmark }}</dd>{% endif %}
+                    {% if order.delivery_lat is not none and order.delivery_method != 'pickup' %}<dt>Map pin</dt><dd><i class="fas fa-check-circle text-success"></i> Added</dd>{% endif %}
                 </dl>
                 <h3 class="order-card-title mt-3">Payment</h3>
                 <dl class="order-facts">
                     <dt>Method</dt><dd>{{ order.payment_method or 'N/A' }}</dd>
                     <dt>Status</dt><dd>{{ order.status }}</dd>
                 </dl>
-                <p class="small text-muted mb-0 mt-3">Questions about this order? <a href="{{ url_for('pages.page_contact') }}">Contact us</a> and mention order #{{ order.id }}.</p>
+                <p class="small text-muted mb-0 mt-3">Questions about this order?
+                    {% if SHOP.whatsapp_link %}<a href="{{ SHOP.whatsapp_link }}?text={{ ('Hi, I have a question about my order #' ~ order.id)|urlencode }}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> Ask on WhatsApp</a> or
+                    {% endif %}<a href="{{ url_for('pages.page_contact') }}">contact us</a> and mention order #{{ order.id }}.</p>
             </div>
         </div>
     </div>

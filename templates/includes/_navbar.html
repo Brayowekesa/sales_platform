@@ -11,6 +11,7 @@
             <span style="font-weight: bold; vertical-align: middle;">ESA E-Shop</span>
             #}
         </a>
+        {% if data_saver %}<a class="data-saver-pill" href="{{ url_for('pages.data_saver', state='off', next=request.full_path.rstrip('?')) }}" title="Data saver is on (smaller photos). Tap to turn off."><i class="fas fa-leaf"></i> Lite</a>{% endif %}
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
                 aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
@@ -54,6 +55,9 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('cart.view_wishlist') }}"><i class="fas fa-heart"></i> Wishlist</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link install-app" href="#" hidden><i class="fas fa-download"></i> Install app</a>
                 </li>
                 {% if current_user.is_authenticated %}
                     {% if current_user.is_admin %}

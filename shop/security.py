@@ -48,6 +48,8 @@ CSP = "; ".join([
     "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:",
     "img-src 'self' data:",
     "connect-src 'self'",
+    "worker-src 'self'",
+    "manifest-src 'self'",
     "frame-ancestors 'none'",
     "form-action 'self'",
     "base-uri 'self'",
@@ -60,7 +62,7 @@ def set_security_headers(response):
     response.headers.setdefault('X-Content-Type-Options', 'nosniff')     # don't guess file types
     response.headers.setdefault('X-Frame-Options', 'DENY')               # no embedding in other sites (clickjacking)
     response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
-    response.headers.setdefault('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+    response.headers.setdefault('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)')
     if current_app.config['SESSION_COOKIE_SECURE']:
         response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
     # Pages for logged-in users must not be stored by shared caches

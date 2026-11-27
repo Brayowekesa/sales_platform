@@ -1,5 +1,7 @@
-"""Information pages, favicon/robots and error pages."""
-from flask import Blueprint, current_app, render_template
+"""Information pages, favicon/robots, the installable-app files and error pages."""
+import json
+
+from flask import Blueprint, current_app, render_template, request, url_for
 from shop.db import get_db_connection
 from shop.helpers import active_delivery_zones
 from shop.security import log_activity
@@ -46,10 +48,71 @@ def healthz():
         return {'status': 'error'}, 503
 
 
+@bp.route('/img/<size>/<path:path>')
+def image(size, path):
+    """Resized WebP copy of an uploaded photo (cached on disk and in the browser)."""
+    from flask import abort, send_file
+    from shop.images import cached_copy
+    out = cached_copy(path, size)
+    if not out:
+        abort(404)
+    response = send_file(out, mimetype='image/webp', max_age=30 * 86400)
+    response.headers['Cache-Control'] = 'public, max-age=2592000, immutable'
+    return response
+
+
+@bp.route('/data-saver/<state>')
+def data_saver(state):
+    """Turn data-saver mode on/off for this browser (remembered for a year)."""
+    from flask import make_response, redirect
+    from shop.security import is_safe_next_url
+    nxt = request.args.get('next')
+    response = make_response(redirect(nxt if is_safe_next_url(nxt) else url_for('store.index')))
+    if state == 'on':
+        response.set_cookie('data_saver', '1', max_age=365 * 86400, samesite='Lax', secure=current_app.config['SESSION_COOKIE_SECURE'])
+    else:
+        response.delete_cookie('data_saver')
+    return response
+
+
 @bp.route('/favicon.ico')
 def favicon():
     # Browsers ask for /favicon.ico directly
     return current_app.send_static_file('favicon.ico')
+
+
+@bp.route('/manifest.webmanifest')
+def manifest():
+    # Lets phones install the shop like an app (Add to Home screen)
+    name = current_app.config.get('SITE_NAME', 'E-Shop')
+    data = {
+        'name': name, 'short_name': name[:12], 'start_url': '/?source=app', 'scope': '/',
+        'display': 'standalone', 'background_color': '#ffffff', 'theme_color': '#0b2545',
+        'description': f'Shop {name} - delivery across Kenya, pay with M-Pesa or cash.',
+        'icons': [
+            {'src': url_for('static', filename='images/icon-192.png'), 'sizes': '192x192', 'type': 'image/png'},
+            {'src': url_for('static', filename='images/icon-512.png'), 'sizes': '512x512', 'type': 'image/png', 'purpose': 'any maskable'},
+        ],
+    }
+    response = current_app.response_class(json.dumps(data), mimetype='application/manifest+json')
+    response.cache_control.max_age = 86400
+    return response
+
+
+@bp.route('/sw.js')
+def service_worker():
+    # Served from the root so it can look after every page
+    response = current_app.send_static_file('js/sw.js')
+    response.headers['Content-Type'] = 'application/javascript'
+    response.headers['Service-Worker-Allowed'] = '/'
+    response.cache_control.no_cache = True
+    response.cache_control.max_age = 0
+    return response
+
+
+@bp.route('/offline')
+def offline():
+    return render_template('offline.html')
 
 
 @bp.route('/robots.txt')

@@ -69,7 +69,17 @@ def checkout():
         if not is_pickup and len(shipping_address) < 5:
             form.shipping_address.errors.append('Please enter your delivery address (street, building, town).')
             return show_form()
+        landmark = (form.landmark.data or '').strip() or None
+        lat = lng = None
+        if form.location.data and not is_pickup:
+            try:
+                lat, lng = (float(v) for v in form.location.data.split(','))
+                if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+                    lat = lng = None
+            except ValueError:
+                lat = lng = None
         if is_pickup:
+            landmark = None
             shipping_address = f"Pickup: {selected_zone['name']}"
         contact_phone = form.contact_phone.data
         # Begin transaction
@@ -79,10 +89,11 @@ def checkout():
                 # 1. Create Order
                 order_cursor = conn.execute('''
                     INSERT INTO orders (user_id, subtotal, delivery_fee, total_amount, payment_method, shipping_address, status,
-                                        contact_name, contact_phone, delivery_method, delivery_zone)
-                    VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?)
+                                        contact_name, contact_phone, delivery_method, delivery_zone, delivery_landmark, delivery_lat, delivery_lng)
+                    VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?, ?, ?, ?)
                 ''', (current_user.id, subtotal, delivery_fee, total_amount, payment_method, shipping_address,
-                      form.contact_name.data.strip(), contact_phone, 'pickup' if is_pickup else 'delivery', selected_zone['name']))
+                      form.contact_name.data.strip(), contact_phone, 'pickup' if is_pickup else 'delivery', selected_zone['name'],
+                      landmark, lat, lng))
                 order_id = order_cursor.lastrowid
 
                 # 2. Create Order Items and Update Product Stock
@@ -329,7 +340,8 @@ def rider_delivery(token):
     if request.method == 'POST':
         result = confirm_delivery_with_pin(order_id, request.form.get('pin'), 'rider')
     with get_db_connection() as conn:
-        order = conn.execute('''SELECT id, status, contact_name, contact_phone, delivery_method, delivery_zone, shipping_address
+        order = conn.execute('''SELECT id, status, contact_name, contact_phone, delivery_method, delivery_zone, shipping_address,
+                                       delivery_landmark, delivery_lat, delivery_lng
                                 FROM orders WHERE id = ?''', (order_id,)).fetchone()
         items = conn.execute('''SELECT oi.quantity, p.name FROM order_items oi JOIN products p ON p.id = oi.product_id
                                 WHERE oi.order_id = ?''', (order_id,)).fetchall()

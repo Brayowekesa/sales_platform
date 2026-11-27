@@ -81,6 +81,13 @@
                         {{ form.shipping_address.label(class="form-label") }}
                         {{ form.shipping_address(class="form-control" + (" is-invalid" if form.shipping_address.errors else ""), rows="2", autocomplete="street-address", placeholder="Street, building, floor/house number, town - e.g. Moi Avenue, Bihi Towers 3rd floor, Nairobi") }}
                         {{ field_errors(form.shipping_address) }}
+                        <label for="landmark" class="form-label mt-3">Landmark / directions <span class="text-muted font-weight-normal">(helps the rider find you)</span></label>
+                        {{ form.landmark(class="form-control", id="landmark", placeholder="e.g. Green gate opposite Total petrol station, 2nd floor") }}
+                        {{ form.location(type="hidden", id="location") }}
+                        <div class="location-row">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="use-location"><i class="fas fa-map-marker-alt mr-1"></i> Use my current location</button>
+                            <span id="location-status" class="small text-muted">{% if form.location.data %}<i class="fas fa-check-circle text-success"></i> Location added{% else %}Optional - only if you're at the delivery place now{% endif %}</span>
+                        </div>
                     </div>
                 </section>
 
@@ -139,6 +146,22 @@
     }
     document.querySelectorAll('input[name="delivery_zone"]').forEach(function (r) { r.addEventListener('change', update); });
     update();
+})();
+
+// "Use my current location": stores the phone's GPS position so the rider can open it in Google Maps
+(function () {
+    var btn = document.getElementById('use-location'), status = document.getElementById('location-status');
+    if (!btn) return;
+    if (!navigator.geolocation) { btn.style.display = 'none'; return; }
+    btn.addEventListener('click', function () {
+        status.textContent = 'Finding your location...';
+        navigator.geolocation.getCurrentPosition(function (pos) {
+            document.getElementById('location').value = pos.coords.latitude.toFixed(6) + ',' + pos.coords.longitude.toFixed(6);
+            status.innerHTML = '<i class="fas fa-check-circle text-success"></i> Location added (accurate to about ' + Math.round(pos.coords.accuracy) + ' m)';
+        }, function () {
+            status.textContent = "Couldn't get your location - the address and landmark are enough.";
+        }, {enableHighAccuracy: true, timeout: 15000});
+    });
 })();
 </script>
 {% endblock %}

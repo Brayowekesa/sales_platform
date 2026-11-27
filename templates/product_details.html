@@ -6,6 +6,7 @@
 
 {% block meta_description %}{{ product.price|money }}{% if honest_discount(product) %} (was {{ product.original_price|money }}){% endif %} - {{ (product.description or product.category or '')|truncate(150) }}{% endblock %}
 {% block og_type %}product{% endblock %}
+{% block wa_text %}Hi! I'm interested in {{ product.name }} ({{ product.price|money }}). {{ url_for('store.product_details', product_id=product.id, _external=True) }}{% endblock %}
 {% block og_title %}{{ product.name }} - {{ product.price|money }}{% endblock %}
 {% block og_image %}{{ url_for('static', filename=photos[0], _external=True) if photos[0] else url_for('static', filename='images/og-default.png', _external=True) }}{% endblock %}
 {% block head_extra %}
@@ -18,13 +19,13 @@
         <div class="col-md-6 mb-4">
             <div class="gallery">
                 <div class="gallery-main">
-                    <img id="gallery-main-img" src="{{ product_img(photos[0]) }}" alt="{{ product.name }}">
+                    <img id="gallery-main-img" src="{{ product_img(photos[0], 'large') }}" alt="{{ product.name }}">
                 </div>
                 {% if photos|length > 1 %}
                 <div class="gallery-thumbs" role="list">
                     {% for p in photos %}
-                    <button type="button" class="gallery-thumb {{ 'is-active' if loop.first }}" data-src="{{ product_img(p) }}" aria-label="Show photo {{ loop.index }} of {{ loop.length }}" role="listitem">
-                        <img src="{{ product_img(p) }}" alt="" loading="lazy">
+                    <button type="button" class="gallery-thumb {{ 'is-active' if loop.first }}" data-src="{{ product_img(p, 'large') }}" aria-label="Show photo {{ loop.index }} of {{ loop.length }}" role="listitem">
+                        <img src="{{ product_img(p, 'thumb') }}" alt="" loading="lazy">
                     </button>
                     {% endfor %}
                 </div>
@@ -103,6 +104,11 @@
                 <button type="submit" class="btn btn-outline-secondary" title="We'll email you if the price drops{{ ' or it comes back in stock' if product.stock <= 0 }}">
                     <i class="far fa-bell"></i> {{ 'Tell me when it\'s back' if product.stock <= 0 else 'Tell me if the price drops' }}</button>
             </form>
+            {% endif %}
+            {% if SHOP.whatsapp_link %}
+            <a class="btn btn-whatsapp mt-2" target="_blank" rel="noopener"
+               href="{{ SHOP.whatsapp_link }}?text={{ ('Hi! Is this available? ' ~ product.name ~ ' - ' ~ (product.price|money) ~ ' ' ~ url_for('store.product_details', product_id=product.id, _external=True))|urlencode }}">
+                <i class="fab fa-whatsapp"></i> Ask on WhatsApp</a>
             {% endif %}
             {% if product.id in wishlist_ids %}<small class="text-muted d-block mt-1"><i class="far fa-bell"></i> We'll tell you if the price drops or it's back in stock.</small>{% endif %}
         </div>

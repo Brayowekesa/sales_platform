@@ -361,12 +361,19 @@ def _migration_4_price_history(conn):
                     SELECT id, price, original_price, CURRENT_TIMESTAMP FROM products''')
 
 
+def _migration_5_landmarks(conn):
+    real = 'REAL' if conn.dialect == 'sqlite' else 'DOUBLE PRECISION'
+    for col, ddl in [('delivery_landmark', 'TEXT'), ('delivery_lat', real), ('delivery_lng', real)]:
+        conn.execute(f'ALTER TABLE orders ADD COLUMN {col} {ddl}')
+
+
 # Add new schema changes at the end as (version, description, function). Never edit old ones.
 MIGRATIONS = [
     (1, 'initial schema', _migration_1_initial_schema),
     (2, 'two-step login (authenticator app)', _migration_2_two_factor),
     (3, 'packing proof and delivery PIN', _migration_3_packing_proof_and_delivery_pin),
     (4, 'price history (honest prices)', _migration_4_price_history),
+    (5, 'delivery landmark and map pin', _migration_5_landmarks),
 ]
 
 

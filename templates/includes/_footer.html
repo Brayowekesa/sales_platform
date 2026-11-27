@@ -44,7 +44,12 @@
         <div class="container d-flex flex-wrap justify-content-between align-items-center">
             <span>© {% if SCRIPT_START_YEAR and SCRIPT_START_YEAR != current_year %}{{ SCRIPT_START_YEAR }}–{% endif %}{{ current_year }} {{ SITE_NAME }}</span>
             <span class="footer-pay"><span class="pay-chip mpesa">M-PESA</span><span class="pay-chip">Cash on Delivery</span></span>
-            <span><a href="{{ url_for('pages.page_privacy') }}">Privacy</a> · <a href="{{ url_for('pages.page_terms') }}">Terms</a></span>
+            <span>
+                {% if data_saver %}<a href="{{ url_for('pages.data_saver', state='off', next=request.full_path.rstrip('?')) }}"><i class="fas fa-leaf"></i> Data saver: ON · turn off</a>
+                {% else %}<a href="{{ url_for('pages.data_saver', state='on', next=request.full_path.rstrip('?')) }}" title="Smaller photos and no extra downloads - saves your bundles"><i class="fas fa-leaf"></i> Data saver</a>{% endif %}
+                <a href="#" class="install-app" hidden> · <i class="fas fa-download"></i> Install app</a>
+                · <a href="{{ url_for('pages.page_privacy') }}">Privacy</a> · <a href="{{ url_for('pages.page_terms') }}">Terms</a>
+            </span>
         </div>
     </div>
 </footer>

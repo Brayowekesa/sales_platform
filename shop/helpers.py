@@ -18,8 +18,14 @@ CURRENCY_SYMBOL = Config.CURRENCY_SYMBOL
 PLACEHOLDER_IMAGE = 'images/placeholder.svg'
 
 
-def product_img(path):
-    """Static URL for a product/promo image, falling back to a placeholder when the file is missing."""
+def product_img(path, size=None):
+    """URL for a product/promo image. With `size` ('thumb', 'card', 'large', 'promo') a smaller WebP copy is
+    used (even smaller in data-saver mode). Falls back to a placeholder when the file is missing."""
+    if size:
+        from shop.images import sized_url
+        url = sized_url(path, size)
+        if url:
+            return url
     if path and os.path.isfile(os.path.join(current_app.static_folder, path)):
         return url_for('static', filename=path)
     return url_for('static', filename=PLACEHOLDER_IMAGE)
@@ -129,7 +135,9 @@ def utility_processor():
         except Exception as e:
             current_app.logger.error(f"Error fetching wishlist ids: {e}")
 
+    from shop.images import data_saver_on
     return dict(
+        data_saver=data_saver_on(),
         SHOP=get_shop_settings(),
         wishlist_ids=wishlist_ids,
         cart_item_count=cart_item_count,

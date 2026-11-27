@@ -40,7 +40,7 @@
                     <div class="photo-grid">
                         {% for p in photos %}
                         <div class="photo-item">
-                            <img src="{{ product_img(p) }}" alt="Photo {{ loop.index }}">
+                            <img src="{{ product_img(p, 'thumb') }}" alt="Photo {{ loop.index }}">
                             <label class="photo-main"><input type="radio" name="main_photo" value="{{ p }}" {% if loop.first %}checked{% endif %}> Main</label>
                             <label class="photo-remove" title="Remove this photo"><input type="checkbox" name="remove_photo" value="{{ p }}"> Remove</label>
                         </div>

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>You're offline - {{ SITE_NAME }}</title>
+<meta name="theme-color" content="#0b2545">
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f4f6fa;color:#1d2b3a;
+       font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:16px;box-sizing:border-box}
+  .box{max-width:380px;text-align:center;background:#fff;border-radius:14px;padding:32px 24px;box-shadow:0 4px 18px rgba(11,37,69,.08)}
+  img{width:72px;height:72px;border-radius:16px}
+  h1{font-size:1.35rem;margin:16px 0 8px}
+  p{color:#5a6b7d;line-height:1.5;margin:0 0 20px}
+  button{background:#f28c28;color:#fff;border:0;border-radius:8px;padding:12px 22px;font-size:1rem;font-weight:600;cursor:pointer}
+</style>
+</head>
+<body>
+  <div class="box">
+    <img src="/static/images/icon-192.png" alt="">
+    <h1>You're offline</h1>
+    <p>We can't reach {{ SITE_NAME }} right now. Check your data or Wi-Fi, then try again. Your cart is saved.</p>
+    <button onclick="location.reload()">Try again</button>
+  </div>
+</body>
+</html>

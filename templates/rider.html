@@ -27,8 +27,12 @@
                     <dt>Phone</dt><dd><a href="tel:{{ order.contact_phone }}" class="rider-call"><i class="fas fa-phone-alt"></i> {{ order.contact_phone }}</a></dd>
                     <dt>Area</dt><dd>{{ order.delivery_zone }}</dd>
                     {% if order.delivery_method != 'pickup' %}<dt>Address</dt><dd style="white-space: pre-line;">{{ order.shipping_address }}</dd>{% endif %}
+                    {% if order.delivery_landmark %}<dt>Landmark</dt><dd>{{ order.delivery_landmark }}</dd>{% endif %}
                     <dt>Items</dt><dd>{% for i in items %}{{ i.quantity }} × {{ i.name }}{% if not loop.last %}<br>{% endif %}{% endfor %}</dd>
                 </dl>
+                {% if order.delivery_lat is not none and order.delivery_lng is not none %}
+                <a class="btn btn-primary btn-block mb-3" href="https://www.google.com/maps/search/?api=1&query={{ order.delivery_lat }},{{ order.delivery_lng }}" target="_blank" rel="noopener"><i class="fas fa-map-marked-alt mr-1"></i> Open in Google Maps</a>
+                {% endif %}
                 <form method="POST" action="{{ url_for('orders.rider_delivery', token=token) }}" class="rider-pin-form" autocomplete="off">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <label for="pin">When you hand over the parcel, ask the customer for their <strong>4-digit PIN</strong>:</label>

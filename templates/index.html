@@ -55,7 +55,7 @@
                         <a class="promo-tile" href="{{ promo.target_url|safe_link }}" aria-roledescription="slide" aria-label="{{ loop.index }} of {{ loop.length }}: {{ promo.title }}">
                             <div class="promo-media {% if not has_img %}is-plain{% endif %}">
                                 {% if has_img %}
-                                    <img src="{{ product_img(promo.image_path) }}" alt="{{ promo.alt_text or promo.title }}" loading="{{ 'eager' if loop.index <= 3 else 'lazy' }}">
+                                    <img src="{{ product_img(promo.image_path, 'promo') }}" alt="{{ promo.alt_text or promo.title }}" loading="{{ 'eager' if loop.index <= 3 else 'lazy' }}">
                                 {% else %}
                                     <i class="fas fa-tags" aria-hidden="true"></i>
                                 {% endif %}
