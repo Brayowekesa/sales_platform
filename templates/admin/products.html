@@ -62,7 +62,7 @@
                                     <span class="badge badge-success">{{ product.stock }}</span>
                                 {% endif %}
                             </td>
-                            <td>{{ product.added_at.strftime('%Y-%m-%d') if product.added_at else 'N/A' }}</td>
+                            <td>{{ product.added_at|localtime('%Y-%m-%d') or 'N/A' }}</td>
                             <td>
                                 <a href="{{ url_for('admin_edit_product', product_id=product.id) }}" class="btn btn-info btn-sm mr-1" title="Edit">
                                     <i class="fas fa-edit"></i>

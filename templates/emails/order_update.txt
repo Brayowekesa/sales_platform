@@ -1,0 +1,20 @@
+{{ headline }}
+
+Hi {{ order.contact_name or order.username }},
+
+{{ message }}
+{% if note %}
+Note from us: {{ note }}
+{% endif %}
+Order #{{ order.id }}
+{% for i in items %}- {{ i.name }} x {{ i.quantity }}: {{ (i.price * i.quantity)|money }}
+{% endfor %}Delivery: {{ 'Free' if not order.delivery_fee else order.delivery_fee|money }}
+Total: {{ order.total_amount|money }}
+
+Payment: {{ order.payment_method }}
+{% if order.delivery_method == 'pickup' %}Pickup: {{ order.delivery_zone }}{% else %}Deliver to: {{ order.shipping_address }}{% endif %}
+Phone: {{ order.contact_phone }}
+
+View your order: {{ order_url }}
+
+{% if shop.phone %}Call {{ shop.phone }}{% endif %}{% if shop.whatsapp %} | WhatsApp {{ shop.whatsapp }}{% endif %}{% if shop.email %} | {{ shop.email }}{% endif %}

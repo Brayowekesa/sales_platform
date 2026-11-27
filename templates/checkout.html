@@ -1,118 +1,144 @@
 {% extends "layout.html" %}
 
-{% block title %}
-    Checkout
-{% endblock %}
+{% block title %}Checkout - {{ SITE_NAME }}{% endblock %}
+
+{% macro field_errors(field) %}
+    {% if field.errors %}<div class="invalid-feedback d-block">{% for e in field.errors %}<span>{{ e }}</span>{% endfor %}</div>{% endif %}
+{% endmacro %}
 
 {% block content %}
-<div class="container mt-5">
-    <h2 class="mb-4 text-center">Checkout</h2>
+<div class="container checkout-page my-4 my-md-5">
+    <h1 class="checkout-heading">Checkout</h1>
 
-    {% if not cart_items %}
-        <div class="alert alert-warning text-center" role="alert">
-            Your cart is empty! Please add some products to your cart before proceeding to checkout.
-        </div>
-        <div class="text-center">
-            <a href="{{ url_for('index') }}" class="btn btn-primary">Continue Shopping</a>
-        </div>
-    {% else %}
+    <form method="POST" action="{{ url_for('checkout') }}" id="checkout-form" novalidate>
+        {{ form.hidden_tag() }}
         <div class="row">
-            {# Order Summary - Right Column on Larger Screens, Top on Smaller #}
-            <div class="col-md-5 col-lg-4 order-md-last">
-                <h4 class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="summary-title">Order summary</span>
-                    <span class="badge summary-count">{{ cart_items|length }}</span>
-                </h4>
-                <ul class="list-group mb-3">
-                    {% for item in cart_items %}
-                        <li class="list-group-item d-flex justify-content-between lh-sm">
-                            <div>
-                                <h6 class="my-0">{{ item.name }} (x{{ item.quantity }})</h6>
-                                <small class="text-muted">Unit Price: {{ item.price|money }}</small>
-                            </div>
-                            <span class="text-muted">{{ (item.price * item.quantity)|money }}</span>
+            {# ---------- Order summary (right on desktop, top on phones) ---------- #}
+            <div class="col-lg-4 order-lg-last mb-4">
+                <div class="checkout-summary">
+                    <h2 class="checkout-step-title d-flex justify-content-between align-items-center">
+                        Order summary <span class="badge summary-count">{{ cart_items|length }}</span>
+                    </h2>
+                    <ul class="summary-items">
+                        {% for item in cart_items %}
+                        <li>
+                            <span>{{ item.name }} <small class="text-muted">× {{ item.quantity }}</small></span>
+                            <span>{{ (item.price * item.quantity)|money }}</span>
                         </li>
-                    {% endfor %}
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span>Total</span>
-                        <strong>{{ total_amount|money }}</strong>
-                    </li>
-                </ul>
-                {# Promo code form - Placeholder #}
-                {# <form class="card p-2">
-                    <div class="input-group">
-                        <input type="text" class="form-control" placeholder="Promo code">
-                        <button type="submit" class="btn btn-secondary">Redeem</button>
-                    </div>
-                </form> #}
+                        {% endfor %}
+                    </ul>
+                    <dl class="summary-totals" data-subtotal="{{ subtotal }}" data-currency="{{ CURRENCY_SYMBOL }}">
+                        <div><dt>Subtotal</dt><dd>{{ subtotal|money }}</dd></div>
+                        <div><dt>Delivery</dt><dd id="summary-delivery">{% if selected_zone %}{{ 'Free' if delivery_fee == 0 else delivery_fee|money }}{% else %}Choose below{% endif %}</dd></div>
+                        <div class="summary-total"><dt>Total</dt><dd id="summary-total">{{ total_amount|money }}</dd></div>
+                    </dl>
+                    <p class="summary-note"><i class="fas fa-lock mr-1"></i> Your details are only used to deliver this order.</p>
+                </div>
             </div>
 
-            {# Checkout Form - Left Column on Larger Screens, Bottom on Smaller #}
-            <div class="col-md-7 col-lg-8">
-                <h4 class="mb-3">Billing & Shipping Address</h4>
-                <form method="POST" action="{{ url_for('checkout') }}" class="needs-validation" novalidate>
-                    {{ form.hidden_tag() }} {# CSRF token #}
-
-                    {# Example: Simple combined shipping address field #}
-                    {# You might want more detailed fields (street, city, state, zip, country) #}
-                    <div class="mb-3">
-                        {{ form.shipping_address.label(class="form-label required") }}
-                        {% if form.shipping_address.errors %}
-                            {{ form.shipping_address(class="form-control form-control-lg is-invalid", rows="3", placeholder="e.g. Moi Avenue, Bihi Towers 3rd floor, Nairobi") }}
-                            <div class="invalid-feedback">
-                                {% for error in form.shipping_address.errors %}<span>{{ error }}</span>{% endfor %}
-                            </div>
-                        {% else %}
-                            {{ form.shipping_address(class="form-control form-control-lg", rows="3", placeholder="e.g. Moi Avenue, Bihi Towers 3rd floor, Nairobi") }}
-                        {% endif %}
+            <div class="col-lg-8">
+                {# ---------- 1. Contact ---------- #}
+                <section class="checkout-step">
+                    <h2 class="checkout-step-title"><span class="step-no">1</span> Your details</h2>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            {{ form.contact_name.label(class="form-label") }}
+                            {{ form.contact_name(class="form-control" + (" is-invalid" if form.contact_name.errors else ""), autocomplete="name", placeholder="Name of the person receiving the order") }}
+                            {{ field_errors(form.contact_name) }}
+                        </div>
+                        <div class="form-group col-md-6">
+                            {{ form.contact_phone.label(class="form-label") }}
+                            {{ form.contact_phone(class="form-control" + (" is-invalid" if form.contact_phone.errors else ""), autocomplete="tel", inputmode="tel", placeholder="07XX XXX XXX") }}
+                            <small class="form-text text-muted">The rider or our team will call this number.</small>
+                            {{ field_errors(form.contact_phone) }}
+                        </div>
                     </div>
+                </section>
 
-                    <hr class="my-4">
+                {# ---------- 2. Delivery ---------- #}
+                <section class="checkout-step">
+                    <h2 class="checkout-step-title"><span class="step-no">2</span> How do you want to get your order?</h2>
+                    <div class="option-list" role="radiogroup" aria-label="Delivery options">
+                        {% for z in zones %}
+                        {% set fee = 0 if (z.free_over and subtotal >= z.free_over) else z.fee %}
+                        <label class="option-card" for="zone-{{ z.id }}">
+                            <input type="radio" id="zone-{{ z.id }}" name="delivery_zone" value="{{ z.id }}"
+                                   data-kind="{{ z.kind }}" data-fee="{{ fee }}" required
+                                   {% if form.delivery_zone.data == z.id|string %}checked{% endif %}>
+                            <span class="option-icon {{ 'is-pickup' if z.kind == 'pickup' }}"><i class="fas {{ 'fa-store' if z.kind == 'pickup' else 'fa-truck' }}"></i></span>
+                            <span class="option-text">
+                                <strong>{{ z.name }}</strong>
+                                <small>{% if z.eta %}{{ z.eta }}{% endif %}{% if z.details %} · {{ z.details }}{% endif %}</small>
+                                {% if z.free_over and fee > 0 %}<small class="option-hint">Free when you spend {{ z.free_over|money }}</small>{% endif %}
+                            </span>
+                            <span class="option-price">{{ 'Free' if fee == 0 else fee|money }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {{ field_errors(form.delivery_zone) }}
 
-                    <h4 class="mb-3">Payment</h4>
+                    <div class="form-group mt-3" id="address-group">
+                        {{ form.shipping_address.label(class="form-label") }}
+                        {{ form.shipping_address(class="form-control" + (" is-invalid" if form.shipping_address.errors else ""), rows="2", autocomplete="street-address", placeholder="Street, building, floor/house number, town - e.g. Moi Avenue, Bihi Towers 3rd floor, Nairobi") }}
+                        {{ field_errors(form.shipping_address) }}
+                    </div>
+                </section>
 
-                    <div class="payment-options my-3">
+                {# ---------- 3. Payment ---------- #}
+                <section class="checkout-step">
+                    <h2 class="checkout-step-title"><span class="step-no">3</span> Payment</h2>
+                    <div class="payment-options">
                         <label class="payment-option" for="cod">
                             <input id="cod" name="payment_method" type="radio" value="Cash on Delivery" required {% if form.payment_method.data == 'Cash on Delivery' %}checked{% endif %}>
                             <span class="payment-icon"><i class="fas fa-money-bill-wave"></i></span>
-                            <span><strong>Cash on Delivery</strong><small>Pay when your order arrives</small></span>
+                            <span><strong>Cash on Delivery</strong><small>Pay with cash or M-Pesa when your order arrives</small></span>
                         </label>
                         <label class="payment-option" for="mpesa">
                             <input id="mpesa" name="payment_method" type="radio" value="Lipa na M-Pesa" required {% if form.payment_method.data == 'Lipa na M-Pesa' %}checked{% endif %}>
                             <span class="payment-icon mpesa"><i class="fas fa-mobile-alt"></i></span>
-                            <span><strong>Lipa na M-Pesa</strong><small>Get a payment prompt on your phone</small></span>
+                            <span><strong>Lipa na M-Pesa</strong><small>Get a payment prompt on your phone now</small></span>
                         </label>
-                        {% if form.payment_method.errors %}
-                            <div class="text-danger small mt-2">
-                                {% for error in form.payment_method.errors %}<span>{{ error }}</span><br>{% endfor %}
-                            </div>
-                        {% endif %}
                     </div>
+                    {{ field_errors(form.payment_method) }}
 
-                    {# M-Pesa Phone Number Field - Show only if Lipa na M-Pesa is selected #}
-                    <div class="row gy-3" id="mpesa-details" style="display: none;">
-                        <div class="col-md-6 mb-3">
-                             {{ form.phone_number.label(class="form-label") }}
-                            {% if form.phone_number.errors %}
-                                {{ form.phone_number(class="form-control form-control-lg is-invalid", placeholder="07XX XXX XXX") }}
-                                <div class="invalid-feedback">
-                                    {% for error in form.phone_number.errors %}<span>{{ error }}</span>{% endfor %}
-                                </div>
-                            {% else %}
-                                {{ form.phone_number(class="form-control form-control-lg", placeholder="07XX XXX XXX") }}
-                            {% endif %}
-                            <small class="text-muted">The M-Pesa prompt will be sent to this number.</small>
-                        </div>
+                    <div id="mpesa-details" class="mt-3" style="display: none;">
+                        {{ form.phone_number.label(class="form-label") }}
+                        {{ form.phone_number(class="form-control mpesa-input" + (" is-invalid" if form.phone_number.errors else ""), inputmode="tel", placeholder="Leave empty to use your phone number above") }}
+                        <small class="form-text text-muted">The M-Pesa prompt is sent to this number.</small>
+                        {{ field_errors(form.phone_number) }}
                     </div>
+                </section>
 
-                    {{ form.submit(class="w-100 btn btn-primary btn-lg") }}
-                </form>
+                <button type="submit" class="btn btn-cart btn-lg btn-block place-order-btn">
+                    <i class="fas fa-check-circle mr-1"></i> Place order · <span id="button-total">{{ total_amount|money }}</span>
+                </button>
+                <p class="text-muted small text-center mt-2">By placing your order you agree to our <a href="{{ url_for('page_terms') }}">terms</a> and <a href="{{ url_for('page_returns') }}">returns policy</a>.</p>
             </div>
         </div>
-    {% endif %} {# End of "if cart_items" #}
+    </form>
 </div>
 {% endblock %}
 
 {% block scripts_extra %}
-    {# The M-Pesa phone field toggle lives in static/js/main.js #}
+<script>
+// Live delivery fee/total in the summary, and only ask for an address when it's delivered.
+// (The server recalculates everything when the order is placed.)
+(function () {
+    var totals = document.querySelector('.summary-totals');
+    if (!totals) return;
+    var subtotal = parseFloat(totals.dataset.subtotal) || 0, cur = totals.dataset.currency || 'KSh';
+    var fmt = function (v) { return cur + ' ' + (Math.round(v) === v ? v.toLocaleString('en-KE') : v.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2})); };
+    var addressGroup = document.getElementById('address-group');
+    function update() {
+        var z = document.querySelector('input[name="delivery_zone"]:checked');
+        var fee = z ? parseFloat(z.dataset.fee) || 0 : 0;
+        document.getElementById('summary-delivery').textContent = z ? (fee === 0 ? 'Free' : fmt(fee)) : 'Choose below';
+        document.getElementById('summary-total').textContent = fmt(subtotal + fee);
+        document.getElementById('button-total').textContent = fmt(subtotal + fee);
+        addressGroup.style.display = (z && z.dataset.kind === 'pickup') ? 'none' : '';
+    }
+    document.querySelectorAll('input[name="delivery_zone"]').forEach(function (r) { r.addEventListener('change', update); });
+    update();
+})();
+</script>
 {% endblock %}

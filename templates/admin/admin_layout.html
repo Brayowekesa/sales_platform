@@ -4,6 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" sizes="any">
     <title>{% block admin_title %}{{ title if title else "Admin Panel" }}{% endblock %} - ESA E-Shop</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
@@ -27,6 +29,7 @@
                 <li class="{{ 'active' if request.endpoint.startswith('admin_product') else '' }}"><a href="{{ url_for('admin_products') }}"><i class="fas fa-box-open mr-2"></i>Products</a></li>
                 <li class="{{ 'active' if request.endpoint.startswith('admin_order') else '' }}"><a href="{{ url_for('admin_orders') }}"><i class="fas fa-file-invoice mr-2"></i>Orders</a></li>
                 <li class="{{ 'active' if request.endpoint.startswith('admin_member') else '' }}"><a href="{{ url_for('admin_members') }}"><i class="fas fa-users-cog mr-2"></i>Members</a></li>
+                <li class="{{ 'active' if request.endpoint in ['admin_delivery', 'admin_edit_delivery'] else '' }}"><a href="{{ url_for('admin_delivery') }}"><i class="fas fa-truck mr-2"></i>Delivery</a></li>
                 <li class="{{ 'active' if request.endpoint.startswith('admin_promotion') else '' }}"><a href="{{ url_for('admin_promotions') }}"><i class="fas fa-bullhorn mr-2"></i>Promotions</a></li>
                 <li class="{{ 'active' if request.endpoint.startswith('report_') else '' }}">
                     <a href="#reportsSubmenu" data-toggle="collapse" aria-expanded="{{ 'true' if request.endpoint.startswith('report_') else 'false' }}" class="dropdown-toggle">
@@ -38,6 +41,7 @@
                         <li><a href="{{ url_for('report_low_stock') }}">Low Stock Report</a></li>
                     </ul>
                 </li>
+                <li class="{{ 'active' if request.endpoint == 'admin_settings' else '' }}"><a href="{{ url_for('admin_settings') }}"><i class="fas fa-cog mr-2"></i>Shop settings</a></li>
                 <li class="{{ 'active' if request.endpoint == 'admin_activity_logs' else '' }}"><a href="{{ url_for('admin_activity_logs') }}"><i class="fas fa-clipboard-list mr-2"></i>Activity Logs</a></li>
             </ul>
             <ul class="list-unstyled CTAs">

@@ -52,3 +52,13 @@ body.admin{display:block;background:var(--bg)}
 }
 .admin-main .table td{white-space:nowrap}
 .admin-main .card-body{overflow-x:auto}
+/* Product photo manager */
+.photo-tips{display:flex;gap:.6rem;align-items:flex-start;background:var(--brand-soft);border-radius:10px;padding:.7rem .9rem;font-size:.85rem;margin-bottom:.8rem}
+.photo-tips i{color:var(--accent-dark);margin-top:.2rem}
+.photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:.6rem}
+.photo-item{border:1px solid var(--line);border-radius:10px;padding:.4rem;background:#fff;display:flex;flex-direction:column;gap:.25rem}
+.photo-item img{width:100%;aspect-ratio:1/1;object-fit:contain;background:#f8fafc;border-radius:6px}
+.photo-item label{font-size:.78rem;margin:0;display:flex;align-items:center;gap:.3rem;cursor:pointer}
+.photo-item:has(input[name="main_photo"]:checked){border-color:var(--sky);box-shadow:0 0 0 .15rem rgba(29,143,214,.25)}
+.photo-item:has(input[name="remove_photo"]:checked){opacity:.45}
+.photo-remove{color:var(--danger)}

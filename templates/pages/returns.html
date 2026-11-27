@@ -1,0 +1,23 @@
+{% extends "pages/_page.html" %}
+{# Draft policy - review it for your business (and with a lawyer) before going live. #}
+{% set days = SHOP.returns_days or '7' %}
+{% block page_body %}
+<p class="lead">Not happy with something you bought? You can return most items within <strong>{{ days }} days</strong> of receiving them.</p>
+<h2>What you can return</h2>
+<ul>
+    <li>Items that are <strong>faulty, damaged or not what you ordered</strong> - we replace them or refund you in full, including delivery.</li>
+    <li>Items you changed your mind about, if they are <strong>unused, in their original packaging</strong> and with all accessories.</li>
+</ul>
+<h2>What we can't take back</h2>
+<ul>
+    <li>Personal care and beauty products that have been opened, and underwear, for hygiene reasons.</li>
+    <li>Items damaged by misuse, or returned after {{ days }} days.</li>
+</ul>
+<h2>How to return an item</h2>
+<ol>
+    <li>Contact us{% if SHOP.whatsapp %} on WhatsApp ({{ SHOP.whatsapp }}){% elif SHOP.phone %} on {{ SHOP.phone }}{% endif %} with your order number and the reason.</li>
+    <li>We'll arrange a pickup or tell you where to drop the item off.</li>
+    <li>Once we've checked the item, we refund you to <strong>M-Pesa</strong> (usually within 3 working days) or replace it.</li>
+</ol>
+<p>If you changed your mind, the delivery fee isn't refunded and you may need to cover the return trip.</p>
+{% endblock %}

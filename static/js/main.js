@@ -69,7 +69,7 @@ $(document).ready(function() {
             const selectedPaymentMethod = document.querySelector('input[name="payment_method"]:checked');
             if (selectedPaymentMethod && selectedPaymentMethod.value === 'Lipa na M-Pesa') {
                 $(mpesaDetailsDiv).slideDown(); // Use jQuery slideDown for smoother effect
-                if (mpesaPhoneNumberInput) mpesaPhoneNumberInput.required = true;
+                // optional: empty means "use the contact phone"
             } else {
                 $(mpesaDetailsDiv).slideUp(); // Use jQuery slideUp
                 if (mpesaPhoneNumberInput) mpesaPhoneNumberInput.required = false;

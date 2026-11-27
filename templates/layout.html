@@ -5,6 +5,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
     <title>{% block title %}{{ SITE_NAME }}{% endblock %}</title>
+    {# Description for search engines and link previews (WhatsApp, Facebook, X). Pages can override these blocks. #}
+    {% set page_description %}{% block meta_description %}{{ SHOP.tagline }}{% endblock %}{% endset %}
+    <meta name="description" content="{{ page_description|trim }}">
+    <meta property="og:site_name" content="{{ SITE_NAME }}">
+    <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}{{ title ~ ' - ' ~ SITE_NAME if title else SITE_NAME }}{% endblock %}">
+    <meta property="og:description" content="{{ page_description|trim }}">
+    <meta property="og:url" content="{{ request.base_url }}">
+    <meta property="og:image" content="{% block og_image %}{{ url_for('static', filename='images/og-default.png', _external=True) }}{% endblock %}">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" sizes="any">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon-32.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/apple-touch-icon.png') }}">
+    <meta name="theme-color" content="#0b2545">
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <!-- Font Awesome CSS -->

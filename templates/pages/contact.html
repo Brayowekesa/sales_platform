@@ -1,0 +1,24 @@
+{% extends "pages/_page.html" %}
+{% block page_body %}
+<p class="lead">We're happy to help with orders, delivery and product questions.</p>
+<div class="contact-grid">
+    {% if SHOP.phone %}
+    <a class="contact-card" href="tel:{{ SHOP.phone|replace(' ', '') }}"><i class="fas fa-phone-alt"></i><span><strong>Call us</strong>{{ SHOP.phone }}</span></a>
+    {% endif %}
+    {% if SHOP.whatsapp_link %}
+    <a class="contact-card is-whatsapp" href="{{ SHOP.whatsapp_link }}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i><span><strong>WhatsApp</strong>{{ SHOP.whatsapp }}</span></a>
+    {% endif %}
+    {% if SHOP.email %}
+    <a class="contact-card" href="mailto:{{ SHOP.email }}"><i class="fas fa-envelope"></i><span><strong>Email</strong>{{ SHOP.email }}</span></a>
+    {% endif %}
+    {% if SHOP.address %}
+    <{{ 'a' if SHOP.map_url else 'div' }} class="contact-card" {% if SHOP.map_url %}href="{{ SHOP.map_url|safe_link }}" target="_blank" rel="noopener"{% endif %}><i class="fas fa-map-marker-alt"></i><span><strong>Visit us</strong>{{ SHOP.address }}{% if SHOP.map_url %}<small>Open in Google Maps</small>{% endif %}</span></{{ 'a' if SHOP.map_url else 'div' }}>
+    {% endif %}
+</div>
+{% if not (SHOP.phone or SHOP.whatsapp_link or SHOP.email or SHOP.address) %}
+    <p class="text-muted">Contact details will appear here soon.{% if current_user.is_authenticated and current_user.is_admin %} <a href="{{ url_for('admin_settings') }}">Add them in Shop settings.</a>{% endif %}</p>
+{% endif %}
+{% if SHOP.hours %}<p class="mt-3"><i class="far fa-clock mr-1"></i> <strong>Opening hours:</strong> {{ SHOP.hours }}</p>{% endif %}
+<h2>About an order?</h2>
+<p>Please mention your order number (for example <em>#1024</em>). {% if current_user.is_authenticated %}You can find it in <a href="{{ url_for('order_history') }}">My orders</a>.{% else %}You'll find it in your confirmation email and under <em>My orders</em> after logging in.{% endif %}</p>
+{% endblock %}

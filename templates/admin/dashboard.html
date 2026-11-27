@@ -121,7 +121,7 @@
                                         <td><a href="{{ url_for('admin_order_details', order_id=order.id) }}">#{{ order.id }}</a></td>
                                         <td>{{ order.username }}</td>
                                         <td>{{ order.total_amount|money }}</td>
-                                        <td>{{ order.order_date_formatted }}</td>
+                                        <td>{{ order.order_date|localtime('%b %d, %Y %H:%M') }}</td>
                                         <td><span class="badge badge-{{ 'success' if order.status == 'Paid' or order.status == 'Delivered' else ('primary' if order.status == 'Shipped' else ('info' if order.status == 'Processing' else ('warning' if order.status == 'Pending' or order.status == 'Pending Payment' else 'secondary'))) }}">{{ order.status }}</span></td>
                                     </tr>
                                 {% endfor %}
@@ -145,7 +145,7 @@
                             <li class="list-group-item">
                                 <div class="d-flex w-100 justify-content-between">
                                     <strong style="font-size: 0.9rem;">{{ activity.action }}</strong>
-                                    <small class="text-muted">{{ activity.timestamp_formatted }}</small>
+                                    <small class="text-muted">{{ activity.timestamp|localtime('%b %d, %H:%M') }}</small>
                                 </div>
                                 {% if activity.username %}
                                     <small class="text-muted d-block">User: {{ activity.username }}</small>

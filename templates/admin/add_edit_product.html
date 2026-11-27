@@ -30,27 +30,27 @@
                 </div>
 
                 <div class="form-group">
-                    {{ form.image.label(class="form-control-label") }}
-                    {{ form.image(class="form-control-file" + (" is-invalid" if form.image.errors else "")) }}
-                    {% if form.image.errors %}
-                        <div class="invalid-feedback d-block">{% for error in form.image.errors %}<span>{{ error }}</span>{% endfor %}</div>
-                    {% endif %}
-                    <small class="form-text text-muted">
-                        Allowed types: png, jpg, jpeg, gif. Max size: 16MB.
-                        {% if action == 'Edit' and product and product.image_path %}
-                            If no new image is chosen, the current image ("{{ product.image_path.split('/')[-1] }}") will be kept.
-                        {% elif action == 'Edit' %}
-                            No current image. Upload one if desired.
-                        {% endif %}
-                    </small>
-                    {% if action == 'Edit' and product and product.image_path %}
-                    <div class="mt-2">
-                        <p class="mb-1 small text-muted">Current Image:</p>
-                        <img src="{{ url_for('static', filename=product.image_path) }}" alt="{{ product.name or 'Current Product Image' }}" class="img-thumbnail" style="max-width: 300px; max-height: 150px; object-fit: contain;">
+                    <label class="form-control-label">Photos <small class="text-muted">(up to {{ max_photos }})</small></label>
+                    <div class="photo-tips">
+                        <i class="fas fa-lightbulb"></i>
+                        <span><strong>Tips for great photos:</strong> square photos (at least 800 × 800), on a plain white or light background, product filling most of the frame.
+                        Add the front, back and a close-up. The <strong>main</strong> photo shows on product cards.</span>
+                    </div>
+                    {% if photos %}
+                    <div class="photo-grid">
+                        {% for p in photos %}
+                        <div class="photo-item">
+                            <img src="{{ product_img(p) }}" alt="Photo {{ loop.index }}">
+                            <label class="photo-main"><input type="radio" name="main_photo" value="{{ p }}" {% if loop.first %}checked{% endif %}> Main</label>
+                            <label class="photo-remove" title="Remove this photo"><input type="checkbox" name="remove_photo" value="{{ p }}"> Remove</label>
+                        </div>
+                        {% endfor %}
                     </div>
                     {% endif %}
+                    <input type="file" name="photos" id="photos" class="form-control-file mt-2" accept="image/png,image/jpeg,image/gif" multiple>
+                    <small class="form-text text-muted">PNG, JPG or GIF, up to 16 MB in total. You can choose several photos at once{% if photos %}; new photos are added after the current ones{% endif %}.</small>
                 </div>
-                
+
                 <div class="form-group">
                     {{ form.price.label(class="form-control-label required") }}
                     {{ form.price(class="form-control" + (" is-invalid" if form.price.errors else ""), placeholder="e.g., 129.00") }}

@@ -68,13 +68,23 @@
                 <div class="card-body">
                     <p><strong>Order ID:</strong> #{{ order.id }}</p>
                     <p><strong>Customer:</strong> {{ order.username }} ({{ order.email }})</p>
-                    <p><strong>Order Date:</strong> {{ order.order_date.strftime('%Y-%m-%d %H:%M:%S') if order.order_date else 'N/A' }}</p>
+                    <p><strong>Order Date:</strong> {{ order.order_date|localtime }}</p>
                     <p><strong>Payment Method:</strong> {{ order.payment_method if order.payment_method else 'N/A' }}</p>
                     {% if order.transaction_id %}
                         <p><strong>Transaction ID:</strong> {{ order.transaction_id }}</p>
                     {% endif %}
-                    <h6><strong>Shipping Address:</strong></h6>
-                    <p style="white-space: pre-line;">{{ order.shipping_address if order.shipping_address else "Not provided" }}</p>
+                    <hr>
+                    <h6 class="font-weight-bold">{{ 'Pickup' if order.delivery_method == 'pickup' else 'Delivery' }}</h6>
+                    {% if order.contact_name %}<p class="mb-1"><strong>Receiver:</strong> {{ order.contact_name }}</p>{% endif %}
+                    {% if order.contact_phone %}
+                    {% set wa = order.contact_phone|replace('+','') %}{% set wa = ('254' ~ wa[1:]) if wa.startswith('0') else wa %}
+                    <p class="mb-1"><strong>Phone:</strong> <a href="tel:{{ order.contact_phone }}">{{ order.contact_phone }}</a>
+                        · <a href="https://wa.me/{{ wa }}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> WhatsApp</a></p>
+                    {% endif %}
+                    {% if order.delivery_zone %}<p class="mb-1"><strong>{{ 'Pickup point' if order.delivery_method == 'pickup' else 'Area' }}:</strong> {{ order.delivery_zone }}</p>{% endif %}
+                    {% if order.delivery_method != 'pickup' %}<p class="mb-1"><strong>Address:</strong></p><p style="white-space: pre-line;">{{ order.shipping_address if order.shipping_address else "Not provided" }}</p>{% endif %}
+                    <p class="mb-1"><strong>Subtotal:</strong> {{ (order.subtotal if order.subtotal is not none else order.total_amount)|money }}</p>
+                    <p class="mb-1"><strong>Delivery fee:</strong> {{ 'Free' if not order.delivery_fee else order.delivery_fee|money }}</p>
                     <hr>
                     <form action="{{ url_for('admin_update_order_status', order_id=order.id) }}" method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -92,8 +102,20 @@
                                 <option value="Payment Failed" {% if order.status == 'Payment Failed' %}selected{% endif %}>Payment Failed</option>
                             </select>
                         </div>
+                        <div class="form-group">
+                            <label for="note" class="small text-muted mb-1">Note for the customer (optional)</label>
+                            <input type="text" name="note" id="note" class="form-control form-control-sm" maxlength="200" placeholder="e.g. Rider: John, 0712 345 678">
+                        </div>
                         <button type="submit" class="btn btn-success btn-block">Update Status</button>
+                        <small class="form-text text-muted">The customer is notified by email{{ ' and SMS' if sms_enabled }}.</small>
                     </form>
+                    {% if history %}
+                    <hr>
+                    <h6 class="font-weight-bold">History</h6>
+                    <ul class="list-unstyled small mb-0">
+                        {% for h in history %}<li class="mb-1"><span class="text-muted">{{ h.created_at|localtime }}</span> - {{ h.status }}{% if h.note %}: {{ h.note }}{% endif %}</li>{% endfor %}
+                    </ul>
+                    {% endif %}
                 </div>
             </div>
         </div>

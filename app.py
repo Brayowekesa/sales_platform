@@ -3,11 +3,12 @@ import uuid
 from urllib.parse import urlparse
 import sqlite3
 import secrets
+import threading
 import re
 import hmac
 import hashlib
 from functools import wraps # For decorators
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import base64 # For M-Pesa if used, not directly for this part
 from dotenv import load_dotenv
 
@@ -52,11 +53,12 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__)
 
 # --- Currency formatting: change CURRENCY_SYMBOL (or env var) to switch the whole site ---
-CURRENCY_SYMBOL = os.environ.get('CURRENCY_SYMBOL', 'KSh')
+CURRENCY_SYMBOL = (os.environ.get('CURRENCY_SYMBOL') or 'KSh')
 
 app.jinja_env.globals['CURRENCY_SYMBOL'] = CURRENCY_SYMBOL
 # Shop name shown in titles and footers (override with the SITE_NAME env var)
-app.jinja_env.globals['SITE_NAME'] = os.environ.get('SITE_NAME', 'ESA E-Shop')
+SITE_NAME = (os.environ.get('SITE_NAME') or 'ESA E-Shop')
+app.jinja_env.globals['SITE_NAME'] = SITE_NAME
 
 PLACEHOLDER_IMAGE = 'images/placeholder.svg'
 
@@ -92,6 +94,28 @@ def safe_link_filter(url):
     """Only allow links to this site ('/...') or http(s) addresses; anything else (e.g. javascript:) becomes '#'."""
     url = (url or '').strip()
     return url if SAFE_LINK_RE.match(url) else '#'
+
+
+from zoneinfo import ZoneInfo
+SHOP_TZ = ZoneInfo((os.environ.get('SHOP_TIMEZONE') or 'Africa/Nairobi'))
+
+def to_local(value):
+    """Database times are UTC; show them in the shop's time zone (Nairobi by default)."""
+    if not value:
+        return None
+    if isinstance(value, str):
+        try:
+            value = datetime.strptime(value.split('.')[0], '%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(SHOP_TZ)
+
+@app.template_filter('localtime')
+def localtime_filter(value, fmt='%d %b %Y, %H:%M'):
+    local = to_local(value)
+    return local.strftime(fmt) if local else (value or '')
 
 
 @app.template_filter('money')
@@ -137,19 +161,26 @@ app.config['ALLOWED_REGISTER_EMAILS'] = {
 }
 
 # Mail Configuration (Use environment variables for credentials)
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', 'your_email@example.com')
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_APP_PASSWORD', 'your_email_app_password')
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', os.environ.get('MAIL_USERNAME', 'your_email@example.com'))
+# Any SMTP provider works (Gmail, Brevo, Mailgun, Zoho, your web host...). See .env.example.
+app.config['MAIL_SERVER'] = (os.environ.get('MAIL_SERVER') or 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int((os.environ.get('MAIL_PORT') or 587))
+app.config['MAIL_USE_TLS'] = (os.environ.get('MAIL_USE_TLS') or '1') == '1'
+app.config['MAIL_USE_SSL'] = (os.environ.get('MAIL_USE_SSL') or '0') == '1'
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', '')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_APP_PASSWORD', '')
+# Sender shown to customers, e.g.  ESA E-Shop <orders@yourshop.co.ke>
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER') or app.config['MAIL_USERNAME'] or None
+
+
+def mail_configured():
+    return bool(app.config['MAIL_USERNAME'] and app.config['MAIL_PASSWORD'] and app.config['MAIL_DEFAULT_SENDER'])
 
 # M-Pesa Configuration (Use environment variables)
-app.config['MPESA_CONSUMER_KEY'] = os.environ.get('MPESA_CONSUMER_KEY', 'your_consumer_key')
-app.config['MPESA_CONSUMER_SECRET'] = os.environ.get('MPESA_CONSUMER_SECRET', 'your_consumer_secret')
-app.config['MPESA_BUSINESS_SHORT_CODE'] = os.environ.get('MPESA_BUSINESS_SHORT_CODE', '174379')
-app.config['MPESA_PASSKEY'] = os.environ.get('MPESA_PASSKEY', 'your_mpesa_passkey')
-app.config['MPESA_CALLBACK_URL'] = os.environ.get('MPESA_CALLBACK_URL', 'https://yourdomain.com/mpesa_callback') # Needs to be publicly accessible
+app.config['MPESA_CONSUMER_KEY'] = (os.environ.get('MPESA_CONSUMER_KEY') or 'your_consumer_key')
+app.config['MPESA_CONSUMER_SECRET'] = (os.environ.get('MPESA_CONSUMER_SECRET') or 'your_consumer_secret')
+app.config['MPESA_BUSINESS_SHORT_CODE'] = (os.environ.get('MPESA_BUSINESS_SHORT_CODE') or '174379')
+app.config['MPESA_PASSKEY'] = (os.environ.get('MPESA_PASSKEY') or 'your_mpesa_passkey')
+app.config['MPESA_CALLBACK_URL'] = (os.environ.get('MPESA_CALLBACK_URL') or 'https://yourdomain.com/mpesa_callback') # Needs to be publicly accessible
 # app.py - Configuration
 app.config['PROMOTIONS_UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static', 'uploads', 'promotions')
 # ...
@@ -359,8 +390,59 @@ def init_db():
         c.execute('CREATE INDEX IF NOT EXISTS idx_rate_limit ON rate_limit_events(kind, key, created_at)')
         if 'verification_attempts' not in columns:
             c.execute('ALTER TABLE users ADD COLUMN verification_attempts INTEGER DEFAULT 0')
+        if 'phone' not in columns:
+            c.execute('ALTER TABLE users ADD COLUMN phone TEXT')   # remembered for the next checkout
 
-        # No explicit conn.commit() needed here due to 'with conn:'
+        # --- Orders: who receives it, how it is delivered, and what delivery costs ---
+        order_columns = [row[1] for row in c.execute("PRAGMA table_info(orders)").fetchall()]
+        for col, ddl in [('contact_name', 'TEXT'), ('contact_phone', 'TEXT'), ('delivery_method', "TEXT"),
+                         ('delivery_zone', 'TEXT'), ('delivery_fee', 'REAL DEFAULT 0'), ('subtotal', 'REAL')]:
+            if col not in order_columns:
+                c.execute(f'ALTER TABLE orders ADD COLUMN {col} {ddl}')
+
+        # --- Delivery areas and pickup points (edited in Admin -> Delivery) ---
+        c.execute('''CREATE TABLE IF NOT EXISTS delivery_zones (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        kind TEXT NOT NULL DEFAULT 'delivery',      -- 'delivery' or 'pickup'
+                        fee REAL NOT NULL DEFAULT 0,
+                        free_over REAL,                              -- free delivery when the subtotal reaches this
+                        eta TEXT,                                    -- e.g. 'Same day', '1-2 days'
+                        details TEXT,                                -- areas covered, or the pickup address and hours
+                        is_active INTEGER DEFAULT 1,
+                        sort_order INTEGER DEFAULT 0)''')
+        if c.execute('SELECT COUNT(*) FROM delivery_zones').fetchone()[0] == 0:
+            c.executemany('INSERT INTO delivery_zones (name, kind, fee, free_over, eta, details, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)', [
+                ('Nairobi CBD', 'delivery', 150, 3000, 'Same day', 'Orders placed before 2 pm arrive the same day.', 0),
+                ('Nairobi suburbs', 'delivery', 250, 3000, 'Same or next day', 'Westlands, Kilimani, Kileleshwa, South B/C, Eastlands, Kasarani and nearby.', 1),
+                ('Greater Nairobi', 'delivery', 400, 5000, '1-2 days', 'Kiambu, Ruiru, Thika Road, Rongai, Kitengela, Syokimau, Athi River.', 2),
+                ('Rest of Kenya (courier)', 'delivery', 600, None, '2-4 days', 'Sent by courier to your nearest town office.', 3),
+                ('Pick up from our shop', 'pickup', 0, None, 'Ready within 24 hours', 'Set your shop address and opening hours in Admin -> Delivery.', 4),
+            ])
+
+        # --- Shop settings (contact details etc., edited in Admin -> Shop settings) ---
+        c.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)')
+
+        # --- Order status history (timeline on the order page) ---
+        c.execute('''CREATE TABLE IF NOT EXISTS order_status_history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        order_id INTEGER NOT NULL,
+                        status TEXT NOT NULL,
+                        note TEXT,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE)''')
+
+        # --- Extra product photos (the main photo stays in products.image) ---
+        c.execute('''CREATE TABLE IF NOT EXISTS product_images (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        product_id INTEGER NOT NULL,
+                        path TEXT NOT NULL,
+                        sort_order INTEGER DEFAULT 0,
+                        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE)''')
+
+        # The upgrades above run after the 'with conn:' block, so save them explicitly
+        conn.commit()
+        conn.close()
         print("Database initialized (from init_db function).") # Added print statement
 
 # Ensure the required tables exist as soon as the app is imported/started.
@@ -528,6 +610,7 @@ def utility_processor():
             app.logger.error(f"Error fetching wishlist ids: {e}")
 
     return dict(
+        SHOP=get_shop_settings(),
         wishlist_ids=wishlist_ids,
         cart_item_count=cart_item_count,
         current_year=datetime.utcnow().year, # <<< THIS PROVIDES current_year
@@ -537,7 +620,8 @@ def utility_processor():
 
 # --- WTForms ---
 class RegistrationForm(FlaskForm):
-    username = StringField('Username', validators=[DataRequired(), Length(min=4, max=25)])
+    username = StringField('Username', validators=[DataRequired(), Length(min=4, max=25),
+        Regexp(r'^[A-Za-z0-9._-]+$', message='Use only letters, numbers, dots, dashes and underscores.')])
     email = StringField('Email', validators=[DataRequired(), Email()])
     password = PasswordField('Password', validators=[DataRequired(), Length(min=8, message="Use at least 8 characters.")])
     confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
@@ -1147,8 +1231,11 @@ def product_details(product_id):
         flash('Product data could not be loaded.', 'danger')
         return redirect(url_for('index'))
 
+    with get_db_connection() as conn:
+        photos = product_photos(conn, product_id, product_data_for_template.get('image')) or [None]
     return render_template(
         'product_details.html',
+        photos=photos,
         product=product_data_for_template,  # Pass the (potentially processed) product dict
         reviews=processed_reviews,          # Pass the list of processed review dicts
         review_form=review_form,
@@ -1478,7 +1565,8 @@ class ProductForm(FlaskForm):
 # ... (rest of your app.py)
 
 class AdminUserForm(FlaskForm): # For Admin Add/Edit User
-    username = StringField('Username', validators=[DataRequired(), Length(min=4, max=25)])
+    username = StringField('Username', validators=[DataRequired(), Length(min=4, max=25),
+        Regexp(r'^[A-Za-z0-9._-]+$', message='Use only letters, numbers, dots, dashes and underscores.')])
     email = StringField('Email', validators=[DataRequired(), Email()])
     password = PasswordField('Password (leave blank to keep current)', validators=[Optional(), Length(min=8, message="Use at least 8 characters.")])
     confirm_password = PasswordField('Confirm Password', validators=[EqualTo('password')])
@@ -1491,12 +1579,20 @@ class AdminResetPasswordForm(FlaskForm):
     confirm_password = PasswordField('Confirm New Password', validators=[DataRequired(), EqualTo('new_password')])
     submit = SubmitField('Reset Password')
 
+KENYAN_PHONE_RE = r'^(?:\+?254|0)[17]\d{8}$'
+_strip_spaces = lambda v: v.replace(' ', '').replace('-', '') if v else v
+
+
 class CheckoutForm(FlaskForm):
-    # Basic fields, expand as needed (e.g., separate address fields)
-    shipping_address = StringField('Shipping Address', validators=[DataRequired(), Length(max=200)])
-    payment_method = StringField('Payment Method', validators=[DataRequired()]) # Consider RadioField with choices
-    # For M-Pesa
-    phone_number = StringField('M-Pesa Phone Number', filters=[lambda v: v.replace(' ', '') if v else v], validators=[
+    contact_name = StringField('Full name', validators=[DataRequired(message='Please enter the name of the person receiving the order.'), Length(max=80)])
+    contact_phone = StringField('Phone number', filters=[_strip_spaces], validators=[
+        DataRequired(message='We need a phone number to reach you about your order.'),
+        Regexp(KENYAN_PHONE_RE, message='Enter a Kenyan number like 0712345678 or +254712345678.')])
+    delivery_zone = StringField('Delivery option', validators=[DataRequired(message='Please choose delivery or pickup.')])
+    shipping_address = TextAreaField('Delivery address', validators=[Optional(), Length(max=300)])
+    payment_method = StringField('Payment Method', validators=[DataRequired(message='Please choose how you will pay.')])
+    # For M-Pesa (defaults to the contact phone when left empty)
+    phone_number = StringField('M-Pesa Phone Number', filters=[_strip_spaces], validators=[
         Optional(),
         Regexp(r'^(?:\+?254|0)[17]\d{8}$', message='Enter a Safaricom number like 0712345678 or +254712345678.')
     ])
@@ -1738,6 +1834,68 @@ def admin_products():
 #     submit = SubmitField('Save Product')
 
 
+MAX_PRODUCT_PHOTOS = 8
+DEFAULT_PRODUCT_IMAGE = 'uploads/default.jpg'
+
+
+def product_photos(conn, product_id, main_image):
+    """All photos of a product: the main one first, then the extra ones."""
+    photos = [main_image] if main_image and main_image != DEFAULT_PRODUCT_IMAGE else []
+    photos += [r['path'] for r in conn.execute('SELECT path FROM product_images WHERE product_id = ? ORDER BY sort_order, id', (product_id,))]
+    return photos
+
+
+def _delete_upload(path):
+    if path and path != DEFAULT_PRODUCT_IMAGE and path.startswith('uploads/'):
+        full = os.path.join(BASE_DIR, 'static', path)
+        if os.path.isfile(full):
+            try:
+                os.remove(full)
+            except OSError as e:
+                app.logger.error(f"Could not delete {full}: {e}")
+
+
+def save_product_photos(product_id):
+    """Apply the photo section of the product form: remove ticked photos, add uploads, pick the main photo."""
+    with get_db_connection() as conn:
+        row = conn.execute('SELECT image FROM products WHERE id = ?', (product_id,)).fetchone()
+        if not row:
+            return
+        photos = product_photos(conn, product_id, row['image'])
+        # 1. remove (only photos that belong to this product)
+        for path in request.form.getlist('remove_photo'):
+            if path in photos:
+                photos.remove(path)
+                _delete_upload(path)
+        # 2. add new uploads
+        skipped = 0
+        for f in request.files.getlist('photos'):
+            if not f or not f.filename:
+                continue
+            if len(photos) >= MAX_PRODUCT_PHOTOS:
+                skipped += 1
+                continue
+            if not valid_image_upload(f):
+                flash(f'"{f.filename}" is not a PNG, JPG or GIF image and was skipped.', 'warning')
+                continue
+            filename = f"{uuid.uuid4().hex[:8]}_{secure_filename(f.filename)}"
+            f.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            photos.append(f"uploads/{filename}")
+        if skipped:
+            flash(f'Only {MAX_PRODUCT_PHOTOS} photos per product - {skipped} photo(s) were not added.', 'warning')
+        # 3. main photo
+        wanted = request.form.get('main_photo')
+        if wanted in photos:
+            photos.remove(wanted)
+            photos.insert(0, wanted)
+        main = photos[0] if photos else DEFAULT_PRODUCT_IMAGE
+        conn.execute('UPDATE products SET image = ? WHERE id = ?', (main, product_id))
+        conn.execute('DELETE FROM product_images WHERE product_id = ?', (product_id,))
+        conn.executemany('INSERT INTO product_images (product_id, path, sort_order) VALUES (?, ?, ?)',
+                         [(product_id, p, i) for i, p in enumerate(photos[1:])])
+        conn.commit()
+
+
 @app.route('/admin/products/add', methods=['GET', 'POST'])
 @login_required
 @admin_required
@@ -1782,11 +1940,13 @@ def admin_add_product():
                     flash('Original price cannot be less than the current (sale) price. Original price not saved.', 'warning')
             
             with get_db_connection() as conn:
-                conn.execute('''
+                cur = conn.execute('''
                     INSERT INTO products (name, price, original_price, description, category, stock, image, added_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ''', (name, current_price_val, db_original_price, description, category, stock_val, image_filename))
+                new_product_id = cur.lastrowid
                 conn.commit()
+            save_product_photos(new_product_id)
             flash('Product added successfully!', 'success')
             log_activity("Admin added product", user_id=current_user.id, details=f"Product Name: {name}")
             return redirect(url_for('admin_products'))
@@ -1797,7 +1957,8 @@ def admin_add_product():
             flash(f'Error adding product: {str(e)}', 'danger')
             log_activity("Admin add product failed", user_id=current_user.id, details=str(e))
             
-    return render_template('admin/add_edit_product.html', form=form, title='Add Product', action='Add')
+    return render_template('admin/add_edit_product.html', form=form, title='Add Product', action='Add',
+                           photos=[], max_photos=MAX_PRODUCT_PHOTOS)
 
 
 @app.route('/admin/products/edit/<int:product_id>', methods=['GET', 'POST'])
@@ -1863,6 +2024,7 @@ def admin_edit_product(product_id):
                     category = ?, stock = ?, image = ? WHERE id = ?
                 ''', (name, current_price_val, db_original_price, description, category, stock_val, image_filename, product_id))
                 conn.commit()
+            save_product_photos(product_id)
             flash('Product updated successfully!', 'success')
             log_activity("Admin edited product", user_id=current_user.id, details=f"Product ID: {product_id}")
             return redirect(url_for('admin_products'))
@@ -1882,7 +2044,10 @@ def admin_edit_product(product_id):
         form.stock.data = product['stock']
         # form.image.data is not set for FileField on GET
 
-    return render_template('admin/add_edit_product.html', form=form, title='Edit Product', product=product, action='Edit')
+    with get_db_connection() as conn:
+        photos = product_photos(conn, product_id, product.get('image'))
+    return render_template('admin/add_edit_product.html', form=form, title='Edit Product', product=product, action='Edit',
+                           photos=photos, max_photos=MAX_PRODUCT_PHOTOS)
 
 @app.route('/admin/products/delete/<int:product_id>', methods=['POST'])
 @login_required
@@ -1898,6 +2063,8 @@ def admin_delete_product(product_id):
                 flash('This product appears in past orders and cannot be deleted. Set its stock to 0 to stop selling it.', 'warning')
                 return redirect(url_for('admin_products'))
             product_data = conn.execute("SELECT image FROM products WHERE id = ?", (product_id,)).fetchone()
+            for extra in conn.execute('SELECT path FROM product_images WHERE product_id = ?', (product_id,)).fetchall():
+                _delete_upload(extra['path'])
             if product_data:
                 # Delete associated image file if not default
                 if product_data['image'] and product_data['image'] != 'uploads/default.jpg':
@@ -2249,6 +2416,9 @@ def admin_order_details(order_id):
                 # order['order_date'] = None # Or keep as string
         # ---- END MODIFICATION ----
 
+        history = conn.execute(
+            'SELECT status, note, created_at FROM order_status_history WHERE order_id = ? ORDER BY created_at, id',
+            (order_id,)).fetchall()
         order_items = conn.execute('''
             SELECT oi.quantity, oi.price, p.name, p.image, p.id as product_id
             FROM order_items oi
@@ -2256,7 +2426,8 @@ def admin_order_details(order_id):
             WHERE oi.order_id = ?
         ''', (order_id,)).fetchall()
 
-    return render_template('admin/order_details.html', order=order, order_items=order_items, title=f'Order #{order_id}')
+    return render_template('admin/order_details.html', order=order, order_items=order_items, history=history,
+                           sms_enabled=sms_enabled(), title=f'Order #{order_id}')
 
 
 @app.route('/admin/orders/update_status/<int:order_id>', methods=['POST'])
@@ -2287,8 +2458,12 @@ def admin_update_order_status(order_id):
             elif was_released and not now_released:
                 reserve_order_stock(conn, order_id)   # reopened: take the items out of stock again
             conn.execute("UPDATE orders SET status = ? WHERE id = ?", (new_status, order_id))
+            if new_status != old_status:
+                record_order_status(conn, order_id, new_status, (request.form.get('note') or '').strip()[:200] or None)
             conn.commit()
         flash(f'Order #{order_id} status updated to {new_status}.', 'success')
+        if new_status != old_status:
+            notify_order_event(order_id, 'status')
         log_activity("Admin updated order status", user_id=current_user.id, details=f"Order ID: {order_id}, New Status: {new_status}")
     except CheckoutError as ce:
         flash(str(ce), 'warning')
@@ -2300,6 +2475,187 @@ def admin_update_order_status(order_id):
 
 
 # Make sure datetime is imported: from datetime import datetime
+
+# --- Shop settings ---
+SHOP_SETTING_FIELDS = [
+    # key, label, help text
+    ('tagline', 'Short description', 'One line about the shop, shown in the footer and link previews.'),
+    ('phone', 'Phone number', 'Shown in the footer and on the Contact page, e.g. 0712 345 678.'),
+    ('whatsapp', 'WhatsApp number', 'For the WhatsApp button, e.g. 0712 345 678 (leave empty to hide it).'),
+    ('email', 'Email address', 'Customer support email.'),
+    ('address', 'Shop address', 'Street, building and town.'),
+    ('hours', 'Opening hours', 'e.g. Mon-Sat 8am-7pm.'),
+    ('map_url', 'Google Maps link', 'Paste the "Share" link of your shop on Google Maps (optional).'),
+    ('facebook', 'Facebook page link', 'Optional.'),
+    ('instagram', 'Instagram link', 'Optional.'),
+    ('tiktok', 'TikTok link', 'Optional.'),
+    ('returns_days', 'Return window (days)', 'How many days customers have to return an item. Default 7.'),
+]
+SHOP_SETTING_DEFAULTS = {
+    'tagline': 'Quality electronics, fashion and home essentials, delivered across Kenya.',
+    'returns_days': '7',
+}
+
+
+def get_shop_settings():
+    values = dict(SHOP_SETTING_DEFAULTS)
+    try:
+        with get_db_connection() as conn:
+            for row in conn.execute('SELECT key, value FROM settings'):
+                if row['value'] not in (None, ''):
+                    values[row['key']] = row['value']
+    except sqlite3.Error as e:
+        app.logger.error(f"Could not load shop settings: {e}")
+    wa = re.sub(r'\D', '', values.get('whatsapp', ''))
+    if wa.startswith('0'):
+        wa = '254' + wa[1:]
+    values['whatsapp_link'] = f'https://wa.me/{wa}' if wa else ''
+    return values
+
+
+class ShopSettingsForm(FlaskForm):
+    submit = SubmitField('Save settings')
+
+
+@app.route('/admin/settings', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_settings():
+    form = ShopSettingsForm()
+    if form.validate_on_submit():
+        errors = []
+        cleaned = {}
+        for key, label, _ in SHOP_SETTING_FIELDS:
+            value = (request.form.get(key) or '').strip()[:300]
+            if key in ('map_url', 'facebook', 'instagram', 'tiktok') and value and not re.match(r'^https://', value):
+                errors.append(f'{label} must start with https://')
+            if key == 'returns_days' and value and not value.isdigit():
+                errors.append('Return window must be a number of days.')
+            if key == 'email' and value and not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', value):
+                errors.append('Enter a valid email address.')
+            cleaned[key] = value
+        if errors:
+            for e in errors:
+                flash(e, 'danger')
+        else:
+            with get_db_connection() as conn:
+                conn.executemany('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+                                 list(cleaned.items()))
+                conn.commit()
+            log_activity("Admin updated shop settings", user_id=current_user.id)
+            flash('Shop settings saved.', 'success')
+            return redirect(url_for('admin_settings'))
+    with get_db_connection() as conn:
+        saved = {r['key']: r['value'] for r in conn.execute('SELECT key, value FROM settings')}
+    return render_template('admin/settings.html', form=form, fields=SHOP_SETTING_FIELDS, saved=saved,
+                           defaults=SHOP_SETTING_DEFAULTS, title='Shop settings')
+
+
+@app.route('/favicon.ico')
+def favicon():
+    # Browsers ask for /favicon.ico directly
+    return app.send_static_file('favicon.ico')
+
+
+@app.route('/robots.txt')
+def robots_txt():
+    body = "User-agent: *\nDisallow: /admin/\nDisallow: /cart\nDisallow: /checkout\nDisallow: /orders\nDisallow: /wishlist\n"
+    return app.response_class(body, mimetype='text/plain')
+
+
+# --- Information pages (linked from the footer) ---
+@app.route('/contact')
+def page_contact():
+    return render_template('pages/contact.html', title='Contact us')
+
+@app.route('/delivery-info')
+def page_delivery():
+    return render_template('pages/delivery.html', zones=active_delivery_zones(), title='Delivery & pickup')
+
+@app.route('/returns')
+def page_returns():
+    return render_template('pages/returns.html', title='Returns & refunds')
+
+@app.route('/privacy')
+def page_privacy():
+    return render_template('pages/privacy.html', title='Privacy policy')
+
+@app.route('/terms')
+def page_terms():
+    return render_template('pages/terms.html', title='Terms of service')
+
+
+# --- Admin: delivery areas and pickup points ---
+class DeliveryZoneForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired(), Length(max=80)])
+    kind = SelectField('Type', choices=[('delivery', 'Delivery area'), ('pickup', 'Pickup point')])
+    fee = FloatField('Fee (KSh)', default=0, validators=[Optional(), NumberRange(min=0)])
+    free_over = FloatField('Free when the order reaches (KSh, optional)', validators=[Optional(), NumberRange(min=0)])
+    eta = StringField('Delivery time (e.g. Same day, 1-2 days)', validators=[Optional(), Length(max=60)])
+    details = TextAreaField('Areas covered, or pickup address and opening hours', validators=[Optional(), Length(max=300)])
+    sort_order = IntegerField('Order in list (0 is first)', default=0, validators=[Optional(), NumberRange(min=0)])
+    is_active = BooleanField('Show at checkout', default=True)
+    submit = SubmitField('Save')
+
+
+def _zone_values(form):
+    return (form.name.data.strip(), form.kind.data, form.fee.data or 0, form.free_over.data or None,
+            (form.eta.data or '').strip() or None, (form.details.data or '').strip() or None,
+            form.sort_order.data or 0, 1 if form.is_active.data else 0)
+
+
+@app.route('/admin/delivery', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_delivery():
+    form = DeliveryZoneForm()
+    if form.validate_on_submit():
+        with get_db_connection() as conn:
+            conn.execute('INSERT INTO delivery_zones (name, kind, fee, free_over, eta, details, sort_order, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                         _zone_values(form))
+            conn.commit()
+        log_activity("Admin added delivery option", user_id=current_user.id, details=form.name.data)
+        flash('Delivery option added.', 'success')
+        return redirect(url_for('admin_delivery'))
+    with get_db_connection() as conn:
+        zones = conn.execute('SELECT * FROM delivery_zones ORDER BY sort_order, id').fetchall()
+    return render_template('admin/delivery.html', zones=zones, form=form, editing=None, title='Delivery & Pickup')
+
+
+@app.route('/admin/delivery/<int:zone_id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_edit_delivery(zone_id):
+    with get_db_connection() as conn:
+        zone = conn.execute('SELECT * FROM delivery_zones WHERE id = ?', (zone_id,)).fetchone()
+    if not zone:
+        flash('Delivery option not found.', 'danger')
+        return redirect(url_for('admin_delivery'))
+    form = DeliveryZoneForm(data={**dict(zone), 'is_active': bool(zone['is_active'])}) if request.method == 'GET' else DeliveryZoneForm()
+    if form.validate_on_submit():
+        with get_db_connection() as conn:
+            conn.execute('UPDATE delivery_zones SET name=?, kind=?, fee=?, free_over=?, eta=?, details=?, sort_order=?, is_active=? WHERE id=?',
+                         _zone_values(form) + (zone_id,))
+            conn.commit()
+        log_activity("Admin edited delivery option", user_id=current_user.id, details=f"ID {zone_id}: {form.name.data}")
+        flash('Delivery option saved.', 'success')
+        return redirect(url_for('admin_delivery'))
+    with get_db_connection() as conn:
+        zones = conn.execute('SELECT * FROM delivery_zones ORDER BY sort_order, id').fetchall()
+    return render_template('admin/delivery.html', zones=zones, form=form, editing=zone, title='Delivery & Pickup')
+
+
+@app.route('/admin/delivery/<int:zone_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_delivery(zone_id):
+    with get_db_connection() as conn:
+        conn.execute('DELETE FROM delivery_zones WHERE id = ?', (zone_id,))
+        conn.commit()
+    log_activity("Admin deleted delivery option", user_id=current_user.id, details=f"ID {zone_id}")
+    flash('Delivery option deleted. Past orders keep their delivery details.', 'success')
+    return redirect(url_for('admin_delivery'))
+
 
 @app.route('/admin/activity_logs')
 @login_required
@@ -2611,6 +2967,117 @@ def mpesa_callback_signature(order_id):
     return hmac.new(app.config['SECRET_KEY'].encode(), f"mpesa-callback:{order_id}".encode(), hashlib.sha256).hexdigest()
 
 
+ORDER_STEPS_DELIVERY = ['Order placed', 'Confirmed', 'On the way', 'Delivered']
+ORDER_STEPS_PICKUP = ['Order placed', 'Confirmed', 'Ready for pickup', 'Collected']
+STATUS_STEP = {'Pending': 0, 'Pending Payment': 0, 'Processing': 1, 'Paid': 1, 'Shipped': 2, 'Delivered': 3}
+
+
+def order_progress(order):
+    """Steps for the order tracker, and how far along the order is (None if cancelled/failed)."""
+    steps = ORDER_STEPS_PICKUP if order.get('delivery_method') == 'pickup' else ORDER_STEPS_DELIVERY
+    return {'steps': steps, 'current': STATUS_STEP.get(order.get('status'))}
+
+
+def record_order_status(conn, order_id, status, note=None):
+    """Add a step to the order's timeline (shown on the customer's order page)."""
+    conn.execute('INSERT INTO order_status_history (order_id, status, note) VALUES (?, ?, ?)', (order_id, status, note))
+
+
+def sms_enabled():
+    return bool(os.environ.get('AT_USERNAME') and os.environ.get('AT_API_KEY'))
+
+
+def to_international(phone):
+    digits = re.sub(r'\D', '', phone or '')
+    if digits.startswith('0'):
+        digits = '254' + digits[1:]
+    return '+' + digits if digits else ''
+
+
+def send_sms(phone, text):
+    """SMS via Africa's Talking (set AT_USERNAME and AT_API_KEY; username 'sandbox' uses their test system)."""
+    if not sms_enabled() or not phone:
+        return False
+    username = os.environ['AT_USERNAME']
+    host = 'api.sandbox.africastalking.com' if username == 'sandbox' else 'api.africastalking.com'
+    data = {'username': username, 'to': to_international(phone), 'message': text[:459]}
+    if os.environ.get('AT_SENDER_ID'):
+        data['from'] = os.environ['AT_SENDER_ID']
+    try:
+        r = requests.post(f'https://{host}/version1/messaging', data=data, timeout=10,
+                          headers={'apiKey': os.environ['AT_API_KEY'], 'Accept': 'application/json'})
+        r.raise_for_status()
+        return True
+    except Exception as e:
+        app.logger.error(f"SMS to {phone} failed: {e}")
+        return False
+
+
+STATUS_MESSAGES = {
+    'Processing': ('Your order is confirmed', 'We have received your order and are preparing it.'),
+    'Paid': ('Payment received', 'Thank you - your M-Pesa payment was received and we are preparing your order.'),
+    'Shipped': ('Your order is on the way', 'Your order has left our shop and is on its way to you.'),
+    'Delivered': ('Your order was delivered', 'Your order has been delivered. Enjoy, and thank you for shopping with us!'),
+    'Cancelled': ('Your order was cancelled', 'Your order has been cancelled. If you paid already, we will refund you.'),
+    'Refunded': ('Your refund is on its way', 'We have refunded your order.'),
+    'Payment Failed': ('M-Pesa payment did not go through', 'The M-Pesa payment for your order was not completed, so the order was cancelled. You can order again any time.'),
+}
+PICKUP_OVERRIDES = {
+    'Shipped': ('Your order is ready for pickup', 'Your order is ready - you can collect it now.'),
+    'Delivered': ('Order collected', 'You have collected your order. Thank you for shopping with us!'),
+}
+
+
+def notify_order_event(order_id, event):
+    """Email (and SMS, if enabled) the customer about their order. Runs in the background."""
+    try:
+        with get_db_connection() as conn:
+            order = conn.execute('''SELECT o.*, u.email, u.username FROM orders o JOIN users u ON u.id = o.user_id
+                                    WHERE o.id = ?''', (order_id,)).fetchone()
+            if not order:
+                return
+            items = conn.execute('''SELECT oi.quantity, oi.price, p.name FROM order_items oi
+                                    JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ?''', (order_id,)).fetchall()
+            last = conn.execute('SELECT note FROM order_status_history WHERE order_id = ? ORDER BY id DESC LIMIT 1',
+                                (order_id,)).fetchone()
+        order, items = dict(order), [dict(i) for i in items]
+        note = last['note'] if (last and event == 'status') else None
+        is_pickup = order.get('delivery_method') == 'pickup'
+        if event == 'placed':
+            headline = f"Order #{order_id} received"
+            message = ('Check your phone and enter your M-Pesa PIN to complete the payment.' if order['status'] == 'Pending Payment'
+                       else ("We'll call you when it's ready to collect." if is_pickup else "We'll call you to arrange delivery."))
+        else:
+            headline, message = (PICKUP_OVERRIDES.get(order['status']) if is_pickup else None) or STATUS_MESSAGES.get(order['status'], (None, None))
+            if not headline:
+                return   # statuses customers don't need to hear about
+        shop = get_shop_settings()
+        order_url = url_for('order_details', order_id=order_id, _external=True)
+        html = render_template('emails/order_update.html', order=order, items=items, headline=headline,
+                               message=message, note=note, order_url=order_url, shop=shop, event=event)
+        text = render_template('emails/order_update.txt', order=order, items=items, headline=headline,
+                               message=message, note=note, order_url=order_url, shop=shop, event=event)
+        sms_text = f"{SITE_NAME}: {headline} (#{order_id}). {message}" + (f" {note}" if note else '')
+    except Exception as e:
+        app.logger.error(f"Could not prepare notification for order {order_id}: {e}", exc_info=True)
+        return
+
+    def deliver():
+        with app.app_context():
+            if mail_configured() and order.get('email'):
+                try:
+                    mail.send(Message(f"{headline} - {SITE_NAME}", recipients=[order['email']], body=text, html=html,
+                                      sender=app.config['MAIL_DEFAULT_SENDER']))
+                except Exception as e:
+                    app.logger.error(f"Order email for #{order_id} failed: {e}")
+            send_sms(order.get('contact_phone'), sms_text)
+
+    if app.config.get('TESTING'):
+        deliver()   # tests run synchronously
+    else:
+        threading.Thread(target=deliver, daemon=True).start()
+
+
 def release_order_stock(conn, order_id):
     """Put an order's items back into stock (order cancelled or payment failed)."""
     for item in conn.execute('SELECT product_id, quantity FROM order_items WHERE order_id = ?', (order_id,)).fetchall():
@@ -2679,6 +3146,21 @@ def lipa_na_mpesa_stk_push(amount, phone_number, order_id_ref):
         return {"ResponseCode": "1", "ResponseDescription": "M-Pesa is not reachable right now. Please try again or choose Cash on Delivery."}
 
 
+def active_delivery_zones():
+    with get_db_connection() as conn:
+        return [dict(r) for r in conn.execute(
+            'SELECT * FROM delivery_zones WHERE is_active = 1 ORDER BY sort_order, id').fetchall()]
+
+
+def delivery_fee_for(zone, subtotal):
+    """Fee for a delivery option, honouring its free-delivery threshold."""
+    if not zone:
+        return 0
+    if zone.get('free_over') and subtotal >= zone['free_over']:
+        return 0
+    return float(zone.get('fee') or 0)
+
+
 @app.route('/checkout', methods=['GET', 'POST'])
 @login_required
 def checkout():
@@ -2689,6 +3171,7 @@ def checkout():
             FROM carts c JOIN products p ON c.product_id = p.id
             WHERE c.user_id = ?
         ''', (current_user.id,)).fetchall()
+        saved_phone = conn.execute('SELECT phone FROM users WHERE id = ?', (current_user.id,)).fetchone()['phone']
 
     if not cart_items_raw:
         flash('Your cart is empty. Add some products before checking out!', 'warning')
@@ -2700,23 +3183,50 @@ def checkout():
             flash(f"Not enough stock for {item['name']}. Only {item['stock']} available. Please update your cart.", 'danger')
             return redirect(url_for('view_cart'))
 
-    total_amount = sum(item['price'] * item['quantity'] for item in cart_items_raw)
+    subtotal = sum(item['price'] * item['quantity'] for item in cart_items_raw)
+    zones = active_delivery_zones()
+    zones_by_id = {str(z['id']): z for z in zones}
+    selected_zone = zones_by_id.get(form.delivery_zone.data or '')
+    delivery_fee = delivery_fee_for(selected_zone, subtotal)
+    total_amount = subtotal + delivery_fee
+
+    if request.method == 'GET':
+        # Pre-fill from the customer's account and last order
+        form.contact_name.data = form.contact_name.data or current_user.username
+        form.contact_phone.data = form.contact_phone.data or saved_phone
+
+    def show_form():
+        return render_template('checkout.html', form=form, cart_items=cart_items_raw, subtotal=subtotal,
+                               delivery_fee=delivery_fee, total_amount=total_amount, zones=zones,
+                               selected_zone=selected_zone, title='Checkout')
 
     if form.validate_on_submit():
         payment_method = form.payment_method.data
-        shipping_address = form.shipping_address.data.strip()
+        shipping_address = (form.shipping_address.data or '').strip()
         if payment_method not in ALLOWED_PAYMENT_METHODS:
             flash('Please choose Cash on Delivery or Lipa na M-Pesa.', 'danger')
-            return render_template('checkout.html', form=form, cart_items=cart_items_raw, total_amount=total_amount, title='Checkout')
+            return show_form()
+        if not selected_zone:
+            form.delivery_zone.errors.append('Please choose a delivery area or pickup point.')
+            return show_form()
+        is_pickup = selected_zone['kind'] == 'pickup'
+        if not is_pickup and len(shipping_address) < 5:
+            form.shipping_address.errors.append('Please enter your delivery address (street, building, town).')
+            return show_form()
+        if is_pickup:
+            shipping_address = f"Pickup: {selected_zone['name']}"
+        contact_phone = form.contact_phone.data
         # Begin transaction
         conn = get_db_connection()
         try:
             with conn: # Context manager handles commit or rollback
                 # 1. Create Order
                 order_cursor = conn.execute('''
-                    INSERT INTO orders (user_id, total_amount, payment_method, shipping_address, status)
-                    VALUES (?, ?, ?, ?, 'Pending')
-                ''', (current_user.id, total_amount, payment_method, shipping_address))
+                    INSERT INTO orders (user_id, subtotal, delivery_fee, total_amount, payment_method, shipping_address, status,
+                                        contact_name, contact_phone, delivery_method, delivery_zone)
+                    VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?)
+                ''', (current_user.id, subtotal, delivery_fee, total_amount, payment_method, shipping_address,
+                      form.contact_name.data.strip(), contact_phone, 'pickup' if is_pickup else 'delivery', selected_zone['name']))
                 order_id = order_cursor.lastrowid
 
                 # 2. Create Order Items and Update Product Stock
@@ -2731,52 +3241,50 @@ def checkout():
                     if cur.rowcount == 0:
                         raise CheckoutError(f"Sorry, {item['name']} just sold out or has fewer items left. Please update your cart.")
 
-                # 3. Handle Payment (Example for M-Pesa)
+                # 3. Handle Payment
                 transaction_id = None
                 if payment_method == 'Lipa na M-Pesa':
-                    mpesa_phone = (form.phone_number.data or '').replace(' ', '')
-                    if not mpesa_phone:
-                        raise CheckoutError('M-Pesa phone number is required for this payment method.') # Will trigger rollback
+                    mpesa_phone = form.phone_number.data or contact_phone
+                    if not re.match(r'^(?:\+?254|0)[17]\d{8}$', mpesa_phone or ''):
+                        raise CheckoutError('Enter the M-Pesa number to send the payment prompt to.')
 
                     mpesa_response = lipa_na_mpesa_stk_push(total_amount, mpesa_phone, order_id)
                     if mpesa_response.get('ResponseCode') == '0': # STK Push initiated successfully
                         transaction_id = mpesa_response.get('CheckoutRequestID')
                         conn.execute("UPDATE orders SET transaction_id = ?, status = 'Pending Payment' WHERE id = ?", (transaction_id, order_id))
-                        flash('M-Pesa STK Push initiated. Please complete the payment on your phone.', 'info')
-                        # Order remains 'Pending Payment' until callback confirms
+                        record_order_status(conn, order_id, 'Pending Payment', 'M-Pesa payment prompt sent to your phone')
                     else:
                         error_desc = mpesa_response.get('ResponseDescription', 'M-Pesa payment initiation failed.')
                         raise CheckoutError(f'M-Pesa could not start the payment: {error_desc}') # Trigger rollback
 
                 elif payment_method == 'Cash on Delivery':
-                     conn.execute("UPDATE orders SET status = 'Processing' WHERE id = ?", (order_id,)) # Or 'Pending' then admin confirms
-                     flash('Order placed successfully with Cash on Delivery! We will contact you shortly.', 'success')
+                    conn.execute("UPDATE orders SET status = 'Processing' WHERE id = ?", (order_id,))
+                    record_order_status(conn, order_id, 'Processing', 'Order received - pay when it arrives')
 
-
-                # 4. Clear Cart (only if everything up to payment initiation was successful)
+                # 4. Remember the phone for next time, clear the cart
+                conn.execute('UPDATE users SET phone = ? WHERE id = ?', (contact_phone, current_user.id))
                 conn.execute('DELETE FROM carts WHERE user_id = ?', (current_user.id,))
                 # Commit is handled by 'with conn:' if no exceptions
 
             log_activity("Order placed", user_id=current_user.id, details=f"Order ID: {order_id}, Total: {total_amount}, Payment: {payment_method}")
-            if payment_method == 'Lipa na M-Pesa' and transaction_id:
-                 return redirect(url_for('order_details', order_id=order_id)) # Show pending order details
-            return redirect(url_for('order_history')) # Or a specific thank you page
+            notify_order_event(order_id, 'placed')
+            return redirect(url_for('order_details', order_id=order_id, placed=1))
 
         except CheckoutError as ce: # Problem the customer can fix (stock, phone number, M-Pesa refused)
             flash(str(ce), 'danger')
             log_activity("Order placement failed", user_id=current_user.id, details=str(ce))
-            return render_template('checkout.html', form=form, cart_items=cart_items_raw, total_amount=total_amount, title='Checkout')
+            return show_form()
         except Exception as e:
             # conn.rollback() is handled by 'with conn:'
             app.logger.error(f"Checkout failed: {e}", exc_info=True)
             flash('Sorry, something went wrong while placing your order. Please try again.', 'danger')
             log_activity("Order placement failed", user_id=current_user.id, details=str(e))
-            return render_template('checkout.html', form=form, cart_items=cart_items_raw, total_amount=total_amount, title='Checkout')
+            return show_form()
         finally:
             conn.close() # Close connection explicitly if not using global app context connection management
 
     # GET request or form validation failed
-    return render_template('checkout.html', form=form, cart_items=cart_items_raw, total_amount=total_amount, title='Checkout')
+    return show_form()
 
 @app.route('/mpesa_callback', methods=['POST'])
 @csrf.exempt # M-Pesa callbacks won't have CSRF token
@@ -2819,7 +3327,9 @@ def mpesa_callback():
                     return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"}), 200
 
                 conn.execute("UPDATE orders SET status = 'Paid' WHERE id = ?", (order['id'],))
+                record_order_status(conn, order['id'], 'Paid', f"M-Pesa receipt {meta.get('MpesaReceiptNumber') or ''}".strip())
                 conn.commit()
+                notify_order_event(order['id'], 'status')
                 log_activity("M-Pesa payment successful", user_id=order['user_id'], details=f"Order ID: {order['id']}, Receipt: {meta.get('MpesaReceiptNumber')}, Amount: {paid_amount}")
                 # TODO: Send order confirmation email to user
             else:
@@ -2827,7 +3337,9 @@ def mpesa_callback():
                 error_desc = callback_data['Body']['stkCallback'].get('ResultDesc', 'Payment failed.')
                 conn.execute("UPDATE orders SET status = 'Payment Failed' WHERE id = ?", (order['id'],))
                 release_order_stock(conn, order['id'])  # the items go back on sale
+                record_order_status(conn, order['id'], 'Payment Failed', error_desc)
                 conn.commit()
+                notify_order_event(order['id'], 'status')
                 log_activity("M-Pesa payment failed/cancelled", user_id=order['user_id'], details=f"Order ID: {order['id']}, Reason: {error_desc}")
                 # TODO: Notify user of payment failure
 
@@ -2855,15 +3367,7 @@ def order_history():
     orders = []
     for row in orders_raw:
         order = dict(row)
-        order_date = order.get('order_date')
-        if order_date and isinstance(order_date, str):
-            try:
-                dt = datetime.strptime(order_date, '%Y-%m-%d %H:%M:%S')
-                order['order_date_formatted'] = dt.strftime('%B %d, %Y, %I:%M %p')
-            except Exception:
-                order['order_date_formatted'] = order_date
-        else:
-            order['order_date_formatted'] = 'N/A'
+        order['order_date_formatted'] = localtime_filter(order.get('order_date'), '%d %b %Y, %I:%M %p') or 'N/A'
         orders.append(order)
 
     return render_template('order_history.html', orders=orders, title='Your Orders') 
@@ -2890,19 +3394,16 @@ def order_details(order_id): # Renamed from order_details_user to match your exi
             JOIN products p ON oi.product_id = p.id
             WHERE oi.order_id = ?
         ''', (order_id,)).fetchall()
+        history = conn.execute(
+            'SELECT status, note, created_at FROM order_status_history WHERE order_id = ? ORDER BY created_at, id',
+            (order_id,)).fetchall()
 
-    # Build a dict so we can add a human-friendly date for the template
     order_dict = dict(order)
-    raw_date = order_dict.get('order_date')
-    try:
-        if isinstance(raw_date, str):
-            raw_date = datetime.strptime(raw_date.split('.')[0], '%Y-%m-%d %H:%M:%S')
-        order_dict['order_date_formatted'] = raw_date.strftime('%b %d, %Y %H:%M')
-    except Exception:
-        order_dict['order_date_formatted'] = order_dict.get('order_date') or 'N/A'
+    order_dict['order_date_formatted'] = localtime_filter(order_dict.get('order_date')) or 'N/A'
+    return render_template('order_details_user.html', order=order_dict, order_items=order_items,
+                           history=history, just_placed=request.args.get('placed') == '1',
+                           progress=order_progress(order_dict), title=f"Order #{order_id}")
 
-    return render_template('order_details_user.html', order=order_dict,
-                           order_items=order_items, title=f"Order #{order_id}")
 
 
 # app.py
@@ -3191,5 +3692,5 @@ def create_admin_command():
 if __name__ == '__main__':
     # Debug mode exposes an interactive console - only enable it locally: FLASK_DEBUG=1
     app.run(debug=os.environ.get('FLASK_DEBUG', '0') == '1',
-            host=os.environ.get('FLASK_HOST', '127.0.0.1'),
-            port=int(os.environ.get('PORT', 5000)))
+            host=(os.environ.get('FLASK_HOST') or '127.0.0.1'),
+            port=int((os.environ.get('PORT') or 5000)))

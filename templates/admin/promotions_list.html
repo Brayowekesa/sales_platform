@@ -64,7 +64,7 @@ Manage Promotions
                                 {% endif %}
                             </td>
                             <td>{{ promo.display_order }}</td>
-                            <td>{{ promo.created_at.strftime('%Y-%m-%d %H:%M') if promo.created_at and promo.created_at is not string else promo.created_at or 'N/A' }}</td>
+                            <td>{{ promo.created_at|localtime('%Y-%m-%d %H:%M') or 'N/A' }}</td>
                             <td>
                                 <a href="{{ url_for('admin_edit_promotion', promo_id=promo.id) }}" class="btn btn-info btn-sm mr-1" title="Edit">
                                     <i class="fas fa-edit"></i>

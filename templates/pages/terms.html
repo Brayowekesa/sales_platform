@@ -1,0 +1,23 @@
+{% extends "pages/_page.html" %}
+{# Draft terms - review them for your business (and with a lawyer) before going live. #}
+{% block page_body %}
+<p class="lead">These terms apply when you shop at {{ SITE_NAME }}. By placing an order you agree to them.</p>
+<h2>Orders and prices</h2>
+<ul>
+    <li>All prices are in Kenya Shillings ({{ CURRENCY_SYMBOL }}). The delivery fee is shown at checkout before you pay.</li>
+    <li>Your order is confirmed once we accept it. If an item is out of stock or the price is clearly wrong, we'll contact you and you can cancel for a full refund.</li>
+</ul>
+<h2>Payment</h2>
+<ul>
+    <li>We accept M-Pesa and Cash on Delivery. With M-Pesa, your order is processed once the payment is confirmed.</li>
+    <li>Orders whose M-Pesa payment fails are cancelled and the items go back on sale.</li>
+</ul>
+<h2>Delivery</h2>
+<p>Delivery times on our <a href="{{ url_for('page_delivery') }}">delivery page</a> are estimates. Please make sure someone is available on the phone number you gave us.</p>
+<h2>Returns</h2>
+<p>See our <a href="{{ url_for('page_returns') }}">returns &amp; refunds policy</a>.</p>
+<h2>Your account</h2>
+<p>Keep your password private. We may suspend accounts that are used for fraud or abuse.</p>
+<h2>Our responsibility</h2>
+<p>Nothing in these terms limits your rights under the Consumer Protection Act, 2012 or other Kenyan law. These terms are governed by the laws of Kenya.</p>
+{% endblock %}

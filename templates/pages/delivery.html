@@ -1,0 +1,29 @@
+{% extends "pages/_page.html" %}
+{% block page_body %}
+<p class="lead">Choose delivery to your door or pick up from us. You'll see the exact fee at checkout before you pay.</p>
+{% if zones %}
+<div class="table-responsive">
+<table class="table info-table">
+    <thead><tr><th>Option</th><th>Time</th><th>Fee</th></tr></thead>
+    <tbody>
+    {% for z in zones %}
+    <tr>
+        <td><strong>{{ z.name }}</strong>{% if z.details %}<br><small class="text-muted">{{ z.details }}</small>{% endif %}</td>
+        <td>{{ z.eta or '-' }}</td>
+        <td>{{ 'Free' if not z.fee else z.fee|money }}{% if z.free_over and z.fee %}<br><small class="text-success font-weight-bold">Free over {{ z.free_over|money }}</small>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endif %}
+<h2>How it works</h2>
+<ol>
+    <li>Place your order and choose a delivery area or pickup point.</li>
+    <li>We confirm your order and call the phone number you gave us.</li>
+    <li>You can follow each step in <em>My orders</em>{% if SHOP.phone %}, or call us on {{ SHOP.phone }}{% endif %}.</li>
+</ol>
+<h2>Paying</h2>
+<p>Pay with <strong>M-Pesa</strong> when you order, or choose <strong>Cash on Delivery</strong> and pay the rider (cash or M-Pesa) when your order arrives. Please check your items before paying.</p>
+<p>Something wrong with your delivery? See our <a href="{{ url_for('page_returns') }}">returns policy</a>.</p>
+{% endblock %}

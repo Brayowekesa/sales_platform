@@ -4,6 +4,10 @@
     {{ product.name }}
 {% endblock %}
 
+{% block meta_description %}{{ product.price|money }}{% if product.original_price and product.original_price > product.price %} (was {{ product.original_price|money }}){% endif %} - {{ (product.description or product.category or '')|truncate(150) }}{% endblock %}
+{% block og_type %}product{% endblock %}
+{% block og_title %}{{ product.name }} - {{ product.price|money }}{% endblock %}
+{% block og_image %}{{ url_for('static', filename=photos[0], _external=True) if photos[0] else url_for('static', filename='images/og-default.png', _external=True) }}{% endblock %}
 {% block head_extra %}
     {# Optional: specific CSS for this page if needed #}
 {% endblock %}
@@ -12,7 +16,20 @@
 <div class="container mt-5">
     <div class="row">
         <div class="col-md-6 mb-4">
-            <img src="{{ product_img(product.image) }}" alt="{{ product.name }}" class="img-fluid rounded shadow-sm">
+            <div class="gallery">
+                <div class="gallery-main">
+                    <img id="gallery-main-img" src="{{ product_img(photos[0]) }}" alt="{{ product.name }}">
+                </div>
+                {% if photos|length > 1 %}
+                <div class="gallery-thumbs" role="list">
+                    {% for p in photos %}
+                    <button type="button" class="gallery-thumb {{ 'is-active' if loop.first }}" data-src="{{ product_img(p) }}" aria-label="Show photo {{ loop.index }} of {{ loop.length }}" role="listitem">
+                        <img src="{{ product_img(p) }}" alt="" loading="lazy">
+                    </button>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
         </div>
         <div class="col-md-6">
             <h2>{{ product.name }}</h2>
@@ -83,7 +100,7 @@
                                 {% for i in range(review.rating) %}<i class="fas fa-star text-warning"></i>{% endfor %}{% for i in range(5 - review.rating) %}<i class="far fa-star text-muted"></i>{% endfor %}
                             </h5>
                             <p class="card-text mt-2">{{ review.comment }}</p>
-                            <p class="card-text"><small class="text-muted">By {{ review.username }} on {{ review.created_at.strftime('%B %d, %Y') if review.created_at else 'N/A' }}</small></p>
+                            <p class="card-text"><small class="text-muted">By {{ review.username }} on {{ review.created_at|localtime('%d %B %Y') or 'N/A' }}</small></p>
                         </div>
                     </div>
                 {% endfor %}
@@ -132,5 +149,13 @@
 {% endblock %}
 
 {% block scripts_extra %}
-    {# Add-to-cart AJAX is handled globally in static/js/main.js #}
+<script>
+// Product gallery: click a thumbnail to show it large
+document.querySelectorAll('.gallery-thumb').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        document.getElementById('gallery-main-img').src = btn.dataset.src;
+        document.querySelectorAll('.gallery-thumb').forEach(function (b) { b.classList.toggle('is-active', b === btn); });
+    });
+});
+</script>
 {% endblock %}
