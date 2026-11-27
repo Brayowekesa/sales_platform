@@ -1,8 +1,7 @@
 """Cart and wishlist."""
-import sqlite3
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from shop.db import get_db_connection
+from shop.db import IntegrityError, get_db_connection
 from shop.forms import UpdateCartForm
 from shop.security import log_activity, same_site_referrer
 
@@ -64,7 +63,10 @@ def add_to_cart(product_id):
                 INSERT INTO carts (user_id, product_id, quantity)
                 VALUES (?, ?, ?)
                 ON CONFLICT(user_id, product_id)
-                DO UPDATE SET quantity = MIN(carts.quantity + excluded.quantity, (SELECT stock FROM products WHERE id = excluded.product_id))
+                DO UPDATE SET quantity = CASE
+                    WHEN carts.quantity + excluded.quantity > (SELECT stock FROM products WHERE id = excluded.product_id)
+                    THEN (SELECT stock FROM products WHERE id = excluded.product_id)
+                    ELSE carts.quantity + excluded.quantity END
             ''', (current_user.id, product_id, quantity))
             conn.commit()
 
@@ -84,7 +86,7 @@ def add_to_cart(product_id):
         flash('Item added to cart!', 'success')
         return redirect(same_site_referrer() or url_for('store.index'))
 
-    except sqlite3.IntegrityError:
+    except IntegrityError:
         return jsonify({'success': False, 'message': 'Error adding item. Product may not exist or conflict.'}), 400
     except Exception as e:
         log_activity("Add to cart failed", user_id=current_user.id, details=f"Product ID: {product_id}, Error: {str(e)}")
@@ -199,7 +201,7 @@ def add_to_wishlist(product_id):
             conn.commit()
         flash('Item added to wishlist!', 'success')
         log_activity("Added to wishlist", user_id=current_user.id, details=f"Product ID: {product_id}")
-    except sqlite3.IntegrityError:
+    except IntegrityError:
         flash('Item is already in your wishlist.', 'info')
     except Exception as e:
         flash('Sorry, that item could not be added to your wishlist.', 'danger')

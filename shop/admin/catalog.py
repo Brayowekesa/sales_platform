@@ -1,12 +1,11 @@
 """Admin: products (with photos) and promotions."""
 import os
-import sqlite3
 import uuid
 from datetime import datetime
 from flask import current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
-from shop.db import get_db_connection
+from shop.db import DatabaseError, IntegrityError, get_db_connection
 from shop.forms import ProductForm, PromotionForm
 from shop.helpers import MAX_PRODUCT_PHOTOS, _delete_upload, product_category_choices, product_photos, save_product_photos
 from shop.security import admin_required, log_activity, valid_image_upload
@@ -33,7 +32,7 @@ def admin_products():
 
         products = []
         for row in raw_products:
-            product_dict = dict(row) # Convert sqlite3.Row to a mutable dictionary
+            product_dict = dict(row) # Convert the row to a mutable dictionary
             if product_dict.get('added_at') and isinstance(product_dict['added_at'], str):
                 try:
                     # Attempt to parse the datetime string. Adjust format if necessary.
@@ -249,7 +248,7 @@ def admin_delete_product(product_id):
             conn.commit()
         flash('Product deleted successfully.', 'success')
         log_activity("Admin deleted product", user_id=current_user.id, details=f"Product ID: {product_id}")
-    except sqlite3.IntegrityError as e: 
+    except IntegrityError as e: 
         current_app.logger.error(f"Integrity error deleting product {product_id}: {e}")
         flash(f'Error deleting product. It might be referenced in existing orders that prevent deletion. ({str(e)})', 'danger')
     except Exception as e:
@@ -320,15 +319,14 @@ def admin_add_promotion():
                     INSERT INTO promotions (title, image_path, target_url, alt_text, 
                                             original_price, promo_price, discount_text, 
                                             is_active, display_order, created_at)
-                    VALUES (:title, :image_path, :target_url, :alt_text, 
-                            :original_price, :promo_price, :discount_text, 
-                            :is_active, :display_order, CURRENT_TIMESTAMP)
-                ''', promo_data_to_save)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ''', tuple(promo_data_to_save[k] for k in ('title', 'image_path', 'target_url', 'alt_text', 'original_price',
+                                                          'promo_price', 'discount_text', 'is_active', 'display_order')))
                 conn.commit()
             flash('Promotion added successfully!', 'success')
             # log_activity("Admin added promotion", user_id=current_user.id, details=f"Title: {form.title.data}")
             return redirect(url_for('admin.admin_promotions'))
-        except sqlite3.Error as e_sql:
+        except DatabaseError as e_sql:
             current_app.logger.error(f"Database error adding promotion: {e_sql}")
             flash(f'Database error adding promotion: {str(e_sql)}', 'danger')
         except Exception as e_generic:
@@ -398,17 +396,16 @@ def admin_edit_promotion(promo_id):
         try:
             with get_db_connection() as conn:
                 conn.execute('''
-                    UPDATE promotions SET title=:title, image_path=:image_path, target_url=:target_url, 
-                                        alt_text=:alt_text, original_price=:original_price, 
-                                        promo_price=:promo_price, discount_text=:discount_text,
-                                        is_active=:is_active, display_order=:display_order
-                    WHERE id=:promo_id
-                ''', promo_data_to_update)
+                    UPDATE promotions SET title=?, image_path=?, target_url=?, alt_text=?, original_price=?,
+                                          promo_price=?, discount_text=?, is_active=?, display_order=?
+                    WHERE id=?
+                ''', tuple(promo_data_to_update[k] for k in ('title', 'image_path', 'target_url', 'alt_text', 'original_price',
+                                                            'promo_price', 'discount_text', 'is_active', 'display_order', 'promo_id')))
                 conn.commit()
             flash('Promotion updated successfully!', 'success')
             # log_activity("Admin edited promotion", user_id=current_user.id, details=f"Promotion ID: {promo_id}")
             return redirect(url_for('admin.admin_promotions'))
-        except sqlite3.Error as e_sql:
+        except DatabaseError as e_sql:
             current_app.logger.error(f"Database error updating promotion {promo_id}: {e_sql}")
             flash(f'Database error updating promotion: {str(e_sql)}', 'danger')
         except Exception as e_generic:

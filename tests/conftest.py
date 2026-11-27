@@ -1,30 +1,52 @@
-"""Shared test setup: every test gets a fresh app with its own temporary database."""
+"""Shared test setup: every test gets a fresh app with its own empty database.
+
+Runs on SQLite by default. To run the same tests on PostgreSQL:
+    TEST_DATABASE_URL=postgresql://user:pass@localhost:5432/shop_test pytest
+(the test database is wiped before every test).
+"""
 import io
 import os
-import sqlite3
 
 import pytest
 from werkzeug.security import generate_password_hash
 
 from shop import create_app
+from shop.db import direct_connection
+
+PG_URL = os.environ.get('TEST_DATABASE_URL', '')
 
 
 @pytest.fixture
 def app(tmp_path):
+    if PG_URL:
+        c = direct_connection(PG_URL)
+        c.execute('DROP SCHEMA public CASCADE'); c.execute('CREATE SCHEMA public'); c.commit(); c.close()
     app = create_app({
         'TESTING': True,
         'WTF_CSRF_ENABLED': False,
         'SECRET_KEY': 'test-secret',
         'DATABASE_PATH': str(tmp_path / 'test.db'),
+        'DATABASE_URL': PG_URL,
         # email is "sent" into the test outbox instead of a real server
         'MAIL_USERNAME': 'shop@test', 'MAIL_PASSWORD': 'x', 'MAIL_DEFAULT_SENDER': 'shop@test', 'MAIL_SUPPRESS_SEND': True,
     })
-    seed(app.config['DATABASE_PATH'])
+    seed(app)
     yield app
 
 
-def seed(path):
-    c = sqlite3.connect(path)
+def connect(app):
+    """Connection for test checks; rows come back as plain tuples so they compare easily."""
+    c = direct_connection(app.config['DATABASE_URL'], app.config['DATABASE_PATH'])
+    if c.dialect == 'sqlite':
+        c.raw.row_factory = None
+    else:
+        from psycopg.rows import tuple_row
+        c.raw.row_factory = tuple_row
+    return c
+
+
+def seed(app):
+    c = connect(app)
     c.execute("INSERT INTO users(username,email,password_hash,is_admin,confirmed) VALUES('admin','admin@example.com',?,1,1)",
               (generate_password_hash('adminpass'),))
     c.execute("INSERT INTO users(username,email,password_hash,is_admin,confirmed) VALUES('jane','Jane@Example.com',?,0,1)",
@@ -45,10 +67,16 @@ def seed(path):
 
 @pytest.fixture
 def db(app):
-    """Open a direct connection to the test database (for checking what the app saved)."""
-    def connect():
-        return sqlite3.connect(app.config['DATABASE_PATH'])
-    return connect
+    """db() opens a connection to the test database, for checking what the app saved."""
+    opened = []
+
+    def _connect():
+        c = connect(app)
+        opened.append(c)
+        return c
+    yield _connect
+    for c in opened:
+        c.close()
 
 
 @pytest.fixture

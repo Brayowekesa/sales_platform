@@ -1,11 +1,10 @@
 """Accounts: register, verify email, login/logout, password reset."""
 import secrets
-import sqlite3
 from datetime import datetime, timedelta
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 from werkzeug.security import generate_password_hash
-from shop.db import get_db_connection
+from shop.db import IntegrityError, get_db_connection
 from shop.extensions import token_serializer
 from shop.forms import LoginForm, RegistrationForm, RequestResetForm, ResetPasswordForm, VerifyEmailForm
 from shop.models import User
@@ -65,7 +64,7 @@ def register():
                 flash('Registration successful, but the verification email could not be delivered. Please contact support.', 'warning')
             log_activity("User registration initiated", details=f"Username: {form.username.data}")
             return redirect(url_for('auth.verify_email', email=email_value))
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             with get_db_connection() as conn:
                 existing_username = conn.execute('SELECT id FROM users WHERE username = ?', (form.username.data.strip(),)).fetchone()
                 existing_email = conn.execute('SELECT id FROM users WHERE lower(email) = lower(?)', (email_value,)).fetchone()

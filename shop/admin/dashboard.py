@@ -1,10 +1,9 @@
 """Admin dashboard, reports and activity log."""
 import json
-import sqlite3
 from datetime import datetime, timedelta
 from flask import current_app, flash, render_template, request
 from flask_login import login_required
-from shop.db import get_db_connection
+from shop.db import DatabaseError, get_db_connection
 from shop.security import admin_required
 
 from shop.admin import bp
@@ -16,7 +15,7 @@ from shop.admin import bp
 def admin_dashboard():
     with get_db_connection() as conn:
         # Total Sales (Paid)
-        total_sales_data = conn.execute('SELECT SUM(total_amount) FROM orders WHERE status = "Paid"').fetchone()
+        total_sales_data = conn.execute("SELECT SUM(total_amount) FROM orders WHERE status = 'Paid'").fetchone()
         total_sales = total_sales_data[0] if total_sales_data and total_sales_data[0] is not None else 0
 
         # Total Users
@@ -76,7 +75,7 @@ def admin_dashboard():
         top_products = conn.execute('''
             SELECT p.name, SUM(oi.quantity) as total_sold
             FROM order_items oi JOIN products p ON oi.product_id = p.id
-            JOIN orders o ON oi.order_id = o.id WHERE o.status = "Paid"
+            JOIN orders o ON oi.order_id = o.id WHERE o.status = 'Paid'
             GROUP BY p.id ORDER BY total_sold DESC LIMIT 5
         ''').fetchall()
 
@@ -182,7 +181,7 @@ def admin_activity_logs():
         # ---- START MODIFICATION ----
         logs = []
         for row in raw_logs:
-            log_dict = dict(row) # Convert sqlite3.Row to a mutable dictionary
+            log_dict = dict(row) # Convert the row to a mutable dictionary
             if log_dict.get('timestamp') and isinstance(log_dict['timestamp'], str):
                 try:
                     # Attempt to parse the datetime string. Adjust format if necessary.
@@ -258,7 +257,7 @@ def report_sales_over_time():
             raw_sales_data = conn.execute(query, (start_date_str, end_date_str)).fetchall()
 
             # Create a dictionary for quick lookup of sales by day
-            sales_by_day = {row['sale_day']: {'total': row['daily_total'], 'orders': row['daily_orders']} for row in raw_sales_data}
+            sales_by_day = {str(row['sale_day']): {'total': row['daily_total'], 'orders': row['daily_orders']} for row in raw_sales_data}
 
             # Iterate through the selected date range to ensure all days are present (even with 0 sales)
             current_date = start_date
@@ -277,7 +276,7 @@ def report_sales_over_time():
                 
                 current_date += timedelta(days=1)
                 
-    except sqlite3.Error as e:
+    except DatabaseError as e:
         current_app.logger.error(f"Database error fetching sales report: {e}")
         flash("Error fetching sales report data.", "danger")
     except Exception as e_gen:
@@ -366,7 +365,7 @@ def report_sales_by_product():
 
             products_sales_data = conn.execute(base_query, tuple(params)).fetchall()
 
-    except sqlite3.Error as e:
+    except DatabaseError as e:
         current_app.logger.error(f"Database error fetching sales by product report: {e}")
         flash("Error fetching sales by product report data.", "danger")
     except Exception as e_gen:
@@ -407,7 +406,7 @@ def report_low_stock():
                 ORDER BY stock ASC, name ASC;
             """
             low_stock_products = conn.execute(query, (threshold,)).fetchall()
-    except sqlite3.Error as e:
+    except DatabaseError as e:
         current_app.logger.error(f"Database error fetching low stock report: {e}")
         flash("Error fetching low stock report data.", "danger")
     except Exception as e_gen:

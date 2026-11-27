@@ -1,9 +1,8 @@
 """Shop front: home page, product pages, reviews, search."""
-import sqlite3
 from datetime import datetime
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from shop.db import get_db_connection
+from shop.db import DatabaseError, IntegrityError, get_db_connection
 from shop.forms import ReviewForm
 from shop.helpers import product_photos
 from shop.security import log_activity
@@ -104,7 +103,7 @@ def index():
             # Categories for sidebar (using categories_for_navbar from context_processor is often sufficient)
             # No need to redefine if your context_processor handles 'categories_for_navbar'
 
-    except sqlite3.Error as e: # Catch potential database errors
+    except DatabaseError as e: # Catch potential database errors
         print(f"Database error in index route: {e}") # Log this properly in a real app
         # Initialize to empty lists if DB error occurs, so template doesn't break
         active_promotions = []
@@ -170,7 +169,7 @@ def product_details(product_id):
 
             # ---- START MODIFICATION for reviews ----
             for review_row in reviews_raw:
-                review_dict = dict(review_row) # Convert sqlite3.Row to a mutable dictionary
+                review_dict = dict(review_row) # Convert the row to a mutable dictionary
                 if review_dict.get('created_at') and isinstance(review_dict['created_at'], str):
                     try:
                         # Attempt to parse the datetime string. Adjust format if necessary.
@@ -184,7 +183,7 @@ def product_details(product_id):
                 processed_reviews.append(review_dict)
             # ---- END MODIFICATION for reviews ----
             
-    except sqlite3.Error as e:
+    except DatabaseError as e:
         flash("A database error occurred while fetching product details.", "danger")
         # Log the error: current_app.logger.error(f"DB error in product_details for {product_id}: {e}")
         print(f"DB error in product_details for {product_id}: {e}") # Fallback
@@ -242,7 +241,7 @@ def add_review(product_id):
             log_activity("Review added", user_id=current_user.id, details=f"Product ID: {product_id}, Rating: {rating_int}")
         except ValueError:
             flash('Invalid rating value.', 'danger')
-        except sqlite3.IntegrityError: # Should be handled by ON CONFLICT now
+        except IntegrityError: # Should be handled by ON CONFLICT now
             flash('You have already reviewed this product. Your review has been updated.', 'info')
         except Exception as e:
             flash('Sorry, your review could not be saved. Please try again.', 'danger')
@@ -270,8 +269,8 @@ def search():
     with get_db_connection() as conn:
         search_term = f'%{query}%'
         # Adjusted to search only in name and description for more relevance usually
-        count_query_sql = "SELECT COUNT(id) FROM products WHERE name LIKE ? OR description LIKE ?"
-        results_query_sql = "SELECT * FROM products WHERE name LIKE ? OR description LIKE ? ORDER BY name LIMIT ? OFFSET ?"
+        count_query_sql = "SELECT COUNT(id) FROM products WHERE lower(name) LIKE lower(?) OR lower(description) LIKE lower(?)"
+        results_query_sql = "SELECT * FROM products WHERE lower(name) LIKE lower(?) OR lower(description) LIKE lower(?) ORDER BY name LIMIT ? OFFSET ?"
         
         params = (search_term, search_term)
         

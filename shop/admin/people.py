@@ -1,10 +1,9 @@
 """Admin: members."""
-import sqlite3
 from datetime import datetime
 from flask import current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from werkzeug.security import generate_password_hash
-from shop.db import get_db_connection
+from shop.db import IntegrityError, get_db_connection
 from shop.forms import AdminResetPasswordForm, AdminUserForm
 from shop.security import admin_required, log_activity
 
@@ -31,7 +30,7 @@ def admin_members():
         # ---- START MODIFICATION ----
         members = []
         for row in raw_members:
-            member_dict = dict(row) # Convert sqlite3.Row to a mutable dictionary
+            member_dict = dict(row) # Convert the row to a mutable dictionary
             if member_dict.get('created_at') and isinstance(member_dict['created_at'], str):
                 try:
                     # Attempt to parse the datetime string. Adjust format if necessary.
@@ -79,7 +78,7 @@ def admin_add_member():
                 flash('Member added successfully!', 'success')
                 log_activity("Admin added member", user_id=current_user.id, details=f"Username: {form.username.data}")
                 return redirect(url_for('admin.admin_members'))
-            except sqlite3.IntegrityError:
+            except IntegrityError:
                 flash('Username or email already exists.', 'danger')
             except Exception as e:
                 current_app.logger.error(f"Error adding member: {e}")
@@ -126,7 +125,7 @@ def admin_edit_member(user_id):
             flash('Member updated successfully!', 'success')
             log_activity("Admin edited member", user_id=current_user.id, details=f"User ID: {user_id}")
             return redirect(url_for('admin.admin_members'))
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             flash('Username or email already exists for another user.', 'danger')
         except Exception as e:
             current_app.logger.error(f"Error updating member {user_id}: {e}")

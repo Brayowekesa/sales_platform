@@ -1,7 +1,6 @@
 """Shared helpers: money and dates, product photos, shop settings, delivery options, template values."""
 import os
 import re
-import sqlite3
 import uuid
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -9,7 +8,7 @@ from flask import current_app, flash, request, url_for
 from flask_login import current_user
 from werkzeug.utils import secure_filename
 from shop.config import Config
-from shop.db import get_db_connection
+from shop.db import DatabaseError, get_db_connection
 from shop.security import valid_image_upload
 
 
@@ -86,7 +85,7 @@ def product_category_choices(extra=None):
             for row in conn.execute("SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != '' ORDER BY category"):
                 if row['category'] not in names:
                     names.append(row['category'])
-    except sqlite3.Error as e:
+    except DatabaseError as e:
         current_app.logger.error(f"Could not load product categories: {e}")
     if extra and extra not in names:
         names.append(extra)
@@ -111,7 +110,7 @@ def utility_processor():
     try:
         with get_db_connection() as conn:
             categories_data = conn.execute(
-                'SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != "" ORDER BY category LIMIT 7'
+                "SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != '' ORDER BY category LIMIT 7"
             ).fetchall()
             product_categories = [row['category'] for row in categories_data]
             if product_categories:
@@ -233,7 +232,7 @@ def get_shop_settings():
             for row in conn.execute('SELECT key, value FROM settings'):
                 if row['value'] not in (None, ''):
                     values[row['key']] = row['value']
-    except sqlite3.Error as e:
+    except DatabaseError as e:
         current_app.logger.error(f"Could not load shop settings: {e}")
     wa = re.sub(r'\D', '', values.get('whatsapp', ''))
     if wa.startswith('0'):

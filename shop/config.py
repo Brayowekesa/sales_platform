@@ -21,6 +21,9 @@ class Config:
     SHOP_TIMEZONE = env('SHOP_TIMEZONE', 'Africa/Nairobi')
 
     DATABASE_PATH = env('DATABASE_PATH', os.path.join(BASE_DIR, 'sales.db'))
+    # PostgreSQL for production, e.g. postgresql://shop:password@db:5432/shop (empty = use the SQLite file above)
+    DATABASE_URL = env('DATABASE_URL', '')
+    DB_POOL_SIZE = int(env('DB_POOL_SIZE', 10))
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
     PROMOTIONS_UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads', 'promotions')
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}

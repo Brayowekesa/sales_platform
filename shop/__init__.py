@@ -57,10 +57,11 @@ def create_app(overrides=None):
         app.register_blueprint(bp)
     app.register_blueprint(admin_bp, url_prefix='/admin')
 
-    # --- command line: flask --app app init-db / create-admin ---
-    from shop.cli import create_admin_command, init_db_command
+    # --- command line: flask --app app init-db / create-admin / copy-to-postgres ---
+    from shop.cli import copy_to_postgres_command, create_admin_command, init_db_command
     app.cli.add_command(init_db_command)
     app.cli.add_command(create_admin_command)
+    app.cli.add_command(copy_to_postgres_command)
 
     # --- make sure the database tables exist ---
     from shop.db import init_db

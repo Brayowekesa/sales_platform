@@ -1,4 +1,5 @@
 """Security: safe redirects, rate limiting, upload checks, admin-only pages, security headers, activity log."""
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from urllib.parse import urlparse
 from flask import current_app, flash, jsonify, redirect, request, url_for
@@ -73,12 +74,17 @@ def client_ip():
     return request.remote_addr or 'unknown'
 
 
+def utc_minutes_ago(minutes):
+    """'YYYY-MM-DD HH:MM:SS' in UTC, comparable with CURRENT_TIMESTAMP values on SQLite and PostgreSQL."""
+    return (datetime.now(timezone.utc) - timedelta(minutes=minutes)).strftime('%Y-%m-%d %H:%M:%S')
+
+
 def rate_limited(kind, key, limit, window_minutes):
     """True if `key` already has `limit` or more `kind` events in the last `window_minutes`."""
     with get_db_connection() as conn:
         n = conn.execute(
-            "SELECT COUNT(*) FROM rate_limit_events WHERE kind = ? AND key = ? AND created_at > datetime('now', ?)",
-            (kind, key, f'-{int(window_minutes)} minutes')).fetchone()[0]
+            'SELECT COUNT(*) FROM rate_limit_events WHERE kind = ? AND key = ? AND created_at > ?',
+            (kind, key, utc_minutes_ago(window_minutes))).fetchone()[0]
     return n >= limit
 
 
@@ -86,7 +92,7 @@ def record_rate_event(kind, key):
     with get_db_connection() as conn:
         conn.execute('INSERT INTO rate_limit_events (kind, key) VALUES (?, ?)', (kind, key))
         # keep the table small
-        conn.execute("DELETE FROM rate_limit_events WHERE created_at < datetime('now', '-1 day')")
+        conn.execute('DELETE FROM rate_limit_events WHERE created_at < ?', (utc_minutes_ago(24 * 60),))
         conn.commit()
 
 

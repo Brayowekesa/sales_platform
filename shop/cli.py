@@ -1,49 +1,104 @@
-"""Command-line tasks: flask --app app init-db / create-admin."""
-import sqlite3
+"""Command-line tasks:
+
+    flask --app app init-db                       create/upgrade the database
+    flask --app app create-admin                  add an admin account
+    flask --app app copy-to-postgres sales.db     move an existing SQLite shop into PostgreSQL (DATABASE_URL)
+"""
+import os
+import re
+
 import click
+from flask import current_app
 from flask.cli import with_appcontext
 from werkzeug.security import generate_password_hash
-from shop.db import get_db_connection, init_db
+
+from shop.db import IntegrityError, direct_connection, get_db_connection, init_db, schema_version
 from shop.security import log_activity
 
 
 @click.command('init-db')
 @with_appcontext
 def init_db_command():
-    """Initializes the database by creating tables."""
-    print("Attempting to initialize database...") # Add print statement
-    try:
-        init_db() # Your function from Part 1
-        print("Database initialization process completed.")
-    except Exception as e:
-        print(f"An error occurred during init_db: {e}")
+    """Create the tables, or upgrade an existing database to the latest version."""
+    init_db()
+    with get_db_connection() as conn:
+        click.echo(f'Database ready ({conn.dialect}, schema version {schema_version(conn)}).')
 
 
 @click.command('create-admin')
 @with_appcontext
 def create_admin_command():
-    """Creates a default admin user."""
-    username_input = input("Enter admin username: ").strip()
-    email_input = input("Enter admin email: ").strip()
-    password_input = input("Enter admin password: ") # Don't strip password, spaces might be intentional
-
-    if not all([username_input, email_input, password_input]):
-        print("Username, email, and password are required.")
-        return
-
-    hashed_password = generate_password_hash(password_input)
+    """Create an admin account (the password is not shown while you type)."""
+    username = click.prompt('Admin username').strip()
+    if not re.match(r'^[A-Za-z0-9._-]{4,25}$', username):
+        raise click.ClickException('Username: 4-25 letters, numbers, dots, dashes or underscores.')
+    email = click.prompt('Admin email').strip().lower()
+    password = click.prompt('Admin password', hide_input=True, confirmation_prompt=True)
+    if len(password) < 8:
+        raise click.ClickException('Use a password of at least 8 characters.')
     try:
         with get_db_connection() as conn:
-            conn.execute(
-                'INSERT INTO users (username, email, password_hash, is_admin, confirmed, created_at) VALUES (?, ?, ?, 1, 1, CURRENT_TIMESTAMP)',
-                (username_input, email_input, hashed_password)
-            )
-            conn.commit()
-        # Only print and log if the above was successful
-        print(f"Admin user '{username_input}' created successfully.")
-        log_activity("Admin user created via CLI", details=f"Username: {username_input}")
-    except sqlite3.IntegrityError:
-        # username_input and email_input are guaranteed to be defined here
-        print(f"Admin user with username '{username_input}' or email '{email_input}' already exists.")
-    except Exception as e:
-        print(f"Error creating admin user: {str(e)}")
+            conn.execute('INSERT INTO users (username, email, password_hash, is_admin, confirmed, created_at) '
+                         'VALUES (?, ?, ?, 1, 1, CURRENT_TIMESTAMP)', (username, email, generate_password_hash(password)))
+    except IntegrityError:
+        raise click.ClickException(f"An account with username '{username}' or email '{email}' already exists.")
+    log_activity('Admin user created via CLI', details=f'Username: {username}')
+    click.echo(f"Admin user '{username}' created.")
+
+
+# Parents before children, so foreign keys are satisfied while copying
+COPY_ORDER = ['users', 'products', 'promotions', 'delivery_zones', 'settings', 'orders', 'order_items',
+              'order_status_history', 'reviews', 'wishlists', 'carts', 'product_images', 'activity_logs']
+
+
+@click.command('copy-to-postgres')
+@click.argument('sqlite_file', type=click.Path(exists=True, dir_okay=False))
+@with_appcontext
+def copy_to_postgres_command(sqlite_file):
+    """Copy all shop data from a SQLite file into the PostgreSQL database in DATABASE_URL.
+
+    The PostgreSQL database must be new (no customers or orders yet).
+    """
+    url = current_app.config.get('DATABASE_URL', '')
+    if not url.startswith(('postgres://', 'postgresql://')):
+        raise click.ClickException('Set DATABASE_URL to your PostgreSQL database first.')
+    init_db()                                            # target gets the latest schema
+    src = direct_connection(database_path=os.path.abspath(sqlite_file))
+    dst = direct_connection(url)
+    try:
+        # bring an old SQLite file up to date first, so the columns match
+        from shop.db import _upgrade_old_sqlite
+        _upgrade_old_sqlite(src); src.commit()
+
+        if dst.execute('SELECT COUNT(*) FROM users').fetchone()[0] or dst.execute('SELECT COUNT(*) FROM orders').fetchone()[0]:
+            raise click.ClickException('The PostgreSQL database already has users or orders - refusing to overwrite it.')
+        src_tables = {r[0] for r in src.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        # Keep the default delivery options unless the old shop has its own
+        for table in ('delivery_zones', 'settings'):
+            if table in src_tables and src.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0]:
+                dst.execute(f'DELETE FROM {table}')
+            else:
+                src_tables.discard(table)
+        for table in COPY_ORDER:
+            if table not in src_tables:
+                continue
+            dst_cols = [r[0] for r in dst.execute(
+                'SELECT column_name FROM information_schema.columns WHERE table_name = ? ORDER BY ordinal_position', (table,)).fetchall()]
+            src_cols = [r[1] for r in src.execute(f'PRAGMA table_info({table})').fetchall()]
+            cols = [c for c in src_cols if c in dst_cols]
+            rows = [tuple(r[c] for c in cols) for r in src.execute(f'SELECT {", ".join(cols)} FROM {table}').fetchall()]
+            if rows:
+                placeholders = ', '.join('?' for _ in cols)
+                cur = dst.raw.cursor()
+                cur.executemany(f'INSERT INTO {table} ({", ".join(cols)}) VALUES ({placeholders})'.replace('?', '%s'), rows)
+            if 'id' in cols:   # continue numbering after the copied ids
+                dst.execute(f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), COALESCE((SELECT MAX(id) FROM {table}), 0) + 1, false)")
+            click.echo(f'  {table}: {len(rows)} rows')
+        dst.commit()
+        click.echo('Done. Uploaded photos live in static/uploads - copy that folder to the new server too.')
+    except Exception:
+        dst.rollback()
+        raise
+    finally:
+        src.close()
+        dst.close()

@@ -1,9 +1,8 @@
 """Admin: orders."""
-import sqlite3
 from datetime import datetime
 from flask import current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from shop.db import get_db_connection
+from shop.db import DatabaseError, get_db_connection
 from shop.notifications import notify_order_event, sms_enabled
 from shop.payments import CheckoutError, STOCK_RELEASED_STATUSES, record_order_status, release_order_stock, reserve_order_stock
 from shop.security import admin_required, log_activity
@@ -85,7 +84,7 @@ def admin_orders():
             distinct_statuses_rows = conn.execute('SELECT DISTINCT status FROM orders WHERE status IS NOT NULL ORDER BY status').fetchall()
             distinct_statuses.extend([row['status'] for row in distinct_statuses_rows])
 
-    except sqlite3.Error as e:
+    except DatabaseError as e:
         error_msg = f"Database error in admin_orders: {e}"
         if hasattr(current_app, 'logger'): current_app.logger.error(error_msg)
         else: print(f"ERROR: {error_msg}")
@@ -134,7 +133,7 @@ def admin_order_details(order_id):
             return redirect(url_for('admin.admin_orders'))
 
         # ---- START MODIFICATION ----
-        order = dict(raw_order) # Convert sqlite3.Row to a mutable dictionary
+        order = dict(raw_order) # Convert the row to a mutable dictionary
         if order.get('order_date') and isinstance(order['order_date'], str):
             try:
                 # Attempt to parse the datetime string. Adjust format if necessary.
