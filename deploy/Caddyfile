@@ -1,0 +1,15 @@
+# Caddy gets and renews a free HTTPS certificate for $DOMAIN automatically (Let's Encrypt).
+# Point your domain's DNS A record at the server first.
+{$DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 20MB
+	}
+	reverse_proxy web:8000
+	log
+}
+
+# Send www.yourdomain to yourdomain (remove if you don't use www)
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}

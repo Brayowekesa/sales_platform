@@ -24,6 +24,12 @@ class Config:
     # PostgreSQL for production, e.g. postgresql://shop:password@db:5432/shop (empty = use the SQLite file above)
     DATABASE_URL = env('DATABASE_URL', '')
     DB_POOL_SIZE = int(env('DB_POOL_SIZE', 10))
+    # Run database migrations when the app starts (the Docker setup sets 0 and migrates once before starting workers)
+    AUTO_MIGRATE = env('AUTO_MIGRATE', '1') == '1'
+    # Number of reverse proxies in front of the app (Caddy/nginx = 1). Needed for real visitor IPs and https links.
+    TRUSTED_PROXY_COUNT = int(env('TRUSTED_PROXY_COUNT', 0))
+    # Browsers may cache CSS/JS/images for a day
+    SEND_FILE_MAX_AGE_DEFAULT = 86400
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
     PROMOTIONS_UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads', 'promotions')
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}

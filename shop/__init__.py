@@ -63,9 +63,16 @@ def create_app(overrides=None):
     app.cli.add_command(create_admin_command)
     app.cli.add_command(copy_to_postgres_command)
 
+    # --- behind a reverse proxy (Caddy/nginx): trust its X-Forwarded-* headers ---
+    if app.config['TRUSTED_PROXY_COUNT']:
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        n = app.config['TRUSTED_PROXY_COUNT']
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=n, x_proto=n, x_host=n)
+
     # --- make sure the database tables exist ---
-    from shop.db import init_db
-    with app.app_context():
-        init_db()
+    if app.config['AUTO_MIGRATE']:
+        from shop.db import init_db
+        with app.app_context():
+            init_db()
 
     return app

@@ -1,5 +1,6 @@
 """Information pages, favicon/robots and error pages."""
 from flask import Blueprint, current_app, render_template
+from shop.db import get_db_connection
 from shop.helpers import active_delivery_zones
 from shop.security import log_activity
 
@@ -31,6 +32,18 @@ def internal_error(error):
     log_activity("500 Internal Server Error", details=str(error)) # Log the error
     current_app.logger.error(f"Server Error: {error}", exc_info=True) # Log with traceback
     return render_template('errors/500.html', title="Server Error"), 500
+
+
+@bp.route('/healthz')
+def healthz():
+    """For Docker/uptime monitors: 200 if the app and database respond."""
+    try:
+        with get_db_connection() as conn:
+            conn.execute('SELECT 1').fetchone()
+        return {'status': 'ok'}
+    except Exception as e:
+        current_app.logger.error(f'Health check failed: {e}')
+        return {'status': 'error'}, 503
 
 
 @bp.route('/favicon.ico')

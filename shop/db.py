@@ -358,6 +358,8 @@ def init_db():
     with get_db_connection() as conn:
         if conn.dialect == 'sqlite':
             conn.execute('PRAGMA journal_mode=WAL')
+        else:
+            conn.execute('SELECT pg_advisory_xact_lock(7262021)')   # only one process migrates at a time
         version = schema_version(conn)
         if version == 0 and conn.dialect == 'sqlite' and 'users' in {
                 r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}:

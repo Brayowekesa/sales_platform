@@ -10,3 +10,4 @@ requests>=2.31,<3
 python-dotenv>=1.0,<2
 tzdata>=2024.1
 psycopg[binary,pool]>=3.1,<4
+gunicorn>=22,<24; platform_system != "Windows"

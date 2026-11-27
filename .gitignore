@@ -6,3 +6,6 @@ static/uploads/
 
 *.db-shm
 *.db-wal
+
+# Server backups contain customer data - never commit them
+backups/
