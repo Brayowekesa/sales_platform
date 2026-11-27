@@ -1,0 +1,65 @@
+{% extends "layout.html" %}
+{# Tracking page for someone receiving a gift order (no account, no prices). #}
+{% block title %}{{ title }} - {{ SITE_NAME }}{% endblock %}
+{% block meta_description %}Track your parcel{% endblock %}
+{% block wa_text %}Hi {{ SITE_NAME }}, I'm asking about a parcel sent to me{% if order %} (order #{{ order.id }}){% endif %}.{% endblock %}
+{% block content %}
+<div class="container gift-track my-4 my-md-5">
+    {% if expired %}
+    <div class="order-card text-center">
+        <i class="fas fa-link fa-2x text-muted mb-3"></i>
+        <h1 class="h4">This tracking link has expired</h1>
+        <p class="text-muted mb-0">Ask the person who sent you the parcel, or chat with us on WhatsApp.</p>
+    </div>
+    {% else %}
+    <div class="gift-hero">
+        <span class="gift-hero-icon"><i class="fas fa-gift"></i></span>
+        <div>
+            <span class="gift-card-kicker">A parcel for you</span>
+            <h1>Hi {{ order.contact_name.split(' ')[0] }}, {{ (order.sender_name or 'someone').split(' ')[0] }} sent you something!</h1>
+            {% if order.gift_message %}<p class="gift-hero-message">"{{ order.gift_message }}"</p>{% endif %}
+        </div>
+    </div>
+
+    <div class="order-card">
+        <h2 class="order-card-title">Where it is</h2>
+        {% if progress.current is none %}
+            <p class="mb-0 text-muted"><i class="fas fa-times-circle mr-1"></i> This order was cancelled. {{ (order.sender_name or 'The sender').split(' ')[0] }} has been told.</p>
+        {% else %}
+            <ol class="order-tracker">
+                {% for step in progress.steps %}
+                <li class="{{ 'is-done' if loop.index0 < progress.current else ('is-current' if loop.index0 == progress.current else '') }}">
+                    <span class="dot">{% if loop.index0 < progress.current %}<i class="fas fa-check"></i>{% else %}{{ loop.index }}{% endif %}</span>
+                    <span class="label">{{ step }}</span>
+                </li>
+                {% endfor %}
+            </ol>
+            <p class="order-tracker-note mt-3 mb-0">
+            {% if order.status == 'Shipped' %}
+                <i class="fas fa-key mr-1"></i> {% if order.delivery_method == 'pickup' %}Ready to collect at <strong>{{ order.delivery_zone }}</strong>. Show the pickup code we sent you by SMS.{% else %}On the way! When you have the parcel, give the rider the PIN we sent you by SMS.{% endif %}
+            {% elif order.status == 'Delivered' %}
+                <i class="fas fa-check-circle mr-1"></i> {{ 'Collected' if order.delivery_method == 'pickup' else 'Delivered' }}. Enjoy!
+            {% elif order.status == 'Pending Payment' %}
+                <i class="fas fa-hourglass-half mr-1"></i> Waiting for the sender's payment.
+            {% else %}
+                <i class="fas fa-box mr-1"></i> {% if order.delivery_method == 'pickup' %}Being prepared. We'll text you when it's ready to collect at <strong>{{ order.delivery_zone }}</strong>.{% else %}Being prepared. We'll call you to arrange delivery in <strong>{{ order.delivery_zone }}</strong>.{% endif %}
+            {% endif %}
+            </p>
+        {% endif %}
+    </div>
+
+    <div class="order-card">
+        <h2 class="order-card-title">What's in it</h2>
+        <ul class="gift-items">
+            {% for i in items %}
+            <li><img src="{{ product_img(i.image, 'thumb') }}" alt="" loading="lazy"><span>{{ i.name }}</span><small>× {{ i.quantity }}</small></li>
+            {% endfor %}
+        </ul>
+        {% if order.payment_method == 'Cash on Delivery' and order.status not in ('Delivered', 'Cancelled') %}
+        <p class="gift-pay-note"><i class="fas fa-money-bill-wave mr-1"></i> Please have <strong>{{ order.total_amount|money }}</strong> ready to pay {{ 'when you collect' if order.delivery_method == 'pickup' else 'on delivery' }} (cash or M-Pesa).</p>
+        {% endif %}
+    </div>
+    <p class="text-center text-muted small">Want to send something to your family too? <a href="{{ url_for('store.index') }}">Shop at {{ SITE_NAME }}</a></p>
+    {% endif %}
+</div>
+{% endblock %}

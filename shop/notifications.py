@@ -7,6 +7,7 @@ from flask import current_app, render_template, url_for
 from flask_mail import Message
 from shop.db import get_db_connection
 from shop.extensions import mail, token_serializer
+from shop.gifts import recipient_sms
 from shop.helpers import SITE_NAME, get_shop_settings
 from shop.security import log_activity
 
@@ -126,6 +127,8 @@ def notify_order_event(order_id, event):
         order, items = dict(order), [dict(i) for i in items]
         note = last['note'] if (last and event == 'status') else None
         is_pickup = order.get('delivery_method') == 'pickup'
+        is_gift = bool(order.get('is_gift'))
+        receiver = (order.get('contact_name') or '').split(' ')[0]
         if event == 'proof':
             headline = 'Check your item before we send it'
             message = ("We've added photos/video of the exact item we're packing for you. "
@@ -134,11 +137,18 @@ def notify_order_event(order_id, event):
             headline = f"Order #{order_id} received"
             message = ('Check your phone and enter your M-Pesa PIN to complete the payment.' if order['status'] == 'Pending Payment'
                        else ("We'll call you when it's ready to collect." if is_pickup else "We'll call you to arrange delivery."))
+            if is_gift:
+                message += f" We'll text {receiver} at each step, without prices."
         else:
             headline, message = (PICKUP_OVERRIDES.get(order['status']) if is_pickup else None) or STATUS_MESSAGES.get(order['status'], (None, None))
             if not headline:
                 return   # statuses customers don't need to hear about
-            if order['status'] == 'Shipped' and order.get('delivery_pin'):
+            if is_gift and order['status'] in ('Shipped', 'Delivered'):
+                message = message.replace('your order', f"the order for {receiver}").replace('Your order', f"The order for {receiver}")
+                message = message.replace('You have collected', f"{receiver} has collected").replace(' to you', f' to {receiver}')
+            if order['status'] == 'Shipped' and order.get('delivery_pin') and is_gift:
+                message += f" We've sent {receiver} the {'pickup' if is_pickup else 'delivery'} PIN by SMS (you can also see it on your order page)."
+            elif order['status'] == 'Shipped' and order.get('delivery_pin'):
                 message += (f" Your PIN is {order['delivery_pin']} - show it when you collect." if is_pickup else
                             f" Your delivery PIN is {order['delivery_pin']} - give it to the rider only when you have your parcel.")
         shop = get_shop_settings()
@@ -148,6 +158,11 @@ def notify_order_event(order_id, event):
         text = render_template('emails/order_update.txt', order=order, items=items, headline=headline,
                                message=message, note=note, order_url=order_url, shop=shop, event=event)
         sms_text = f"{SITE_NAME}: {headline} (#{order_id}). {message}" + (f" {note}" if note else '')
+        buyer_phone = order.get('sender_phone') if is_gift else order.get('contact_phone')
+        gift_text = recipient_sms(order, event)
+        if gift_text and order['status'] in ('Processing', 'Paid') and not order.get('gift_notified_at'):
+            with get_db_connection() as conn:   # the "parcel is coming" text goes out once
+                conn.execute('UPDATE orders SET gift_notified_at = CURRENT_TIMESTAMP WHERE id = ?', (order_id,))
     except Exception as e:
         current_app.logger.error(f"Could not prepare notification for order {order_id}: {e}", exc_info=True)
         return
@@ -162,7 +177,9 @@ def notify_order_event(order_id, event):
                                       sender=current_app.config['MAIL_DEFAULT_SENDER']))
                 except Exception as e:
                     current_app.logger.error(f"Order email for #{order_id} failed: {e}")
-            send_sms(order.get('contact_phone'), sms_text)
+            send_sms(buyer_phone, sms_text)
+            if gift_text:
+                send_sms(order.get('contact_phone'), gift_text)
 
     if current_app.config.get('TESTING'):
         deliver()   # tests run synchronously

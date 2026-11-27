@@ -13,6 +13,9 @@
             <h1>Thank you, your order is placed!</h1>
             {% if order.status == 'Pending Payment' %}
                 <p>Check your phone and enter your M-Pesa PIN to pay <strong>{{ order.total_amount|money }}</strong>. This page updates once the payment comes through.</p>
+            {% elif order.is_gift %}
+                {% if sms_on %}<p>We'll text <strong>{{ order.contact_name }}</strong> ({{ order.contact_phone }}) that a parcel from you is coming, and keep them updated. No prices are shown to them{% if order.payment_method == 'Cash on Delivery' %}, except the amount to pay on delivery{% endif %}.</p>
+                {% else %}<p>We'll call <strong>{{ order.contact_name }}</strong> ({{ order.contact_phone }}) to deliver it. Send them their tracking link with the WhatsApp button below - it shows no prices{% if order.payment_method == 'Cash on Delivery' %}, except the amount to pay on delivery{% endif %}.</p>{% endif %}
             {% elif order.delivery_method == 'pickup' %}
                 <p>We'll call <strong>{{ order.contact_phone }}</strong> when it's ready to collect. Pay when you pick it up.</p>
             {% else %}
@@ -64,6 +67,30 @@
         {% endif %}
     </div>
 
+    {# ---------- Tuma kwa Mama: who it's going to ---------- #}
+    {% if order.is_gift %}
+    <div class="gift-card">
+        <span class="gift-card-icon"><i class="fas fa-gift"></i></span>
+        <div class="gift-card-body">
+            <span class="gift-card-kicker">Sending to</span>
+            <strong>{{ order.contact_name }}</strong> <span class="text-muted">· {{ order.contact_phone }}</span>
+            {% if order.gift_message %}<p class="gift-card-message">"{{ order.gift_message }}"</p>{% endif %}
+            <p class="small text-muted mb-2">{% if sms_on %}We text them at each step{% if order.gift_notified_at %} (first text sent){% endif %}.{% else %}Send them their tracking link on WhatsApp so they can follow the parcel.{% endif %}</p>
+            <div class="gift-card-actions">
+                {% set wa_to = order.contact_phone|replace(' ', '')|replace('+', '') %}{% if wa_to.startswith('0') %}{% set wa_to = '254' ~ wa_to[1:] %}{% endif %}
+                <a class="btn btn-whatsapp btn-sm" target="_blank" rel="noopener"
+                   href="https://wa.me/{{ wa_to }}?text={{ ('Hi ' ~ order.contact_name ~ ', I have sent you a parcel from ' ~ SITE_NAME ~ '! Follow it here: ' ~ gift_link)|urlencode }}"><i class="fab fa-whatsapp mr-1"></i> Send them the tracking link</a>
+                {% if sms_on and order.status in ('Processing', 'Paid', 'Shipped') %}
+                <form method="POST" action="{{ url_for('orders.gift_resend', order_id=order.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-outline-secondary btn-sm"><i class="fas fa-sms mr-1"></i> Re-send their text</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     {# ---------- Delivery PIN (while the order is on its way / ready for pickup) ---------- #}
     {% if order.status == 'Shipped' and order.delivery_pin %}
     <div class="pin-card">
@@ -71,8 +98,8 @@
             <span class="pin-label">{{ 'Pickup PIN' if order.delivery_method == 'pickup' else 'Delivery PIN' }}</span>
             <span class="pin-code" aria-label="PIN {{ order.delivery_pin|join(' ') }}">{{ order.delivery_pin }}</span>
         </div>
-        <p class="mb-0">{% if order.delivery_method == 'pickup' %}Show this PIN when you collect your order.{% else %}Give this PIN to the rider <strong>only once you have your parcel</strong> and checked it.{% endif %}
-        Never share it before that.</p>
+        <p class="mb-0">{% if order.is_gift %}We've texted this PIN to <strong>{{ order.contact_name }}</strong>. They give it to {{ 'the shop when they collect' if order.delivery_method == 'pickup' else 'the rider once they have the parcel' }} - only share it with them.
+        {% elif order.delivery_method == 'pickup' %}Show this PIN when you collect your order. Never share it before that.{% else %}Give this PIN to the rider <strong>only once you have your parcel</strong> and checked it. Never share it before that.{% endif %}</p>
     </div>
     {% endif %}
 

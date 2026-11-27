@@ -367,6 +367,13 @@ def _migration_5_landmarks(conn):
         conn.execute(f'ALTER TABLE orders ADD COLUMN {col} {ddl}')
 
 
+def _migration_6_gifts(conn):
+    ts = _TYPES[conn.dialect]['TS']
+    for col, ddl in [('is_gift', 'INTEGER DEFAULT 0'), ('sender_name', 'TEXT'), ('sender_phone', 'TEXT'),
+                     ('gift_message', 'TEXT'), ('gift_notified_at', ts)]:
+        conn.execute(f'ALTER TABLE orders ADD COLUMN {col} {ddl}')
+
+
 # Add new schema changes at the end as (version, description, function). Never edit old ones.
 MIGRATIONS = [
     (1, 'initial schema', _migration_1_initial_schema),
@@ -374,6 +381,7 @@ MIGRATIONS = [
     (3, 'packing proof and delivery PIN', _migration_3_packing_proof_and_delivery_pin),
     (4, 'price history (honest prices)', _migration_4_price_history),
     (5, 'delivery landmark and map pin', _migration_5_landmarks),
+    (6, 'gift orders (Tuma kwa Mama)', _migration_6_gifts),
 ]
 
 

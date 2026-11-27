@@ -43,14 +43,43 @@
                     <div class="form-row">
                         <div class="form-group col-md-6">
                             {{ form.contact_name.label(class="form-label") }}
-                            {{ form.contact_name(class="form-control" + (" is-invalid" if form.contact_name.errors else ""), autocomplete="name", placeholder="Name of the person receiving the order") }}
+                            {{ form.contact_name(class="form-control" + (" is-invalid" if form.contact_name.errors else ""), autocomplete="name", placeholder="Your full name") }}
                             {{ field_errors(form.contact_name) }}
                         </div>
                         <div class="form-group col-md-6">
                             {{ form.contact_phone.label(class="form-label") }}
                             {{ form.contact_phone(class="form-control" + (" is-invalid" if form.contact_phone.errors else ""), autocomplete="tel", inputmode="tel", placeholder="07XX XXX XXX") }}
-                            <small class="form-text text-muted">The rider or our team will call this number.</small>
+                            <small class="form-text text-muted"><span class="gift-hide">The rider or our team will call this number.</span><span class="gift-only" hidden>We'll text you updates and the order details.</span></small>
                             {{ field_errors(form.contact_phone) }}
+                        </div>
+                    </div>
+
+                    {# Tuma kwa Mama: send the order to someone else #}
+                    <label class="gift-switch" for="is_gift">
+                        {{ form.is_gift(id="is_gift") }}
+                        <span class="gift-switch-icon"><i class="fas fa-gift"></i></span>
+                        <span><strong>Send to someone else</strong>
+                            <small>Tuma kwa Mama: we deliver to them and text them updates, without prices.</small></span>
+                    </label>
+                    <div id="gift-fields" class="gift-fields" {% if not form.is_gift.data %}hidden{% endif %}>
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                {{ form.recipient_name.label(class="form-label") }}
+                                {{ form.recipient_name(class="form-control" + (" is-invalid" if form.recipient_name.errors else ""), placeholder="e.g. Mama Wanjiku") }}
+                                {{ field_errors(form.recipient_name) }}
+                            </div>
+                            <div class="form-group col-md-6">
+                                {{ form.recipient_phone.label(class="form-label") }}
+                                {{ form.recipient_phone(class="form-control" + (" is-invalid" if form.recipient_phone.errors else ""), inputmode="tel", placeholder="07XX XXX XXX") }}
+                                <small class="form-text text-muted">The rider calls this number, and the delivery PIN goes here.</small>
+                                {{ field_errors(form.recipient_phone) }}
+                            </div>
+                        </div>
+                        <div class="form-group mb-0">
+                            {{ form.gift_message.label(class="form-label") }}
+                            {{ form.gift_message(class="form-control" + (" is-invalid" if form.gift_message.errors else ""), maxlength="160", placeholder="e.g. Happy birthday Mum! From Wanjiku") }}
+                            <small class="form-text text-muted">Included in the text message we send them.</small>
+                            {{ field_errors(form.gift_message) }}
                         </div>
                     </div>
                 </section>
@@ -78,14 +107,14 @@
                     {{ field_errors(form.delivery_zone) }}
 
                     <div class="form-group mt-3" id="address-group">
-                        {{ form.shipping_address.label(class="form-label") }}
-                        {{ form.shipping_address(class="form-control" + (" is-invalid" if form.shipping_address.errors else ""), rows="2", autocomplete="street-address", placeholder="Street, building, floor/house number, town - e.g. Moi Avenue, Bihi Towers 3rd floor, Nairobi") }}
+                        <label for="shipping_address" class="form-label"><span class="gift-only" hidden>Their </span><span class="gift-hide">Delivery address</span><span class="gift-only" hidden>delivery address</span></label>
+                        {{ form.shipping_address(class="form-control" + (" is-invalid" if form.shipping_address.errors else ""), rows="3", autocomplete="street-address", placeholder="Street, building, house no., town\ne.g. Moi Avenue, Bihi Towers 3rd floor, Nairobi") }}
                         {{ field_errors(form.shipping_address) }}
                         <label for="landmark" class="form-label mt-3">Landmark / directions <span class="text-muted font-weight-normal">(helps the rider find you)</span></label>
                         {{ form.landmark(class="form-control", id="landmark", placeholder="e.g. Green gate opposite Total petrol station, 2nd floor") }}
                         {{ form.location(type="hidden", id="location") }}
                         <div class="location-row">
-                            <button type="button" class="btn btn-outline-secondary btn-sm" id="use-location"><i class="fas fa-map-marker-alt mr-1"></i> Use my current location</button>
+                            <button type="button" class="btn btn-location btn-sm" id="use-location"><i class="fas fa-map-marker-alt mr-1"></i> Use my current location</button>
                             <span id="location-status" class="small text-muted">{% if form.location.data %}<i class="fas fa-check-circle text-success"></i> Location added{% else %}Optional - only if you're at the delivery place now{% endif %}</span>
                         </div>
                     </div>
@@ -98,7 +127,7 @@
                         <label class="payment-option" for="cod">
                             <input id="cod" name="payment_method" type="radio" value="Cash on Delivery" required {% if form.payment_method.data == 'Cash on Delivery' %}checked{% endif %}>
                             <span class="payment-icon"><i class="fas fa-money-bill-wave"></i></span>
-                            <span><strong>Cash on Delivery</strong><small>Pay with cash or M-Pesa when your order arrives</small></span>
+                            <span><strong>Cash on Delivery</strong><small class="gift-hide">Pay with cash or M-Pesa when your order arrives</small><small class="gift-only" hidden>They pay with cash or M-Pesa when it arrives - we'll tell them the amount</small></span>
                         </label>
                         <label class="payment-option" for="mpesa">
                             <input id="mpesa" name="payment_method" type="radio" value="Lipa na M-Pesa" required {% if form.payment_method.data == 'Lipa na M-Pesa' %}checked{% endif %}>
@@ -148,6 +177,21 @@
     update();
 })();
 
+// Tuma kwa Mama: show the recipient fields and switch the wording
+(function () {
+    var box = document.getElementById('is_gift'), fields = document.getElementById('gift-fields');
+    if (!box) return;
+    function update() {
+        fields.hidden = !box.checked;
+        document.querySelectorAll('.gift-only').forEach(function (el) { el.hidden = !box.checked; });
+        document.querySelectorAll('.gift-hide').forEach(function (el) { el.hidden = box.checked; });
+        var loc = document.getElementById('use-location');
+        if (loc) loc.parentNode.hidden = box.checked;     // the buyer isn't at the recipient's place
+    }
+    box.addEventListener('change', update);
+    update();
+})();
+
 // "Use my current location": stores the phone's GPS position so the rider can open it in Google Maps
 (function () {
     var btn = document.getElementById('use-location'), status = document.getElementById('location-status');
@@ -157,7 +201,9 @@
         status.textContent = 'Finding your location...';
         navigator.geolocation.getCurrentPosition(function (pos) {
             document.getElementById('location').value = pos.coords.latitude.toFixed(6) + ',' + pos.coords.longitude.toFixed(6);
-            status.innerHTML = '<i class="fas fa-check-circle text-success"></i> Location added (accurate to about ' + Math.round(pos.coords.accuracy) + ' m)';
+            var acc = Math.round(pos.coords.accuracy);
+            status.innerHTML = '<i class="fas fa-check-circle text-success"></i> Location added' + (acc >= 5 ? ' (accurate to about ' + acc + ' m)' : '');
+            btn.classList.add('is-set'); btn.innerHTML = '<i class="fas fa-redo-alt mr-1"></i> Update location'; btn.blur();
         }, function () {
             status.textContent = "Couldn't get your location - the address and landmark are enough.";
         }, {enableHighAccuracy: true, timeout: 15000});

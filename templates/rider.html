@@ -23,7 +23,7 @@
                 <p class="text-muted">This order isn't out for delivery right now. Check with the shop.</p>
             {% else %}
                 <dl class="rider-facts">
-                    <dt>Customer</dt><dd>{{ order.contact_name }}</dd>
+                    <dt>{{ 'Receiver' if order.is_gift else 'Customer' }}</dt><dd>{{ order.contact_name }}{% if order.is_gift %} <span class="rider-gift"><i class="fas fa-gift"></i> Gift from {{ order.sender_name }}</span>{% endif %}</dd>
                     <dt>Phone</dt><dd><a href="tel:{{ order.contact_phone }}" class="rider-call"><i class="fas fa-phone-alt"></i> {{ order.contact_phone }}</a></dd>
                     <dt>Area</dt><dd>{{ order.delivery_zone }}</dd>
                     {% if order.delivery_method != 'pickup' %}<dt>Address</dt><dd style="white-space: pre-line;">{{ order.shipping_address }}</dd>{% endif %}

@@ -95,6 +95,12 @@ class CheckoutForm(FlaskForm):
     shipping_address = TextAreaField('Delivery address', validators=[Optional(), Length(max=300)])
     landmark = StringField('Landmark / directions', validators=[Optional(), Length(max=200)])
     location = StringField('Location', validators=[Optional(), Length(max=40)])   # "lat,lng" from the phone's GPS (optional)
+    # Tuma kwa Mama: send the order to someone else
+    is_gift = BooleanField('Send to someone else')
+    recipient_name = StringField("Recipient's name", validators=[Optional(), Length(max=80)])
+    recipient_phone = StringField("Recipient's phone", filters=[_strip_spaces], validators=[
+        Optional(), Regexp(KENYAN_PHONE_RE, message='Enter a Kenyan number like 0712345678 or +254712345678.')])
+    gift_message = StringField('Message (optional)', validators=[Optional(), Length(max=160)])
     payment_method = StringField('Payment Method', validators=[DataRequired(message='Please choose how you will pay.')])
     # For M-Pesa (defaults to the contact phone when left empty)
     phone_number = StringField('M-Pesa Phone Number', filters=[_strip_spaces], validators=[

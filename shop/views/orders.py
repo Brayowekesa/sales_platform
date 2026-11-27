@@ -9,9 +9,10 @@ from shop.db import get_db_connection
 from shop.extensions import csrf
 from shop.forms import CheckoutForm
 from shop.helpers import active_delivery_zones, delivery_fee_for, localtime_filter
-from shop.notifications import notify_order_event
+from shop.gifts import order_from_gift_token, recipient_sms
+from shop.notifications import notify_order_event, send_sms, sms_enabled, to_international
 from shop.payments import ALLOWED_PAYMENT_METHODS, CheckoutError, confirm_delivery_with_pin, lipa_na_mpesa_stk_push, mpesa_callback_signature, order_progress, record_order_status, release_order_stock
-from shop.security import client_ip, log_activity
+from shop.security import client_ip, log_activity, rate_limited, record_rate_event
 
 
 bp = Blueprint('orders', __name__)
@@ -82,6 +83,23 @@ def checkout():
             landmark = None
             shipping_address = f"Pickup: {selected_zone['name']}"
         contact_phone = form.contact_phone.data
+        # Tuma kwa Mama: the recipient becomes the order's contact (rider calls them, they get the PIN)
+        is_gift = bool(form.is_gift.data)
+        receiver_name, receiver_phone = form.contact_name.data.strip(), contact_phone
+        sender_name = sender_phone = gift_message = None
+        if is_gift:
+            receiver_name = (form.recipient_name.data or '').strip()
+            receiver_phone = form.recipient_phone.data or ''
+            if not receiver_name:
+                form.recipient_name.errors.append("Please enter the name of the person you're sending to.")
+            if not receiver_phone:
+                form.recipient_phone.errors.append('We need their phone number to deliver and send them updates.')
+            elif to_international(receiver_phone) == to_international(contact_phone):
+                form.recipient_phone.errors.append("That's your own number - enter the recipient's phone.")
+            if form.recipient_name.errors or form.recipient_phone.errors:
+                return show_form()
+            sender_name, sender_phone = form.contact_name.data.strip(), contact_phone
+            gift_message = (form.gift_message.data or '').strip() or None
         # Begin transaction
         conn = get_db_connection()
         try:
@@ -89,11 +107,12 @@ def checkout():
                 # 1. Create Order
                 order_cursor = conn.execute('''
                     INSERT INTO orders (user_id, subtotal, delivery_fee, total_amount, payment_method, shipping_address, status,
-                                        contact_name, contact_phone, delivery_method, delivery_zone, delivery_landmark, delivery_lat, delivery_lng)
-                    VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?, ?, ?, ?)
+                                        contact_name, contact_phone, delivery_method, delivery_zone, delivery_landmark, delivery_lat, delivery_lng,
+                                        is_gift, sender_name, sender_phone, gift_message)
+                    VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (current_user.id, subtotal, delivery_fee, total_amount, payment_method, shipping_address,
-                      form.contact_name.data.strip(), contact_phone, 'pickup' if is_pickup else 'delivery', selected_zone['name'],
-                      landmark, lat, lng))
+                      receiver_name, receiver_phone, 'pickup' if is_pickup else 'delivery', selected_zone['name'],
+                      landmark, lat, lng, 1 if is_gift else 0, sender_name, sender_phone, gift_message))
                 order_id = order_cursor.lastrowid
 
                 # 2. Create Order Items and Update Product Stock
@@ -282,9 +301,14 @@ def order_details(order_id): # Renamed from order_details_user to match your exi
         proofs = conn.execute('SELECT id, kind FROM order_proofs WHERE order_id = ? ORDER BY id', (order_id,)).fetchall()
 
     order_dict = dict(order)
+    gift_link = None
+    if order_dict.get('is_gift'):
+        from shop.gifts import gift_token
+        gift_link = url_for('orders.gift_tracking', token=gift_token(order_id), _external=True)
     order_dict['order_date_formatted'] = localtime_filter(order_dict.get('order_date')) or 'N/A'
     return render_template('order_details_user.html', order=order_dict, order_items=order_items,
                            history=history, proofs=proofs, just_placed=request.args.get('placed') == '1',
+                           gift_link=gift_link, sms_on=sms_enabled(),
                            progress=order_progress(order_dict), title=f"Order #{order_id}")
 
 
@@ -330,6 +354,51 @@ def proof_response(order_id):
     return redirect(url_for('orders.order_details', order_id=order_id))
 
 
+@bp.route('/orders/<int:order_id>/gift-resend', methods=['POST'])
+@login_required
+def gift_resend(order_id):
+    """Buyer re-sends the latest SMS to the person they're sending to (e.g. they lost the PIN)."""
+    with get_db_connection() as conn:
+        order = conn.execute('SELECT * FROM orders WHERE id = ? AND user_id = ? AND is_gift = 1', (order_id, current_user.id)).fetchone()
+    if not order:
+        abort(404)
+    text = recipient_sms(dict(order), 'resend')
+    if not text:
+        flash('There is nothing to send right now - we text them automatically at each step.', 'info')
+    elif not sms_enabled():
+        flash("Text messages aren't switched on for this shop yet - use the WhatsApp button to send them the tracking link.", 'warning')
+    elif rate_limited('gift_resend', str(order_id), 3, 60):
+        flash("We've already re-sent it a few times - please try again in an hour.", 'warning')
+    else:
+        record_rate_event('gift_resend', str(order_id))
+        send_sms(order['contact_phone'], text)
+        log_activity('Gift SMS re-sent', user_id=current_user.id, details=f'Order ID: {order_id}')
+        flash(f"Sent again to {order['contact_name']}.", 'success')
+    return redirect(url_for('orders.order_details', order_id=order_id))
+
+
+@bp.route('/gift/<token>')
+def gift_tracking(token):
+    """Tracking page for the person receiving a gift (no account, no prices)."""
+    order_id = order_from_gift_token(token)
+    if not order_id:
+        return render_template('gift_tracking.html', expired=True, title='Link expired'), 410
+    with get_db_connection() as conn:
+        order = conn.execute('''SELECT id, status, contact_name, sender_name, gift_message, delivery_method, delivery_zone,
+                                       payment_method, total_amount, is_gift, order_date
+                                FROM orders WHERE id = ? AND is_gift = 1''', (order_id,)).fetchone()
+        if not order:
+            abort(404)
+        items = conn.execute('''SELECT oi.quantity, p.name, p.image FROM order_items oi JOIN products p ON p.id = oi.product_id
+                                WHERE oi.order_id = ?''', (order_id,)).fetchall()
+    order = dict(order)
+    response = current_app.make_response(render_template('gift_tracking.html', order=order, items=items,
+                                                         progress=order_progress(order), title='Your parcel'))
+    response.headers['Cache-Control'] = 'no-store'
+    response.headers['X-Robots-Tag'] = 'noindex'
+    return response
+
+
 @bp.route('/deliver/<token>', methods=['GET', 'POST'])
 def rider_delivery(token):
     """Page for the rider (no account needed): shows where to deliver and takes the customer's PIN."""
@@ -341,7 +410,7 @@ def rider_delivery(token):
         result = confirm_delivery_with_pin(order_id, request.form.get('pin'), 'rider')
     with get_db_connection() as conn:
         order = conn.execute('''SELECT id, status, contact_name, contact_phone, delivery_method, delivery_zone, shipping_address,
-                                       delivery_landmark, delivery_lat, delivery_lng
+                                       delivery_landmark, delivery_lat, delivery_lng, is_gift, sender_name
                                 FROM orders WHERE id = ?''', (order_id,)).fetchone()
         items = conn.execute('''SELECT oi.quantity, p.name FROM order_items oi JOIN products p ON p.id = oi.product_id
                                 WHERE oi.order_id = ?''', (order_id,)).fetchall()

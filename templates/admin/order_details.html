@@ -69,7 +69,7 @@
                 </div>
                 <div class="card-body">
                     {% if order.proof_response == 'problem' %}
-                    <div class="alert alert-danger mb-3"><strong>Customer says:</strong> {{ order.proof_response_note }}<br><small>Call {{ order.contact_phone }} before sending.</small></div>
+                    <div class="alert alert-danger mb-3"><strong>Customer says:</strong> {{ order.proof_response_note }}<br><small>Call {{ order.sender_phone if order.is_gift else order.contact_phone }} before sending.</small></div>
                     {% endif %}
                     {% if proofs %}
                     <div class="admin-proof-grid mb-3">
@@ -153,6 +153,7 @@
                     {% endif %}
                     <hr>
                     <h6 class="font-weight-bold">{{ 'Pickup' if order.delivery_method == 'pickup' else 'Delivery' }}</h6>
+                    {% if order.is_gift %}<p class="mb-2"><span class="badge badge-warning"><i class="fas fa-gift"></i> Gift order</span> from <strong>{{ order.sender_name }}</strong> ({{ order.sender_phone }}){% if order.gift_message %}<br><small class="text-muted">Message: "{{ order.gift_message }}"</small>{% endif %}<br><small class="text-muted">Don't show prices to the receiver{% if order.payment_method == 'Cash on Delivery' %} - they pay {{ order.total_amount|money }} on delivery{% endif %}.</small></p>{% endif %}
                     {% if order.contact_name %}<p class="mb-1"><strong>Receiver:</strong> {{ order.contact_name }}</p>{% endif %}
                     {% if order.contact_phone %}
                     {% set wa = order.contact_phone|replace('+','') %}{% set wa = ('254' ~ wa[1:]) if wa.startswith('0') else wa %}
