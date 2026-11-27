@@ -425,3 +425,18 @@ a.contact-card:hover{border-color:var(--sky);box-shadow:var(--shadow);text-decor
 .rider-done{display:flex;gap:.8rem;align-items:flex-start;background:#ecfdf3;border-radius:12px;padding:1rem;color:#14532d}
 .rider-done i{font-size:1.8rem;color:var(--ok)}
 .rider-big-icon{font-size:2.2rem;margin-bottom:.6rem}
+
+/* ===== Honest prices ===== */
+.honest-tag{display:inline-flex;align-items:center;gap:.35rem;font-size:.85rem;font-weight:600;color:var(--ok);margin:-.4rem 0 .6rem}
+.honest-tag:hover{color:var(--ok);text-decoration:underline}
+.price-history{margin:.2rem 0 1rem;font-size:.9rem}
+.price-history summary{cursor:pointer;font-weight:600;color:var(--brand)}
+.price-chart{width:100%;height:110px;margin-top:.6rem;background:var(--bg);border-radius:10px}
+.price-chart-line{fill:none;stroke:var(--sky);stroke-width:2.5}
+.price-chart-guide{stroke:var(--line);stroke-width:1;stroke-dasharray:4 4}
+.price-chart-legend{display:flex;justify-content:space-between;gap:.5rem;font-size:.75rem;color:var(--muted);margin-top:.3rem}
+.honest-rules{display:grid;gap:.9rem;margin-top:1rem}
+.honest-rules>div{display:flex;gap:.9rem;align-items:flex-start}
+.honest-rules i{width:40px;height:40px;border-radius:50%;background:#dcfce7;color:var(--ok);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.honest-rules span{line-height:1.55}
+.price-chart-now{stroke:var(--accent);stroke-width:5;stroke-linecap:round}

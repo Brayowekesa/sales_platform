@@ -55,7 +55,8 @@ def create_app(overrides=None):
     # --- templates: globals, filters, shared values, security headers ---
     from shop.helpers import localtime_filter, money_filter, product_img, safe_link_filter, utility_processor
     from shop.security import set_security_headers
-    app.jinja_env.globals.update(SITE_NAME=app.config['SITE_NAME'],
+    from shop.pricing import honest_discount
+    app.jinja_env.globals.update(SITE_NAME=app.config['SITE_NAME'], honest_discount=honest_discount,
                                  CURRENCY_SYMBOL=app.config['CURRENCY_SYMBOL'],
                                  product_img=product_img)
     app.jinja_env.filters.update(money=money_filter, localtime=localtime_filter, safe_link=safe_link_filter)

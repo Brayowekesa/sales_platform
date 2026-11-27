@@ -1,4 +1,5 @@
 """Shop front: home page, product pages, reviews, search."""
+from shop.pricing import price_chart
 from datetime import datetime
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -85,7 +86,7 @@ def index():
             featured_products_raw = conn.execute(
                 '''SELECT * FROM products
                    WHERE stock > 0
-                   ORDER BY (original_price IS NOT NULL AND original_price > price) DESC, added_at DESC
+                   ORDER BY (was_price_verified = 1 AND original_price IS NOT NULL AND original_price > price) DESC, added_at DESC
                    LIMIT 8'''  # deals first, then newest in-stock items
             ).fetchall()
             
@@ -195,9 +196,11 @@ def product_details(product_id):
 
     with get_db_connection() as conn:
         photos = product_photos(conn, product_id, product_data_for_template.get('image')) or [None]
+        chart = price_chart(conn, product_id)
     return render_template(
         'product_details.html',
         photos=photos,
+        chart=chart,
         product=product_data_for_template,  # Pass the (potentially processed) product dict
         reviews=processed_reviews,          # Pass the list of processed review dicts
         review_form=review_form,

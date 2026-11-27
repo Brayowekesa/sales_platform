@@ -1,4 +1,5 @@
 """Admin: products (with photos) and promotions."""
+from shop.pricing import apply_price_change, send_wishlist_alerts
 import os
 import uuid
 from datetime import datetime
@@ -109,6 +110,7 @@ def admin_add_product():
                     VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ''', (name, current_price_val, db_original_price, description, category, stock_val, image_filename))
                 new_product_id = cur.lastrowid
+                apply_price_change(conn, new_product_id, None, current_price_val, db_original_price, stock_val)
                 conn.commit()
             save_product_photos(new_product_id)
             flash('Product added successfully!', 'success')
@@ -187,8 +189,10 @@ def admin_edit_product(product_id):
                     UPDATE products SET name = ?, price = ?, original_price = ?, description = ?,
                     category = ?, stock = ?, image = ? WHERE id = ?
                 ''', (name, current_price_val, db_original_price, description, category, stock_val, image_filename, product_id))
+                alerts = apply_price_change(conn, product_id, product, current_price_val, db_original_price, stock_val)
                 conn.commit()
             save_product_photos(product_id)
+            send_wishlist_alerts(product_id, alerts)
             flash('Product updated successfully!', 'success')
             log_activity("Admin edited product", user_id=current_user.id, details=f"Product ID: {product_id}")
             return redirect(url_for('admin.admin_products'))
@@ -210,7 +214,15 @@ def admin_edit_product(product_id):
 
     with get_db_connection() as conn:
         photos = product_photos(conn, product_id, product.get('image'))
+    from shop.pricing import VERIFY_DAYS, check_was_price, honest_discount
+    discount_status = None
+    if product.get('original_price') and product['original_price'] > product['price']:
+        with get_db_connection() as conn:
+            _, days = check_was_price(conn, product_id, product['original_price'])
+        discount_status = {'shown': bool(honest_discount(product)), 'verified': bool(product.get('was_price_verified')),
+                           'days': round(days, 1), 'need': VERIFY_DAYS}
     return render_template('admin/add_edit_product.html', form=form, title='Edit Product', product=product, action='Edit',
+                           discount_status=discount_status,
                            photos=photos, max_photos=MAX_PRODUCT_PHOTOS)
 
 

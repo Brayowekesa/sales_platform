@@ -2,7 +2,7 @@
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileAllowed, FileField
 from wtforms import BooleanField, FloatField, IntegerField, PasswordField, SelectField, StringField, SubmitField, TextAreaField
-from wtforms.validators import DataRequired, Email, EqualTo, Length, NumberRange, Optional, Regexp
+from wtforms.validators import DataRequired, Email, EqualTo, InputRequired, Length, NumberRange, Optional, Regexp
 from shop.helpers import PRODUCT_CATEGORY_CHOICES
 
 
@@ -58,7 +58,7 @@ class ProductForm(FlaskForm):
     validators=[Optional(), NumberRange(min=0)])
     description = TextAreaField('Description', validators=[Optional(), Length(max=1000)]) # Changed from StringField with widget
     category = SelectField('Category', choices=PRODUCT_CATEGORY_CHOICES, validators=[DataRequired()])
-    stock = IntegerField('Stock Quantity', validators=[DataRequired(), NumberRange(min=0)]) # Changed from StringField
+    stock = IntegerField('Stock Quantity', validators=[InputRequired(message='Enter the stock (0 if sold out).'), NumberRange(min=0)]) # Changed from StringField
     image = FileField('Product Image', validators=[Optional(), FileAllowed(['jpg', 'png', 'jpeg', 'gif'])])
     submit = SubmitField('Save Product')
 

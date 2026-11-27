@@ -68,6 +68,12 @@ def page_delivery():
     return render_template('pages/delivery.html', zones=active_delivery_zones(), title='Delivery & pickup')
 
 
+@bp.route('/honest-prices')
+def page_honest_prices():
+    from shop.pricing import MAX_SALE_DAYS, VERIFY_DAYS
+    return render_template('pages/honest_prices.html', verify_days=VERIFY_DAYS, max_sale_days=MAX_SALE_DAYS, title='Honest prices')
+
+
 @bp.route('/returns')
 def page_returns():
     return render_template('pages/returns.html', title='Returns & refunds')

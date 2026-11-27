@@ -1,6 +1,7 @@
 {# templates/includes/_product_card.html — expects 'product' or 'card_product' #}
 {% set P = product if product else card_product %}
-{% set on_sale = P.original_price and P.original_price > P.price %}
+{% set pct = honest_discount(P) %}{# 0 unless the discount passed the honest-price check #}
+{% set on_sale = pct > 0 %}
 {% set in_stock = P.stock is not none and P.stock > 0 %}
 {% set in_wishlist = P.id in (wishlist_ids or []) %}
 <article class="product-card {% if not in_stock %}is-sold-out{% endif %}">
@@ -8,10 +9,7 @@
         <a href="{{ url_for('store.product_details', product_id=P.id) }}" class="product-card-image" tabindex="-1" aria-hidden="true">
             <img src="{{ product_img(P.image) }}" alt="" loading="lazy">
         </a>
-        {% if on_sale %}
-            {% set pct = ((P.original_price - P.price) / P.original_price * 100)|round|int %}
-            {% if pct > 0 %}<span class="product-card-badge">-{{ pct }}%</span>{% endif %}
-        {% endif %}
+        {% if on_sale %}<span class="product-card-badge" title="Checked discount: it really sold at the old price">-{{ pct }}%</span>{% endif %}
         {% if not in_stock %}<span class="product-card-soldout">Sold out</span>{% endif %}
         <form action="{{ url_for('cart.remove_from_wishlist' if in_wishlist else 'cart.add_to_wishlist', product_id=P.id) }}" method="POST" class="product-card-wish">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

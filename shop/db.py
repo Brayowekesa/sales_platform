@@ -107,8 +107,9 @@ class Connection:
         cur.execute(sql, params)
         lastrowid = None
         if returning:
-            row = cur.fetchone()
-            lastrowid = row['id'] if isinstance(row, dict) else row[0]
+            row = cur.fetchone()      # None when an INSERT ... SELECT inserted nothing
+            if row is not None:
+                lastrowid = row['id'] if isinstance(row, dict) else row[0]
         return Cursor(cur, lastrowid)
 
     def executemany(self, sql, seq):
@@ -343,11 +344,29 @@ def _migration_3_packing_proof_and_delivery_pin(conn):
         conn.execute(f'ALTER TABLE orders ADD COLUMN {col} {ddl}')
 
 
+def _migration_4_price_history(conn):
+    t = _TYPES[conn.dialect]
+    conn.execute(f'''CREATE TABLE IF NOT EXISTS price_history (
+        id {t['ID']},
+        product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        price {t['MONEY']} NOT NULL,
+        original_price {t['MONEY']},
+        changed_at {t['TS']} DEFAULT CURRENT_TIMESTAMP)''')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_price_history_product ON price_history(product_id, changed_at)')
+    conn.execute('ALTER TABLE products ADD COLUMN was_price_verified INTEGER DEFAULT 0')
+    conn.execute(f"ALTER TABLE products ADD COLUMN discount_started_at {t['TS']}")
+    # Today's price is where each product's history starts. Existing "was" prices are not
+    # verified (no history yet), so they show once they pass the 14-day rule.
+    conn.execute('''INSERT INTO price_history (product_id, price, original_price, changed_at)
+                    SELECT id, price, original_price, CURRENT_TIMESTAMP FROM products''')
+
+
 # Add new schema changes at the end as (version, description, function). Never edit old ones.
 MIGRATIONS = [
     (1, 'initial schema', _migration_1_initial_schema),
     (2, 'two-step login (authenticator app)', _migration_2_two_factor),
     (3, 'packing proof and delivery PIN', _migration_3_packing_proof_and_delivery_pin),
+    (4, 'price history (honest prices)', _migration_4_price_history),
 ]
 
 

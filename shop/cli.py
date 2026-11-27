@@ -108,6 +108,10 @@ def copy_to_postgres_command(sqlite_file):
             if 'id' in cols:   # continue numbering after the copied ids
                 dst.execute(f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), COALESCE((SELECT MAX(id) FROM {table}), 0) + 1, false)")
             click.echo(f'  {table}: {len(rows)} rows')
+        # Copied products start their price history today (honest-price rule)
+        dst.execute('''INSERT INTO price_history (product_id, price, original_price)
+                       SELECT id, price, original_price FROM products p
+                       WHERE NOT EXISTS (SELECT 1 FROM price_history h WHERE h.product_id = p.id)''')
         dst.commit()
         click.echo('Done. Uploaded photos live in static/uploads - copy that folder to the new server too.')
     except Exception:

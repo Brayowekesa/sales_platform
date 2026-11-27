@@ -61,6 +61,7 @@ def seed(app):
     c.executemany("INSERT INTO products(name,description,category,stock,price,original_price) VALUES(?,?,?,?,?,?)", products)
     c.executemany("INSERT INTO products(name,description,category,stock,price) VALUES(?,?,?,?,?)",
                   [(f"Notebook A5 #{i + 1}", "Ruled notebook, 120 pages.", "Office & School", 30, 150 + i) for i in range(12)])
+    c.execute('INSERT INTO price_history (product_id, price, original_price) SELECT id, price, original_price FROM products')
     c.commit()
     c.close()
 
