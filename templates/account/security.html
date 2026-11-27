@@ -1,8 +1,8 @@
 {% extends "layout.html" %}
 {% block title %}Account security - {{ SITE_NAME }}{% endblock %}
 {% block content %}
-<div class="container my-4 my-md-5" style="max-width: 760px;">
-    <h1 class="mb-4">Account security</h1>
+<div class="container page-shell" style="max-width: 760px;">
+    <div class="page-head"><h1 class="page-heading">Account security</h1></div>
     <div class="info-card">
         <div class="d-flex align-items-start" style="gap: 1rem;">
             <span class="security-icon {{ 'is-on' if enabled }}"><i class="fas {{ 'fa-shield-alt' if enabled else 'fa-mobile-alt' }}"></i></span>
