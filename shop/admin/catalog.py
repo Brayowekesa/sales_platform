@@ -8,8 +8,9 @@ from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 from shop.db import DatabaseError, IntegrityError, get_db_connection
 from shop.forms import ProductForm, PromotionForm
-from shop.helpers import MAX_PRODUCT_PHOTOS, _delete_upload, product_category_choices, product_photos, save_product_photos
-from shop.security import admin_required, log_activity, valid_image_upload
+from shop.helpers import (MAX_PRODUCT_PHOTOS, _delete_upload, max_upload_mb, product_category_choices, product_photos,
+                          save_product_photos, valid_photo_upload)
+from shop.security import admin_required, log_activity
 
 from shop.admin import bp
 
@@ -83,7 +84,7 @@ def admin_add_product():
                 image_file = form.image.data
                 if image_file.filename == '': # No file selected
                     image_filename = default_image_path_segment
-                elif valid_image_upload(image_file):
+                elif valid_photo_upload(image_file):
                     filename = f"{uuid.uuid4().hex[:8]}_{secure_filename(image_file.filename)}"
                     image_file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
                     image_filename = f"uploads/{filename}"
@@ -124,7 +125,7 @@ def admin_add_product():
             log_activity("Admin add product failed", user_id=current_user.id, details=str(e))
             
     return render_template('admin/add_edit_product.html', form=form, title='Add Product', action='Add',
-                           photos=[], max_photos=MAX_PRODUCT_PHOTOS)
+                           photos=[], max_photos=MAX_PRODUCT_PHOTOS, max_upload_mb=max_upload_mb())
 
 
 @bp.route('/products/edit/<int:product_id>', methods=['GET', 'POST'])
@@ -157,7 +158,7 @@ def admin_edit_product(product_id):
 
             if form.image.data and form.image.data.filename: # Check if a new file was actually uploaded
                 image_file = form.image.data
-                if valid_image_upload(image_file):
+                if valid_photo_upload(image_file):
                     # Optional: Delete old image file if it's not default.jpg and different
                     if product['image'] and product['image'] != 'uploads/default.jpg':
                         old_image_path = os.path.join(current_app.config['UPLOAD_FOLDER'], os.path.basename(product['image']))
@@ -223,7 +224,7 @@ def admin_edit_product(product_id):
                            'days': round(days, 1), 'need': VERIFY_DAYS}
     return render_template('admin/add_edit_product.html', form=form, title='Edit Product', product=product, action='Edit',
                            discount_status=discount_status,
-                           photos=photos, max_photos=MAX_PRODUCT_PHOTOS)
+                           photos=photos, max_photos=MAX_PRODUCT_PHOTOS, max_upload_mb=max_upload_mb())
 
 
 @bp.route('/products/delete/<int:product_id>', methods=['POST'])
@@ -300,7 +301,7 @@ def admin_add_promotion():
         image_filename_for_db = None
         if form.image.data and form.image.data.filename:
             image_file = form.image.data
-            if valid_image_upload(image_file): # Make sure allowed_file is defined
+            if valid_photo_upload(image_file): # Make sure allowed_file is defined
                 filename = f"{uuid.uuid4().hex[:8]}_{secure_filename(image_file.filename)}"
                 # Ensure PROMOTIONS_UPLOAD_FOLDER is defined in current_app.config
                 promotions_folder = current_app.config.get('PROMOTIONS_UPLOAD_FOLDER', os.path.join(current_app.static_folder, 'uploads', 'promotions'))
@@ -345,7 +346,8 @@ def admin_add_promotion():
             current_app.logger.error(f"Unexpected error adding promotion: {e_generic}", exc_info=True)
             flash(f'An unexpected error occurred: {str(e_generic)}', 'danger')
 
-    return render_template('admin/add_edit_promotion.html', form=form, title='Add Promotion', action='Add', promotion=None)
+    return render_template('admin/add_edit_promotion.html', form=form, title='Add Promotion', action='Add', promotion=None,
+                           max_upload_mb=max_upload_mb())
 
 
 @bp.route('/promotions/edit/<int:promo_id>', methods=['GET', 'POST'])
@@ -370,7 +372,7 @@ def admin_edit_promotion(promo_id):
 
         if form.image.data and form.image.data.filename: 
             image_file = form.image.data
-            if valid_image_upload(image_file):
+            if valid_photo_upload(image_file):
                 if promotion_data_dict['image_path']: # If there was an old image
                     # Define BASE_DIR or get from current_app.config
                     base_dir = os.path.dirname(current_app.static_folder) 
@@ -438,7 +440,8 @@ def admin_edit_promotion(promo_id):
             form=form,
             title='Edit Promotion',
             action='Edit',
-            promotion=promotion_data_dict  # Pass promotion_data_dict for displaying current image
+            promotion=promotion_data_dict,  # Pass promotion_data_dict for displaying current image
+            max_upload_mb=max_upload_mb()
         )
 
     # POST that failed validation (or failed to save): show the form again with its errors
@@ -447,7 +450,8 @@ def admin_edit_promotion(promo_id):
         form=form,
         title='Edit Promotion',
         action='Edit',
-        promotion=promotion_data_dict
+        promotion=promotion_data_dict,
+        max_upload_mb=max_upload_mb()
     )
 
 

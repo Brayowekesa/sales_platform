@@ -61,7 +61,8 @@
                     <div class="promo-track">
                         {% for promo in promotions %}
                         {% set has_img = promo.image_path and product_img(promo.image_path) != product_img(None) %}
-                        {% set has_prices = promo.original_price and promo.promo_price and promo.original_price > promo.promo_price %}
+                        {# Promotions aren't linked to a product, so a "was" price / -% badge can't be checked
+                           against the honest-price rules (shop/pricing.py): only the promo price is shown. #}
                         <a class="promo-tile" href="{{ promo.target_url|safe_link }}" aria-roledescription="slide" aria-label="{{ loop.index }} of {{ loop.length }}: {{ promo.title }}">
                             <div class="promo-media {% if not has_img %}is-plain{% endif %}">
                                 {% if has_img %}
@@ -69,16 +70,14 @@
                                 {% else %}
                                     <i class="fas fa-tags" aria-hidden="true"></i>
                                 {% endif %}
-                                {% if has_prices %}
-                                    <span class="promo-pill">-{{ ((promo.original_price - promo.promo_price) / promo.original_price * 100)|round|int }}%</span>
-                                {% elif promo.discount_text %}
+                                {% if promo.discount_text %}
                                     <span class="promo-pill">{{ promo.discount_text }}</span>
                                 {% endif %}
                             </div>
                             <div class="promo-body">
                                 <h3 class="promo-title">{{ promo.title }}</h3>
-                                {% if has_prices %}
-                                    <div class="promo-prices"><span class="promo-now">{{ promo.promo_price|money }}</span><span class="promo-was">{{ promo.original_price|money }}</span></div>
+                                {% if promo.promo_price %}
+                                    <div class="promo-prices"><span class="promo-now">{{ promo.promo_price|money }}</span></div>
                                 {% elif promo.discount_text %}
                                     <p class="promo-sub">{{ promo.discount_text }}</p>
                                 {% endif %}

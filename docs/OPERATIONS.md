@@ -35,7 +35,15 @@ set them in **Admin → Shop settings**.
 | `DOMAIN` | Yes (Docker) | Your domain. Caddy gets the HTTPS certificate for it, and `www.DOMAIN` redirects to it. | `shop.example.co.ke` |
 | `POSTGRES_PASSWORD` | Yes (Docker) | Password of the PostgreSQL database. Letters and numbers only (it goes into a URL). | output of `python3 -c "import secrets; print(secrets.token_hex(24))"` |
 | `WEB_WORKERS` | No | Number of Gunicorn worker processes. Default: 2 × CPUs + 1, at most 5. | `3` |
-| `WEB_THREADS` | No | Threads per worker. Default 4. | `4` |
+| `WEB_THREADS` | No | Threads per worker. Default 4. Keep it at most about half of `DB_POOL_SIZE` (see below). | `4` |
+
+**Threads and database connections.** Each Gunicorn worker has its own pool of at most
+`DB_POOL_SIZE` PostgreSQL connections, shared by its `WEB_THREADS` threads. One request can hold
+**two** connections at once (e.g. while it writes the activity log), so keep `WEB_THREADS` at most
+about half of `DB_POOL_SIZE` (the defaults, 4 threads and a pool of 10, are fine); otherwise busy
+threads wait for a free connection. In total the shop may open `WEB_WORKERS × DB_POOL_SIZE`
+connections: keep that below PostgreSQL's `max_connections` (100 by default, often less on managed
+databases).
 
 ### Basics
 
@@ -53,6 +61,7 @@ set them in **Admin → Shop settings**.
 | `REQUIRE_ADMIN_2FA` | Live: `1` | `1` = admins must turn on two-step login before the admin panel opens. Docker sets `1`. | `1` |
 | `ALLOWED_REGISTER_EMAILS` | No | Comma-separated list. If set, only these emails can register. Empty = anyone can register. | `you@example.com` |
 | `RIDER_LINK_DAYS` | No | How many days a rider link works. Default 7. | `7` |
+| `LOW_STOCK_THRESHOLD` | No | Products with this many or fewer left count as "low stock" on the admin dashboard and Low Stock Report. Default 5. | `5` |
 | `SENTRY_DSN` | No | Send crash reports to [sentry.io](https://sentry.io). Customer data is not sent. | `https://...@...ingest.sentry.io/...` |
 
 ### Database
@@ -61,7 +70,7 @@ set them in **Admin → Shop settings**.
 |---|---|---|---|
 | `DATABASE_URL` | Live: yes (Docker sets it) | PostgreSQL address. Empty = use the SQLite file. **Leave empty in `.env` with Docker** - compose sets it. | `postgresql://shop:PASSWORD@db:5432/shop` |
 | `DATABASE_PATH` | No | SQLite file, used when `DATABASE_URL` is empty. Default `sales.db` in the project folder. | `/srv/shop/sales.db` |
-| `DB_POOL_SIZE` | No | Most PostgreSQL connections per worker. Default 10. | `10` |
+| `DB_POOL_SIZE` | No | Most PostgreSQL connections per worker. Default 10. At least about 2 × `WEB_THREADS`. | `10` |
 | `AUTO_MIGRATE` | No | `1` (default) = upgrade the database every time the app starts. Docker sets `0` because `docker/entrypoint.sh` runs `init-db` once before Gunicorn starts. | `0` |
 | `PROOF_FOLDER` | No | Where packing-proof photos/videos are kept (private, not served as public files). Default `private_uploads/proofs`. | `/app/private_uploads/proofs` |
 
@@ -174,7 +183,8 @@ You need:
    ```
 
 8. **Log in and turn on two-step login.** On Docker it is required before the admin panel opens.
-   Save the recovery codes.
+   Have an authenticator app ready on your phone (Google Authenticator, Microsoft Authenticator or
+   Authy), and save the recovery codes it shows you.
 
 9. **Fill in Admin → Shop settings and Admin → Delivery.**
 
@@ -188,7 +198,11 @@ The `Dockerfile` works there too. Create a PostgreSQL database and set `DATABASE
 variables plus `TRUSTED_PROXY_COUNT=1`, `SESSION_COOKIE_SECURE=1`, `REQUIRE_ADMIN_2FA=1` and
 `AUTO_MIGRATE=0` (the entrypoint still migrates on start). Attach persistent disks at
 `/app/static/uploads` **and** `/app/private_uploads`, or photos and packing proofs are lost on every
-deploy. The platform provides HTTPS, so Caddy is not needed.
+deploy (`private_uploads` holds the packing-proof photos/videos, which are deliberately kept out of
+`static/` so they are never public: it needs its own persistent disk just like the photos; if your
+plan allows only one disk, use the Docker setup on a VPS instead). The platform
+provides HTTPS, so Caddy is not needed. Backups: `deploy/backup.sh` is for the Docker setup; on a
+managed platform use its database backups and copy both upload disks yourself.
 
 ---
 
@@ -273,10 +287,14 @@ database in `DATABASE_URL`.
 - It first creates the latest tables in PostgreSQL. Columns that exist in both databases are copied;
   very old SQLite files (from before migrations) get their missing columns added first.
 - It **refuses to run** if the PostgreSQL database already has users or orders.
-- It copies users, products, promotions, delivery options, settings, orders, order items, order
-  history, reviews, wishlists, carts, product photos and activity logs.
-- Price history starts fresh on the day of the copy (so "was" prices must pass the 14-day rule again).
-- It does **not** copy packing-proof records (`order_proofs`). Old proofs will not show on orders.
+- It copies users, products, price history, Pamoja deals, promotions, delivery options, settings,
+  orders, order items, order history, packing-proof records, reviews, wishlists, carts, product
+  photos and activity logs.
+- Price history is copied, so verified "was" prices stay verified. Only products with no history at
+  all (very old SQLite files) start their history on the day of the copy, and their "was" prices
+  must pass the 14-day rule again.
+- It copies database rows only. Copy the files too: `static/uploads` (photos) **and**
+  `private_uploads` (the packing-proof files the `order_proofs` rows point to).
 
 With Docker:
 
@@ -284,6 +302,7 @@ With Docker:
 docker compose cp sales.db web:/tmp/sales.db
 docker compose exec web flask --app app copy-to-postgres /tmp/sales.db
 docker compose cp static/uploads/. web:/app/static/uploads/
+docker compose cp private_uploads/. web:/app/private_uploads/
 ```
 
 Then check a few products and orders in the admin panel.
@@ -379,13 +398,14 @@ The limits, from outside in:
 | Caddy (`deploy/Caddyfile`, `request_body max_size`) | 32 MB per request |
 | The shop (`MAX_CONTENT_LENGTH` in `shop/config.py`) | 30 MB per request (all files together) |
 | Packing-proof video | 25 MB each, 10 files per order |
-| Product photos | 8 per product; PNG, JPG or GIF |
+| Product photos | 8 per product; PNG, JPG, GIF or WebP |
 
-- A request bigger than 30 MB gets a plain "Request Entity Too Large" error page. Upload fewer files
-  at a time, or shorter/lower-quality videos.
+- A request bigger than 30 MB gets the page "That file is too big - the limit is 30 MB". Upload
+  fewer files at a time, or shorter/lower-quality videos. (A request bigger than Caddy's limit gets
+  Caddy's own plain error instead.)
 - If you raise `MAX_CONTENT_LENGTH`, also raise `max_size` in the Caddyfile and restart Caddy
   (`docker compose restart caddy`), or Caddy refuses the upload first.
-- "is not a PNG, JPG or GIF image": the file's content is checked, not just its name. HEIC photos
+- "is not a PNG, JPG, GIF or WebP image": the file's content is checked, not just its name. HEIC photos
   from iPhones must be converted (or set the camera to "Most compatible").
 - Photos missing after a deploy: `static/uploads` or `private_uploads` was not on a persistent volume.
 

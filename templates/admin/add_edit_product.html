@@ -47,8 +47,8 @@
                         {% endfor %}
                     </div>
                     {% endif %}
-                    <input type="file" name="photos" id="photos" class="form-control-file mt-2" accept="image/png,image/jpeg,image/gif" multiple>
-                    <small class="form-text text-muted">PNG, JPG or GIF, up to 16 MB in total. You can choose several photos at once{% if photos %}; new photos are added after the current ones{% endif %}.</small>
+                    <input type="file" name="photos" id="photos" class="form-control-file mt-2" accept="image/png,image/jpeg,image/gif,image/webp" multiple>
+                    <small class="form-text text-muted">PNG, JPG, GIF or WebP, up to {{ max_upload_mb }} MB in total. You can choose several photos at once{% if photos %}; new photos are added after the current ones{% endif %}.</small>
                 </div>
 
                 <div class="form-group">

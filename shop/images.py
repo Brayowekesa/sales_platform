@@ -5,6 +5,7 @@ Saves a lot of data for customers on mobile bundles. Re-encoding also strips EXI
 """
 import hashlib
 import os
+import warnings
 
 from flask import current_app, request, url_for
 from PIL import Image, ImageOps
@@ -45,12 +46,22 @@ def sized_url(path, size):
 
 
 def cached_copy(path, size):
-    """Path of the resized WebP copy, creating it if needed. None if the source isn't a valid image."""
+    """Path of the resized WebP copy, creating it if needed. None if the source isn't a valid image.
+
+    Each image has exactly one URL per size: the request must use the file's canonical path
+    (no '//', './', '../' variants), so nobody can fill the disk with copies of the same photo.
+    Already-resized copies (uploads/_cache/) and non-photo files are refused.
+    """
+    if size not in SIZES or not path:
+        return None
     static = os.path.realpath(current_app.static_folder)
     src = os.path.realpath(os.path.join(static, path))
-    if size not in SIZES or not src.startswith(os.path.join(static, 'uploads') + os.sep) or not os.path.isfile(src):
+    if not src.startswith(os.path.join(static, 'uploads') + os.sep) or not os.path.isfile(src):
         return None
-    key = hashlib.sha1(f'{path}:{os.path.getmtime(src)}:{size}'.encode()).hexdigest()
+    rel = os.path.relpath(src, static).replace(os.sep, '/')
+    if path != rel or rel.startswith('uploads/_cache/') or os.path.splitext(rel)[1].lower() not in RASTER:
+        return None
+    key = hashlib.sha1(f'{rel}:{os.path.getmtime(src)}:{size}'.encode()).hexdigest()
     folder = os.path.join(current_app.config['UPLOAD_FOLDER'], '_cache', size)
     out = os.path.join(folder, key + '.webp')
     if os.path.isfile(out):
@@ -58,14 +69,17 @@ def cached_copy(path, size):
     os.makedirs(folder, exist_ok=True)
     max_px, quality = SIZES[size]
     try:
-        with Image.open(src) as im:
-            im = ImageOps.exif_transpose(im)               # keep phone photos the right way up
-            im = im.convert('RGBA' if im.mode in ('RGBA', 'LA', 'P') else 'RGB')
-            im.thumbnail((max_px, max_px), Image.LANCZOS)
-            tmp = out + '.tmp'
-            im.save(tmp, 'WEBP', quality=quality, method=4)   # re-encoded: no EXIF/GPS data
-            os.replace(tmp, out)
-    except (OSError, Image.DecompressionBombError, ValueError) as e:
-        current_app.logger.warning(f'Could not resize {path}: {e}')
+        with warnings.catch_warnings():
+            # Pillow only warns between MAX_IMAGE_PIXELS and twice that: refuse those too
+            warnings.simplefilter('error', Image.DecompressionBombWarning)
+            with Image.open(src) as im:
+                im = ImageOps.exif_transpose(im)               # keep phone photos the right way up
+                im = im.convert('RGBA' if im.mode in ('RGBA', 'LA', 'P') else 'RGB')
+                im.thumbnail((max_px, max_px), Image.LANCZOS)
+                tmp = out + '.tmp'
+                im.save(tmp, 'WEBP', quality=quality, method=4)   # re-encoded: no EXIF/GPS data
+                os.replace(tmp, out)
+    except (OSError, Image.DecompressionBombError, Image.DecompressionBombWarning, ValueError) as e:
+        current_app.logger.warning(f'Could not resize {rel}: {e}')
         return None
     return out
