@@ -13,7 +13,7 @@
             <h6 class="m-0 font-weight-bold text-primary">Filter Report</h6>
         </div>
         <div class="card-body">
-            <form method="GET" action="{{ url_for('report_low_stock') }}" class="form-inline">
+            <form method="GET" action="{{ url_for('admin.report_low_stock') }}" class="form-inline">
                 <div class="form-group mb-2 mr-sm-2">
                     <label for="threshold" class="mr-2">Show stock less than or equal to:</label>
                     <input type="number" class="form-control form-control-sm" style="width: 80px;" id="threshold" name="threshold" value="{{ threshold }}" min="0">
@@ -43,12 +43,12 @@
                     <tbody>
                         {% for product in products %}
                         <tr>
-                            <td><a href="{{ url_for('admin_edit_product', product_id=product.id) }}">{{ product.name }}</a></td>
+                            <td><a href="{{ url_for('admin.admin_edit_product', product_id=product.id) }}">{{ product.name }}</a></td>
                             <td>{{ product.category }}</td>
                             <td><span class="badge badge-danger">{{ product.stock }}</span></td>
                             <td>{{ product.price|money }}</td>
                             <td>
-                                <a href="{{ url_for('admin_edit_product', product_id=product.id) }}" class="btn btn-info btn-sm" title="Edit Product">
+                                <a href="{{ url_for('admin.admin_edit_product', product_id=product.id) }}" class="btn btn-info btn-sm" title="Edit Product">
                                     <i class="fas fa-edit"></i>
                                 </a>
                             </td>

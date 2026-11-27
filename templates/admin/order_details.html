@@ -8,7 +8,7 @@
 <div class="container-fluid">
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0 text-gray-800">Order Details <small class="text-muted">#{{ order.id }}</small></h1>
-        <a href="{{ url_for('admin_orders') }}" class="btn btn-secondary btn-sm shadow-sm">
+        <a href="{{ url_for('admin.admin_orders') }}" class="btn btn-secondary btn-sm shadow-sm">
             <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Orders
         </a>
     </div>
@@ -86,7 +86,7 @@
                     <p class="mb-1"><strong>Subtotal:</strong> {{ (order.subtotal if order.subtotal is not none else order.total_amount)|money }}</p>
                     <p class="mb-1"><strong>Delivery fee:</strong> {{ 'Free' if not order.delivery_fee else order.delivery_fee|money }}</p>
                     <hr>
-                    <form action="{{ url_for('admin_update_order_status', order_id=order.id) }}" method="POST">
+                    <form action="{{ url_for('admin.admin_update_order_status', order_id=order.id) }}" method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="form-group">
                             <label for="status" class="font-weight-bold">Order Status:</label>

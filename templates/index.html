@@ -17,22 +17,22 @@
         <aside id="index-page-sidebar">
             <h3>Categories</h3>
             <div class="list-group list-group-flush">
-                <a href="{{ url_for('index', category='All') }}" class="list-group-item list-group-item-action {% if current_category == 'All' or not current_category %}active{% endif %}">All Categories</a>
+                <a href="{{ url_for('store.index', category='All') }}" class="list-group-item list-group-item-action {% if current_category == 'All' or not current_category %}active{% endif %}">All Categories</a>
                 {% for cat_nav in categories_for_navbar %}
-                    <a href="{{ url_for('index', category=cat_nav) }}" class="list-group-item list-group-item-action {% if current_category == cat_nav %}active{% endif %}">{{ cat_nav }}</a>
+                    <a href="{{ url_for('store.index', category=cat_nav) }}" class="list-group-item list-group-item-action {% if current_category == cat_nav %}active{% endif %}">{{ cat_nav }}</a>
                 {% else %}
-                    <a href="{{ url_for('index', category='Electronics') }}" class="list-group-item list-group-item-action">Electronics</a>
-                    <a href="{{ url_for('index', category='Home Appliance') }}" class="list-group-item list-group-item-action">Home Appliance</a>
-                    <a href="{{ url_for('index', category='Fashion') }}" class="list-group-item list-group-item-action">Fashion</a>
+                    <a href="{{ url_for('store.index', category='Electronics') }}" class="list-group-item list-group-item-action">Electronics</a>
+                    <a href="{{ url_for('store.index', category='Home Appliance') }}" class="list-group-item list-group-item-action">Home Appliance</a>
+                    <a href="{{ url_for('store.index', category='Fashion') }}" class="list-group-item list-group-item-action">Fashion</a>
                 {% endfor %}
             </div>
         </aside>
 
         <div class="banner-section-wrapper">
             <nav class="category-chips d-lg-none" aria-label="Categories">
-                <a href="{{ url_for('index', category='All') }}" class="chip {% if current_category == 'All' or not current_category %}active{% endif %}">All</a>
+                <a href="{{ url_for('store.index', category='All') }}" class="chip {% if current_category == 'All' or not current_category %}active{% endif %}">All</a>
                 {% for cat_nav in categories_for_navbar %}
-                    <a href="{{ url_for('index', category=cat_nav) }}" class="chip {% if current_category == cat_nav %}active{% endif %}">{{ cat_nav }}</a>
+                    <a href="{{ url_for('store.index', category=cat_nav) }}" class="chip {% if current_category == cat_nav %}active{% endif %}">{{ cat_nav }}</a>
                 {% endfor %}
             </nav>
             {% set filtering = current_category and current_category != 'All' %}
@@ -43,7 +43,7 @@
                     <h1>{{ current_category }}</h1>
                     <p>{{ total_products }} product{{ '' if total_products == 1 else 's' }}</p>
                 </div>
-                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-times mr-1"></i>Clear filter</a>
+                <a href="{{ url_for('store.index') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-times mr-1"></i>Clear filter</a>
             </div>
             {% elif promotions %}
             <section class="promo-strip" aria-roledescription="carousel" aria-label="Current offers" data-count="{{ promotions|length }}">

@@ -86,7 +86,7 @@
     {% block head_extra %}{% endblock %}
 </head>
 {# Sign-in pages keep their focused, centred look; every other page gets the shop navbar and footer #}
-{% set auth_page = request.endpoint in ['login', 'register', 'verify_email', 'reset_request', 'reset_token'] %}
+{% set auth_page = request.endpoint in ['auth.login', 'auth.register', 'auth.verify_email', 'auth.reset_request', 'auth.reset_token'] %}
 <body {% if not auth_page %}class="with-navbar"{% endif %}>
 
     {% if not auth_page %}

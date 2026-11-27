@@ -42,7 +42,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            <a href="{{ url_for('order_details', order_id=order.id) }}" class="btn btn-sm btn-outline-primary">View Details</a>
+                            <a href="{{ url_for('orders.order_details', order_id=order.id) }}" class="btn btn-sm btn-outline-primary">View Details</a>
                         </td>
                     </tr>
                     {% endfor %}
@@ -52,7 +52,7 @@
 
         {# Pagination #}
         {% if total_pages and total_pages > 1 %}
-            {% set endpoint = 'order_history' %}
+            {% set endpoint = 'orders.order_history' %}
             {% include 'includes/_pagination.html' %}
         {% endif %}
     {% else %}
@@ -60,7 +60,7 @@
             You haven't placed any orders yet.
         </div>
         <div class="text-center">
-            <a href="{{ url_for('index') }}" class="btn btn-lg btn-primary">Start Shopping!</a>
+            <a href="{{ url_for('store.index') }}" class="btn btn-lg btn-primary">Start Shopping!</a>
         </div>
     {% endif %}
 </div>

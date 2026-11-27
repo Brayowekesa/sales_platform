@@ -25,12 +25,12 @@
                     {% for item in cart_items %}
                     <tr>
                         <td>
-                            <a href="{{ url_for('product_details', product_id=item.id) }}">
+                            <a href="{{ url_for('store.product_details', product_id=item.id) }}">
                                 <img src="{{ product_img(item.image) }}" alt="{{ item.name }}" class="img-fluid rounded" style="max-height: 75px; object-fit: contain;">
                             </a>
                         </td>
                         <td>
-                            <a href="{{ url_for('product_details', product_id=item.id) }}" class="text-dark">{{ item.name }}</a>
+                            <a href="{{ url_for('store.product_details', product_id=item.id) }}" class="text-dark">{{ item.name }}</a>
                             {% if item.quantity > item.stock %}
                                 <p class="small text-danger mb-0">Note: Requested quantity ({{ item.quantity }}) exceeds available stock ({{ item.stock }}). Please adjust.</p>
                             {% elif item.stock < 5 %}
@@ -40,7 +40,7 @@
                         <td class="text-center">{{ item.price|money }}</td>
                         <td class="text-center">
                             {# Update Quantity Form #}
-                            <form action="{{ url_for('update_cart_item', product_id=item.id) }}" method="POST" class="form-inline justify-content-center cart-update-form">
+                            <form action="{{ url_for('cart.update_cart_item', product_id=item.id) }}" method="POST" class="form-inline justify-content-center cart-update-form">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                 <input type="number" name="quantity" value="{{ item.quantity }}" min="1" max="{{ item.stock }}" class="form-control form-control-sm" style="width: 70px;" required>
                                 <button type="submit" class="btn btn-sm btn-outline-secondary ml-1" title="Update Quantity"><i class="fas fa-sync-alt"></i></button>
@@ -49,7 +49,7 @@
                         <td class="text-right">{{ (item.price * item.quantity)|money }}</td>
                         <td class="text-right">
                             {# Remove from Cart Form #}
-                            <form action="{{ url_for('remove_from_cart', product_id=item.id) }}" method="POST">
+                            <form action="{{ url_for('cart.remove_from_cart', product_id=item.id) }}" method="POST">
                                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove Item"><i class="fas fa-trash-alt"></i></button>
                             </form>
@@ -80,12 +80,12 @@
                 </ul>
 
                 <div class="d-flex justify-content-between mb-2">
-                    <a href="{{ url_for('index') }}" class="btn btn-info"><i class="fas fa-shopping-bag"></i> Continue Shopping</a>
+                    <a href="{{ url_for('store.index') }}" class="btn btn-info"><i class="fas fa-shopping-bag"></i> Continue Shopping</a>
                      {% if cart_items %} {# Only show checkout if there are items #}
-                    <a href="{{ url_for('checkout') }}" class="btn btn-success"><i class="fas fa-credit-card"></i> Proceed to Checkout</a>
+                    <a href="{{ url_for('orders.checkout') }}" class="btn btn-success"><i class="fas fa-credit-card"></i> Proceed to Checkout</a>
                      {% endif %}
                 </div>
-                 <form action="{{ url_for('empty_cart') }}" method="POST" class="text-right">
+                 <form action="{{ url_for('cart.empty_cart') }}" method="POST" class="text-right">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to empty your cart?');">
                         <i class="fas fa-times-circle"></i> Empty Cart
@@ -99,7 +99,7 @@
             Your shopping cart is currently empty.
         </div>
         <div class="text-center">
-            <a href="{{ url_for('index') }}" class="btn btn-lg btn-primary">Start Shopping!</a>
+            <a href="{{ url_for('store.index') }}" class="btn btn-lg btn-primary">Start Shopping!</a>
         </div>
     {% endif %}
 </div>

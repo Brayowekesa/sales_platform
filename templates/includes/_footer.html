@@ -2,7 +2,7 @@
     <div class="container">
         <div class="row footer-cols">
             <div class="col-lg-4 col-md-6 mb-4">
-                <a href="{{ url_for('index') }}" class="footer-brand"><img src="{{ url_for('static', filename='images/logo_light.png') }}" alt="{{ SITE_NAME }}"></a>
+                <a href="{{ url_for('store.index') }}" class="footer-brand"><img src="{{ url_for('static', filename='images/logo_light.png') }}" alt="{{ SITE_NAME }}"></a>
                 <p class="footer-tagline">{{ SHOP.tagline }}</p>
                 <div class="footer-social">
                     {% if SHOP.whatsapp_link %}<a href="{{ SHOP.whatsapp_link }}" target="_blank" rel="noopener" aria-label="WhatsApp"><i class="fab fa-whatsapp"></i></a>{% endif %}
@@ -14,16 +14,16 @@
             <div class="col-lg-2 col-md-6 col-6 mb-4">
                 <h2 class="footer-title">Shop</h2>
                 <ul class="footer-links">
-                    {% for cat in (categories_for_navbar or [])[:6] %}<li><a href="{{ url_for('index', category=cat) }}">{{ cat }}</a></li>{% endfor %}
+                    {% for cat in (categories_for_navbar or [])[:6] %}<li><a href="{{ url_for('store.index', category=cat) }}">{{ cat }}</a></li>{% endfor %}
                 </ul>
             </div>
             <div class="col-lg-2 col-md-6 col-6 mb-4">
                 <h2 class="footer-title">Help</h2>
                 <ul class="footer-links">
-                    <li><a href="{{ url_for('page_delivery') }}">Delivery &amp; pickup</a></li>
-                    <li><a href="{{ url_for('page_returns') }}">Returns &amp; refunds</a></li>
-                    <li><a href="{{ url_for('order_history') }}">Track my order</a></li>
-                    <li><a href="{{ url_for('page_contact') }}">Contact us</a></li>
+                    <li><a href="{{ url_for('pages.page_delivery') }}">Delivery &amp; pickup</a></li>
+                    <li><a href="{{ url_for('pages.page_returns') }}">Returns &amp; refunds</a></li>
+                    <li><a href="{{ url_for('orders.order_history') }}">Track my order</a></li>
+                    <li><a href="{{ url_for('pages.page_contact') }}">Contact us</a></li>
                 </ul>
             </div>
             <div class="col-lg-4 col-md-6 mb-4">
@@ -34,7 +34,7 @@
                     {% if SHOP.email %}<li><i class="fas fa-envelope"></i><a href="mailto:{{ SHOP.email }}">{{ SHOP.email }}</a></li>{% endif %}
                     {% if SHOP.address %}<li><i class="fas fa-map-marker-alt"></i><span>{{ SHOP.address }}</span></li>{% endif %}
                     {% if SHOP.hours %}<li><i class="far fa-clock"></i><span>{{ SHOP.hours }}</span></li>{% endif %}
-                    {% if not (SHOP.phone or SHOP.email or SHOP.address) %}<li><i class="fas fa-comments"></i><a href="{{ url_for('page_contact') }}">Contact us</a></li>{% endif %}
+                    {% if not (SHOP.phone or SHOP.email or SHOP.address) %}<li><i class="fas fa-comments"></i><a href="{{ url_for('pages.page_contact') }}">Contact us</a></li>{% endif %}
                 </ul>
             </div>
         </div>
@@ -43,7 +43,7 @@
         <div class="container d-flex flex-wrap justify-content-between align-items-center">
             <span>© {% if SCRIPT_START_YEAR and SCRIPT_START_YEAR != current_year %}{{ SCRIPT_START_YEAR }}–{% endif %}{{ current_year }} {{ SITE_NAME }}</span>
             <span class="footer-pay"><span class="pay-chip mpesa">M-PESA</span><span class="pay-chip">Cash on Delivery</span></span>
-            <span><a href="{{ url_for('page_privacy') }}">Privacy</a> · <a href="{{ url_for('page_terms') }}">Terms</a></span>
+            <span><a href="{{ url_for('pages.page_privacy') }}">Privacy</a> · <a href="{{ url_for('pages.page_terms') }}">Terms</a></span>
         </div>
     </div>
 </footer>

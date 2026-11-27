@@ -19,7 +19,7 @@
             <h6 class="m-0 font-weight-bold text-primary">Filter Report</h6>
         </div>
         <div class="card-body">
-            <form method="GET" action="{{ url_for('report_sales_by_product') }}" class="form-row align-items-end">
+            <form method="GET" action="{{ url_for('admin.report_sales_by_product') }}" class="form-row align-items-end">
                 <div class="form-group col-md-3 mb-2">
                     <label for="start_date" class="mr-2">Start Date:</label>
                     <input type="date" class="form-control form-control-sm" id="start_date" name="start_date" value="{{ start_date }}">
@@ -70,7 +70,7 @@
                     <tbody>
                         {% for item in sales_data %}
                         <tr>
-                            <td><a href="{{ url_for('admin_edit_product', product_id=item.product_id) }}">{{ item.product_name }}</a></td>
+                            <td><a href="{{ url_for('admin.admin_edit_product', product_id=item.product_id) }}">{{ item.product_name }}</a></td>
                             <td>{{ item.product_category }}</td>
                             <td>{{ item.total_quantity_sold }}</td>
                             <td>{{ item.average_selling_price|money }}</td>

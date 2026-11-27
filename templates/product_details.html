@@ -33,7 +33,7 @@
         </div>
         <div class="col-md-6">
             <h2>{{ product.name }}</h2>
-            <p class="text-muted">Category: <a href="{{ url_for('index', category=product.category) }}">{{ product.category }}</a></p>
+            <p class="text-muted">Category: <a href="{{ url_for('store.index', category=product.category) }}">{{ product.category }}</a></p>
             <div class="product-price-block my-3">
                 <span class="product-price-now">{{ product.price|money }}</span>
                 {% if product.original_price and product.original_price > product.price %}
@@ -54,7 +54,7 @@
 
             <hr>
             {# Add to Cart Form #}
-<form method="POST" action="{{ url_for('add_to_cart', product_id=product.id) }}" class="form-inline mb-3 add-to-cart-form-js">
+<form method="POST" action="{{ url_for('cart.add_to_cart', product_id=product.id) }}" class="form-inline mb-3 add-to-cart-form-js">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <div class="form-group mr-2">
         <label for="quantity_{{ product.id }}" class="mr-2">Quantity:</label> {# Unique ID for label #}
@@ -73,12 +73,12 @@
 
             {# Add to Wishlist Button #}
             {% if product.id in wishlist_ids %}
-            <form action="{{ url_for('remove_from_wishlist', product_id=product.id) }}" method="POST">
+            <form action="{{ url_for('cart.remove_from_wishlist', product_id=product.id) }}" method="POST">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <button type="submit" class="btn btn-outline-danger"><i class="fas fa-heart text-danger"></i> Saved to Wishlist</button>
             </form>
             {% else %}
-            <form action="{{ url_for('add_to_wishlist', product_id=product.id) }}" method="POST">
+            <form action="{{ url_for('cart.add_to_wishlist', product_id=product.id) }}" method="POST">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <button type="submit" class="btn btn-outline-danger"><i class="far fa-heart"></i> Add to Wishlist</button>
             </form>
@@ -105,7 +105,7 @@
                     </div>
                 {% endfor %}
             {% else %}
-                <p>No reviews yet for this product. {% if current_user.is_authenticated %}Be the first to review!{% else %}<a href="{{ url_for('login', next=request.url) }}">Login</a> to write a review.{% endif %}</p>
+                <p>No reviews yet for this product. {% if current_user.is_authenticated %}Be the first to review!{% else %}<a href="{{ url_for('auth.login', next=request.url) }}">Login</a> to write a review.{% endif %}</p>
             {% endif %}
         </div>
 
@@ -113,7 +113,7 @@
         {% if current_user.is_authenticated %}
         <div class="col-md-4">
             <h4>Write Your Review</h4>
-            <form method="POST" action="{{ url_for('add_review', product_id=product.id) }}">
+            <form method="POST" action="{{ url_for('store.add_review', product_id=product.id) }}">
                 {{ review_form.hidden_tag() }} {# review_form is passed from the product_details route #}
                 <div class="form-group">
                     <label class="form-control-label required d-block">Rating</label>

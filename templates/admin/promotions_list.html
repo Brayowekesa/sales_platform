@@ -18,7 +18,7 @@ Manage Promotions
 <div class="container-fluid">
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0 text-gray-800">Manage Promotions</h1>
-        <a href="{{ url_for('admin_add_promotion') }}" class="btn btn-primary btn-sm shadow-sm">
+        <a href="{{ url_for('admin.admin_add_promotion') }}" class="btn btn-primary btn-sm shadow-sm">
             <i class="fas fa-plus fa-sm text-white-50"></i> Add New Promotion
         </a>
     </div>
@@ -66,10 +66,10 @@ Manage Promotions
                             <td>{{ promo.display_order }}</td>
                             <td>{{ promo.created_at|localtime('%Y-%m-%d %H:%M') or 'N/A' }}</td>
                             <td>
-                                <a href="{{ url_for('admin_edit_promotion', promo_id=promo.id) }}" class="btn btn-info btn-sm mr-1" title="Edit">
+                                <a href="{{ url_for('admin.admin_edit_promotion', promo_id=promo.id) }}" class="btn btn-info btn-sm mr-1" title="Edit">
                                     <i class="fas fa-edit"></i>
                                 </a>
-                                <form action="{{ url_for('admin_delete_promotion', promo_id=promo.id) }}" method="POST" style="display: inline;"
+                                <form action="{{ url_for('admin.admin_delete_promotion', promo_id=promo.id) }}" method="POST" style="display: inline;"
                                       onsubmit="return confirm('Are you sure you want to delete this promotion?');">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                     <button type="submit" class="btn btn-danger btn-sm" title="Delete">
@@ -84,7 +84,7 @@ Manage Promotions
             </div>
             {% else %}
             <div class="alert alert-info text-center">
-                No promotions found. <a href="{{ url_for('admin_add_promotion') }}">Add the first promotion!</a>
+                No promotions found. <a href="{{ url_for('admin.admin_add_promotion') }}">Add the first promotion!</a>
             </div>
             {% endif %}
         </div>

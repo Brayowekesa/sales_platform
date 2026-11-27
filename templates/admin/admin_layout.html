@@ -19,35 +19,35 @@
     <div class="admin-wrapper">
         <nav id="admin-sidebar"> {# Default state is visible (no .hidden-by-click class) #}
             <div class="sidebar-header">
-                <a href="{{ url_for('admin_dashboard') }}">
+                <a href="{{ url_for('admin.admin_dashboard') }}">
                     <img src="{{ url_for('static', filename='images/logo_light.png') }}" 
                          alt="ESA E-Shop Logo">
                 </a>
             </div>
             <ul class="list-unstyled components">
-                <li class="{{ 'active' if request.endpoint == 'admin_dashboard' else '' }}"><a href="{{ url_for('admin_dashboard') }}"><i class="fas fa-tachometer-alt mr-2"></i>Dashboard</a></li>
-                <li class="{{ 'active' if request.endpoint.startswith('admin_product') else '' }}"><a href="{{ url_for('admin_products') }}"><i class="fas fa-box-open mr-2"></i>Products</a></li>
-                <li class="{{ 'active' if request.endpoint.startswith('admin_order') else '' }}"><a href="{{ url_for('admin_orders') }}"><i class="fas fa-file-invoice mr-2"></i>Orders</a></li>
-                <li class="{{ 'active' if request.endpoint.startswith('admin_member') else '' }}"><a href="{{ url_for('admin_members') }}"><i class="fas fa-users-cog mr-2"></i>Members</a></li>
-                <li class="{{ 'active' if request.endpoint in ['admin_delivery', 'admin_edit_delivery'] else '' }}"><a href="{{ url_for('admin_delivery') }}"><i class="fas fa-truck mr-2"></i>Delivery</a></li>
-                <li class="{{ 'active' if request.endpoint.startswith('admin_promotion') else '' }}"><a href="{{ url_for('admin_promotions') }}"><i class="fas fa-bullhorn mr-2"></i>Promotions</a></li>
-                <li class="{{ 'active' if request.endpoint.startswith('report_') else '' }}">
-                    <a href="#reportsSubmenu" data-toggle="collapse" aria-expanded="{{ 'true' if request.endpoint.startswith('report_') else 'false' }}" class="dropdown-toggle">
+                <li class="{{ 'active' if request.endpoint == 'admin.admin_dashboard' else '' }}"><a href="{{ url_for('admin.admin_dashboard') }}"><i class="fas fa-tachometer-alt mr-2"></i>Dashboard</a></li>
+                <li class="{{ 'active' if request.endpoint.startswith('admin.admin_product') else '' }}"><a href="{{ url_for('admin.admin_products') }}"><i class="fas fa-box-open mr-2"></i>Products</a></li>
+                <li class="{{ 'active' if request.endpoint.startswith('admin.admin_order') else '' }}"><a href="{{ url_for('admin.admin_orders') }}"><i class="fas fa-file-invoice mr-2"></i>Orders</a></li>
+                <li class="{{ 'active' if request.endpoint.startswith('admin.admin_member') else '' }}"><a href="{{ url_for('admin.admin_members') }}"><i class="fas fa-users-cog mr-2"></i>Members</a></li>
+                <li class="{{ 'active' if request.endpoint in ['admin.admin_delivery', 'admin.admin_edit_delivery'] else '' }}"><a href="{{ url_for('admin.admin_delivery') }}"><i class="fas fa-truck mr-2"></i>Delivery</a></li>
+                <li class="{{ 'active' if request.endpoint.startswith('admin.admin_promotion') else '' }}"><a href="{{ url_for('admin.admin_promotions') }}"><i class="fas fa-bullhorn mr-2"></i>Promotions</a></li>
+                <li class="{{ 'active' if request.endpoint.startswith('admin.report_') else '' }}">
+                    <a href="#reportsSubmenu" data-toggle="collapse" aria-expanded="{{ 'true' if request.endpoint.startswith('admin.report_') else 'false' }}" class="dropdown-toggle">
                         <i class="fas fa-chart-line mr-2"></i>Reports
                     </a>
-                    <ul class="collapse list-unstyled {{ 'show' if request.endpoint.startswith('report_') else '' }}" id="reportsSubmenu">
-                        <li><a href="{{ url_for('report_sales_over_time') }}">Sales Over Time</a></li>
-                        <li><a href="{{ url_for('report_sales_by_product') }}">Sales by Product</a></li>
-                        <li><a href="{{ url_for('report_low_stock') }}">Low Stock Report</a></li>
+                    <ul class="collapse list-unstyled {{ 'show' if request.endpoint.startswith('admin.report_') else '' }}" id="reportsSubmenu">
+                        <li><a href="{{ url_for('admin.report_sales_over_time') }}">Sales Over Time</a></li>
+                        <li><a href="{{ url_for('admin.report_sales_by_product') }}">Sales by Product</a></li>
+                        <li><a href="{{ url_for('admin.report_low_stock') }}">Low Stock Report</a></li>
                     </ul>
                 </li>
-                <li class="{{ 'active' if request.endpoint == 'admin_settings' else '' }}"><a href="{{ url_for('admin_settings') }}"><i class="fas fa-cog mr-2"></i>Shop settings</a></li>
-                <li class="{{ 'active' if request.endpoint == 'admin_activity_logs' else '' }}"><a href="{{ url_for('admin_activity_logs') }}"><i class="fas fa-clipboard-list mr-2"></i>Activity Logs</a></li>
+                <li class="{{ 'active' if request.endpoint == 'admin.admin_settings' else '' }}"><a href="{{ url_for('admin.admin_settings') }}"><i class="fas fa-cog mr-2"></i>Shop settings</a></li>
+                <li class="{{ 'active' if request.endpoint == 'admin.admin_activity_logs' else '' }}"><a href="{{ url_for('admin.admin_activity_logs') }}"><i class="fas fa-clipboard-list mr-2"></i>Activity Logs</a></li>
             </ul>
             <ul class="list-unstyled CTAs">
-                <li><a href="{{ url_for('index') }}" class="btn btn-outline-light btn-sm btn-block" target="_blank"><i class="fas fa-store mr-1"></i> View Live Site</a></li>
+                <li><a href="{{ url_for('store.index') }}" class="btn btn-outline-light btn-sm btn-block" target="_blank"><i class="fas fa-store mr-1"></i> View Live Site</a></li>
                 <li>
-                    <form action="{{ url_for('logout') }}" method="POST" style="margin: 0;">
+                    <form action="{{ url_for('auth.logout') }}" method="POST" style="margin: 0;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         <button type="submit" class="btn btn-danger btn-sm btn-block"><i class="fas fa-sign-out-alt mr-1"></i> Logout</button>
                     </form>

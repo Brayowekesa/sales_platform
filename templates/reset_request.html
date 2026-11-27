@@ -9,13 +9,13 @@
     <div class="col-11 col-sm-10 col-md-8 col-lg-6 col-xl-5">
         <div class="auth-wrap">
             <div class="text-center mb-4">
-                <a href="{{ url_for('login') }}"><img src="{{ url_for('static', filename='images/logo_dark.png') }}" alt="ESA E-Shop" class="auth-logo"></a>
+                <a href="{{ url_for('auth.login') }}"><img src="{{ url_for('static', filename='images/logo_dark.png') }}" alt="ESA E-Shop" class="auth-logo"></a>
             </div>
             <div class="card shadow-sm">
                 <div class="card-header text-center bg-primary text-white"><h4 class="mb-0">Reset Password</h4></div>
                 <div class="card-body p-4">
                     <p class="text-center text-muted">Enter your email address and we'll send you a link to reset your password.</p>
-                    <form method="POST" action="{{ url_for('reset_request') }}">
+                    <form method="POST" action="{{ url_for('auth.reset_request') }}">
                         {{ form.hidden_tag() }}
 
                         <div class="form-group">
@@ -38,7 +38,7 @@
                     </form>
                      <div class="text-center mt-3">
                         <small class="text-muted">
-                            Remember your password? <a href="{{ url_for('login') }}">Login</a>
+                            Remember your password? <a href="{{ url_for('auth.login') }}">Login</a>
                         </small>
                     </div>
                 </div>

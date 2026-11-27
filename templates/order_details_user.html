@@ -26,7 +26,7 @@
             <h2 class="mb-0">Order #{{ order.id }}</h2>
             <small class="text-muted">Placed {{ order.order_date_formatted }}</small>
         </div>
-        <a href="{{ url_for('order_history') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left mr-1"></i> All orders</a>
+        <a href="{{ url_for('orders.order_history') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left mr-1"></i> All orders</a>
     </div>
 
     {# ---------- Progress tracker ---------- #}
@@ -71,9 +71,9 @@
                 <ul class="order-items">
                     {% for item in order_items %}
                     <li>
-                        <a href="{{ url_for('product_details', product_id=item.product_id) }}" class="thumb"><img src="{{ product_img(item.image) }}" alt=""></a>
+                        <a href="{{ url_for('store.product_details', product_id=item.product_id) }}" class="thumb"><img src="{{ product_img(item.image) }}" alt=""></a>
                         <div class="info">
-                            <a href="{{ url_for('product_details', product_id=item.product_id) }}">{{ item.name }}</a>
+                            <a href="{{ url_for('store.product_details', product_id=item.product_id) }}">{{ item.name }}</a>
                             <small class="text-muted">{{ item.quantity }} × {{ item.price|money }}</small>
                         </div>
                         <strong>{{ (item.price * item.quantity)|money }}</strong>
@@ -103,7 +103,7 @@
                     <dt>Method</dt><dd>{{ order.payment_method or 'N/A' }}</dd>
                     <dt>Status</dt><dd>{{ order.status }}</dd>
                 </dl>
-                <p class="small text-muted mb-0 mt-3">Questions about this order? <a href="{{ url_for('page_contact') }}">Contact us</a> and mention order #{{ order.id }}.</p>
+                <p class="small text-muted mb-0 mt-3">Questions about this order? <a href="{{ url_for('pages.page_contact') }}">Contact us</a> and mention order #{{ order.id }}.</p>
             </div>
         </div>
     </div>

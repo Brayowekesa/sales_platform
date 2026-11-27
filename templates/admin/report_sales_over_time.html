@@ -37,7 +37,7 @@
             <h6 class="m-0 font-weight-bold text-primary">Filter Report</h6>
         </div>
         <div class="card-body">
-            <form method="GET" action="{{ url_for('report_sales_over_time') }}" class="form-inline">
+            <form method="GET" action="{{ url_for('admin.report_sales_over_time') }}" class="form-inline">
                 <div class="form-group mb-2 mr-sm-2">
                     <label for="start_date" class="mr-2">Start Date:</label>
                     <input type="date" class="form-control form-control-sm" id="start_date" name="start_date" value="{{ start_date }}">

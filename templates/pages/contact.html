@@ -16,9 +16,9 @@
     {% endif %}
 </div>
 {% if not (SHOP.phone or SHOP.whatsapp_link or SHOP.email or SHOP.address) %}
-    <p class="text-muted">Contact details will appear here soon.{% if current_user.is_authenticated and current_user.is_admin %} <a href="{{ url_for('admin_settings') }}">Add them in Shop settings.</a>{% endif %}</p>
+    <p class="text-muted">Contact details will appear here soon.{% if current_user.is_authenticated and current_user.is_admin %} <a href="{{ url_for('admin.admin_settings') }}">Add them in Shop settings.</a>{% endif %}</p>
 {% endif %}
 {% if SHOP.hours %}<p class="mt-3"><i class="far fa-clock mr-1"></i> <strong>Opening hours:</strong> {{ SHOP.hours }}</p>{% endif %}
 <h2>About an order?</h2>
-<p>Please mention your order number (for example <em>#1024</em>). {% if current_user.is_authenticated %}You can find it in <a href="{{ url_for('order_history') }}">My orders</a>.{% else %}You'll find it in your confirmation email and under <em>My orders</em> after logging in.{% endif %}</p>
+<p>Please mention your order number (for example <em>#1024</em>). {% if current_user.is_authenticated %}You can find it in <a href="{{ url_for('orders.order_history') }}">My orders</a>.{% else %}You'll find it in your confirmation email and under <em>My orders</em> after logging in.{% endif %}</p>
 {% endblock %}

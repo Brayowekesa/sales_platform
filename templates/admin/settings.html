@@ -8,7 +8,7 @@
     <p class="text-muted mb-4">These details appear in the footer, on the Contact page and in your policies. Empty fields are hidden.</p>
     <div class="card shadow" style="max-width: 820px;">
         <div class="card-body">
-            <form method="POST" action="{{ url_for('admin_settings') }}">
+            <form method="POST" action="{{ url_for('admin.admin_settings') }}">
                 {{ form.hidden_tag() }}
                 {% for key, label, help in fields %}
                 <div class="form-group">
@@ -24,7 +24,7 @@
                 </div>
                 {% endfor %}
                 {{ form.submit(class="btn btn-primary") }}
-                <a href="{{ url_for('page_contact') }}" target="_blank" class="btn btn-link">Preview the Contact page</a>
+                <a href="{{ url_for('pages.page_contact') }}" target="_blank" class="btn btn-link">Preview the Contact page</a>
             </form>
         </div>
     </div>

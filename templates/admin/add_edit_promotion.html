@@ -8,7 +8,7 @@
 <div class="container-fluid">
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0 text-gray-800">{{ action }} Promotion</h1>
-        <a href="{{ url_for('admin_promotions') }}" class="btn btn-secondary btn-sm shadow-sm">
+        <a href="{{ url_for('admin.admin_promotions') }}" class="btn btn-secondary btn-sm shadow-sm">
             <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Promotions
         </a>
     </div>
@@ -120,7 +120,7 @@
 
                 <hr>
                 <div class="form-group text-right">
-                    <a href="{{ url_for('admin_promotions') }}" class="btn btn-secondary mr-2">Cancel</a>
+                    <a href="{{ url_for('admin.admin_promotions') }}" class="btn btn-secondary mr-2">Cancel</a>
                     {{ form.submit(class="btn btn-primary", value=(action + " Promotion")) }}
                 </div>
             </form>

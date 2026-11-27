@@ -10,7 +10,7 @@
 <div class="container checkout-page my-4 my-md-5">
     <h1 class="checkout-heading">Checkout</h1>
 
-    <form method="POST" action="{{ url_for('checkout') }}" id="checkout-form" novalidate>
+    <form method="POST" action="{{ url_for('orders.checkout') }}" id="checkout-form" novalidate>
         {{ form.hidden_tag() }}
         <div class="row">
             {# ---------- Order summary (right on desktop, top on phones) ---------- #}
@@ -112,7 +112,7 @@
                 <button type="submit" class="btn btn-cart btn-lg btn-block place-order-btn">
                     <i class="fas fa-check-circle mr-1"></i> Place order · <span id="button-total">{{ total_amount|money }}</span>
                 </button>
-                <p class="text-muted small text-center mt-2">By placing your order you agree to our <a href="{{ url_for('page_terms') }}">terms</a> and <a href="{{ url_for('page_returns') }}">returns policy</a>.</p>
+                <p class="text-muted small text-center mt-2">By placing your order you agree to our <a href="{{ url_for('pages.page_terms') }}">terms</a> and <a href="{{ url_for('pages.page_returns') }}">returns policy</a>.</p>
             </div>
         </div>
     </form>
