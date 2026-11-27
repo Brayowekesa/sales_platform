@@ -12,3 +12,6 @@ backups/
 
 # Private uploads (packing proof photos/videos show customer details)
 private_uploads/
+
+# Claude Code helper worktrees
+.claude/worktrees/
