@@ -15,7 +15,7 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY --chown=shop:shop . .
-RUN mkdir -p static/uploads/promotions && chown -R shop:shop static/uploads && chmod +x docker/entrypoint.sh
+RUN mkdir -p static/uploads/promotions private_uploads/proofs && chown -R shop:shop static/uploads private_uploads && chmod +x docker/entrypoint.sh
 
 USER shop
 EXPOSE 8000

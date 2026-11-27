@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+{# Page for riders (no account). Shows only what's needed to deliver, and takes the customer's PIN. #}
+{% block title %}{{ title }} - {{ SITE_NAME }}{% endblock %}
+{% block meta_description %}Delivery confirmation{% endblock %}
+{% block content %}
+<div class="rider-page">
+    <div class="rider-brand"><img src="{{ url_for('static', filename='images/logo_dark.png') }}" alt="{{ SITE_NAME }}"></div>
+    {% if expired %}
+        <div class="rider-card text-center">
+            <i class="fas fa-link rider-big-icon text-muted"></i>
+            <h1>This delivery link has expired</h1>
+            <p class="text-muted mb-0">Ask the shop to send you a new link.</p>
+        </div>
+    {% else %}
+        <div class="rider-card">
+            <span class="rider-kicker">Delivery</span>
+            <h1>Order #{{ order.id }}</h1>
+            {% if order.status == 'Delivered' or (result and result[0]) %}
+                <div class="rider-done"><i class="fas fa-check-circle"></i>
+                    <div><strong>Delivered</strong><p class="mb-0">{{ result[1] if result else 'This order is already marked delivered.' }}</p></div>
+                </div>
+            {% elif order.status != 'Shipped' %}
+                <p class="text-muted">This order isn't out for delivery right now. Check with the shop.</p>
+            {% else %}
+                <dl class="rider-facts">
+                    <dt>Customer</dt><dd>{{ order.contact_name }}</dd>
+                    <dt>Phone</dt><dd><a href="tel:{{ order.contact_phone }}" class="rider-call"><i class="fas fa-phone-alt"></i> {{ order.contact_phone }}</a></dd>
+                    <dt>Area</dt><dd>{{ order.delivery_zone }}</dd>
+                    {% if order.delivery_method != 'pickup' %}<dt>Address</dt><dd style="white-space: pre-line;">{{ order.shipping_address }}</dd>{% endif %}
+                    <dt>Items</dt><dd>{% for i in items %}{{ i.quantity }} × {{ i.name }}{% if not loop.last %}<br>{% endif %}{% endfor %}</dd>
+                </dl>
+                <form method="POST" action="{{ url_for('orders.rider_delivery', token=token) }}" class="rider-pin-form" autocomplete="off">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <label for="pin">When you hand over the parcel, ask the customer for their <strong>4-digit PIN</strong>:</label>
+                    <input type="text" id="pin" name="pin" class="form-control form-control-lg code-input" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" required placeholder="0000">
+                    {% if result and not result[0] %}<div class="text-danger font-weight-bold mt-2">{{ result[1] }}</div>{% endif %}
+                    <button class="btn btn-cart btn-lg btn-block mt-3"><i class="fas fa-check mr-1"></i> Confirm delivered</button>
+                </form>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

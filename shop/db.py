@@ -328,10 +328,26 @@ def _migration_2_two_factor(conn):
         conn.execute(f'ALTER TABLE users ADD COLUMN {col} {ddl}')
 
 
+def _migration_3_packing_proof_and_delivery_pin(conn):
+    t = _TYPES[conn.dialect]
+    conn.execute(f'''CREATE TABLE IF NOT EXISTS order_proofs (
+        id {t['ID']},
+        order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,                      -- 'photo' or 'video'
+        path TEXT NOT NULL,                      -- file name inside PROOF_FOLDER (not public)
+        uploaded_by INTEGER REFERENCES users(id),
+        created_at {t['TS']} DEFAULT CURRENT_TIMESTAMP)''')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_order_proofs_order ON order_proofs(order_id)')
+    for col, ddl in [('delivery_pin', 'TEXT'), ('delivered_with_pin', 'INTEGER DEFAULT 0'),
+                     ('proof_response', 'TEXT'), ('proof_response_note', 'TEXT'), ('proof_response_at', t['TS'])]:
+        conn.execute(f'ALTER TABLE orders ADD COLUMN {col} {ddl}')
+
+
 # Add new schema changes at the end as (version, description, function). Never edit old ones.
 MIGRATIONS = [
     (1, 'initial schema', _migration_1_initial_schema),
     (2, 'two-step login (authenticator app)', _migration_2_two_factor),
+    (3, 'packing proof and delivery PIN', _migration_3_packing_proof_and_delivery_pin),
 ]
 
 

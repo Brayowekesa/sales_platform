@@ -394,3 +394,34 @@ a.contact-card:hover{border-color:var(--sky);box-shadow:var(--shadow);text-decor
   .shop-nav .nav-link{padding:.45rem .5rem!important}
 }
 .setup-key{color:var(--navy)}
+
+/* ===== Packing proof & delivery PIN ===== */
+.pin-card{display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;background:var(--navy);color:#dbe7f3;border-radius:var(--radius);padding:1.1rem 1.4rem;margin-bottom:1.5rem;box-shadow:var(--shadow)}
+.pin-card strong{color:#fff}
+.pin-label{display:block;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--accent)}
+.pin-code{display:block;font-size:2.2rem;font-weight:800;letter-spacing:.35em;color:#fff;font-variant-numeric:tabular-nums;line-height:1.1}
+.pin-card p{flex:1;min-width:220px}
+.proof-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.6rem;margin-bottom:1rem}
+.proof-media{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:10px;background:#0b2545;border:1px solid var(--line)}
+.proof-actions{display:flex;gap:.6rem;flex-wrap:wrap;align-items:flex-start}
+.proof-problem summary{list-style:none;display:inline-block}
+.proof-problem summary::-webkit-details-marker{display:none}
+.proof-problem[open] summary{margin-bottom:.2rem}
+.proof-answer{margin:0;font-weight:600}
+.proof-answer.is-ok{color:var(--ok)}
+.proof-answer.is-problem{color:#b45309}
+/* Rider page */
+.rider-page{max-width:460px;margin:0 auto;padding:1.25rem 1rem 3rem}
+.rider-brand{text-align:center;margin:1rem 0 1.25rem}
+.rider-brand img{height:64px;width:auto}
+.rider-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:1.4rem}
+.rider-card h1{font-size:1.6rem;margin:.1rem 0 1rem}
+.rider-kicker{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--accent-dark)}
+.rider-facts{display:grid;grid-template-columns:80px 1fr;gap:.45rem .75rem;margin-bottom:1.25rem}
+.rider-facts dt{color:var(--muted);font-weight:500}
+.rider-facts dd{margin:0;font-weight:600}
+.rider-call{display:inline-flex;gap:.4rem;align-items:center}
+.rider-pin-form label{font-size:.95rem}
+.rider-done{display:flex;gap:.8rem;align-items:flex-start;background:#ecfdf3;border-radius:12px;padding:1rem;color:#14532d}
+.rider-done i{font-size:1.8rem;color:var(--ok)}
+.rider-big-icon{font-size:2.2rem;margin-bottom:.6rem}

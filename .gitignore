@@ -9,3 +9,6 @@ static/uploads/
 
 # Server backups contain customer data - never commit them
 backups/
+
+# Private uploads (packing proof photos/videos show customer details)
+private_uploads/

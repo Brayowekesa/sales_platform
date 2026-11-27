@@ -1,15 +1,16 @@
 """Checkout, M-Pesa callback and the customer's orders."""
+from shop.delivery import order_from_rider_token, proof_file_path
 import ipaddress
 import hmac
 import re
-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 from shop.db import get_db_connection
 from shop.extensions import csrf
 from shop.forms import CheckoutForm
 from shop.helpers import active_delivery_zones, delivery_fee_for, localtime_filter
 from shop.notifications import notify_order_event
-from shop.payments import ALLOWED_PAYMENT_METHODS, CheckoutError, lipa_na_mpesa_stk_push, mpesa_callback_signature, order_progress, record_order_status, release_order_stock
+from shop.payments import ALLOWED_PAYMENT_METHODS, CheckoutError, confirm_delivery_with_pin, lipa_na_mpesa_stk_push, mpesa_callback_signature, order_progress, record_order_status, release_order_stock
 from shop.security import client_ip, log_activity
 
 
@@ -267,9 +268,75 @@ def order_details(order_id): # Renamed from order_details_user to match your exi
         history = conn.execute(
             'SELECT status, note, created_at FROM order_status_history WHERE order_id = ? ORDER BY created_at, id',
             (order_id,)).fetchall()
+        proofs = conn.execute('SELECT id, kind FROM order_proofs WHERE order_id = ? ORDER BY id', (order_id,)).fetchall()
 
     order_dict = dict(order)
     order_dict['order_date_formatted'] = localtime_filter(order_dict.get('order_date')) or 'N/A'
     return render_template('order_details_user.html', order=order_dict, order_items=order_items,
-                           history=history, just_placed=request.args.get('placed') == '1',
+                           history=history, proofs=proofs, just_placed=request.args.get('placed') == '1',
                            progress=order_progress(order_dict), title=f"Order #{order_id}")
+
+
+# --- Packing proof (customer side) and the rider's delivery page ---
+@bp.route('/orders/<int:order_id>/proof/<int:proof_id>')
+@login_required
+def proof_file(order_id, proof_id):
+    """Packing-proof photos/videos are private: only the order's customer and admins can see them."""
+    with get_db_connection() as conn:
+        row = conn.execute('''SELECT p.path, o.user_id FROM order_proofs p JOIN orders o ON o.id = p.order_id
+                              WHERE p.id = ? AND p.order_id = ?''', (proof_id, order_id)).fetchone()
+    if not row or (row['user_id'] != current_user.id and not current_user.is_admin):
+        abort(404)
+    path = proof_file_path(row['path'])
+    if not path:
+        abort(404)
+    response = send_file(path, conditional=True, max_age=0)
+    response.headers['Cache-Control'] = 'private, no-store'
+    return response
+
+
+@bp.route('/orders/<int:order_id>/proof-response', methods=['POST'])
+@login_required
+def proof_response(order_id):
+    answer = request.form.get('answer')
+    note = (request.form.get('note') or '').strip()[:300]
+    if answer not in ('ok', 'problem') or (answer == 'problem' and not note):
+        flash("Please tell us what's wrong so we can fix it before sending.", 'warning')
+        return redirect(url_for('orders.order_details', order_id=order_id))
+    with get_db_connection() as conn:
+        order = conn.execute('SELECT id FROM orders WHERE id = ? AND user_id = ?', (order_id, current_user.id)).fetchone()
+        if not order:
+            abort(404)
+        conn.execute('UPDATE orders SET proof_response = ?, proof_response_note = ?, proof_response_at = CURRENT_TIMESTAMP WHERE id = ?',
+                     (answer, note or None, order_id))
+        record_order_status(conn, order_id, 'Customer checked the item',
+                            'Looks right' if answer == 'ok' else f'Reported a problem: {note}')
+    log_activity('Customer answered packing proof', user_id=current_user.id, details=f'Order ID: {order_id}, answer: {answer}')
+    if answer == 'ok':
+        flash("Thanks for checking! We'll send it out.", 'success')
+    else:
+        flash("Thanks for telling us - we'll contact you before sending anything.", 'info')
+    return redirect(url_for('orders.order_details', order_id=order_id))
+
+
+@bp.route('/deliver/<token>', methods=['GET', 'POST'])
+def rider_delivery(token):
+    """Page for the rider (no account needed): shows where to deliver and takes the customer's PIN."""
+    order_id = order_from_rider_token(token)
+    if not order_id:
+        return render_template('rider.html', expired=True, title='Delivery link expired'), 410
+    result = None
+    if request.method == 'POST':
+        result = confirm_delivery_with_pin(order_id, request.form.get('pin'), 'rider')
+    with get_db_connection() as conn:
+        order = conn.execute('''SELECT id, status, contact_name, contact_phone, delivery_method, delivery_zone, shipping_address
+                                FROM orders WHERE id = ?''', (order_id,)).fetchone()
+        items = conn.execute('''SELECT oi.quantity, p.name FROM order_items oi JOIN products p ON p.id = oi.product_id
+                                WHERE oi.order_id = ?''', (order_id,)).fetchall()
+    if not order:
+        abort(404)
+    response = current_app.make_response(render_template('rider.html', order=order, items=items, result=result,
+                                                         token=token, title=f'Deliver order #{order_id}'))
+    response.headers['Cache-Control'] = 'no-store'
+    response.headers['X-Robots-Tag'] = 'noindex'
+    return response

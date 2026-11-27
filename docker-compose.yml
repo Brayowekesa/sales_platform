@@ -31,6 +31,7 @@ services:
       FLASK_DEBUG: "0"
     volumes:
       - uploads:/app/static/uploads
+      - private_uploads:/app/private_uploads   # packing-proof photos/videos (not public)
     depends_on:
       db:
         condition: service_healthy
@@ -54,5 +55,6 @@ services:
 volumes:
   pgdata:
   uploads:
+  private_uploads:
   caddy_data:
   caddy_config:

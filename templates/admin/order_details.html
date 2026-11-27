@@ -58,6 +58,84 @@
                     {% endif %}
                 </div>
             </div>
+
+            {# ---------- Packing proof ---------- #}
+            <div class="card shadow mb-4" id="proof">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-camera mr-1"></i> Packing proof</h6>
+                    {% if order.proof_response == 'ok' %}<span class="badge badge-success"><i class="fas fa-check"></i> Customer: looks right</span>
+                    {% elif order.proof_response == 'problem' %}<span class="badge badge-danger">Customer reported a problem</span>
+                    {% elif proofs %}<span class="badge badge-secondary">Waiting for the customer</span>{% endif %}
+                </div>
+                <div class="card-body">
+                    {% if order.proof_response == 'problem' %}
+                    <div class="alert alert-danger mb-3"><strong>Customer says:</strong> {{ order.proof_response_note }}<br><small>Call {{ order.contact_phone }} before sending.</small></div>
+                    {% endif %}
+                    {% if proofs %}
+                    <div class="admin-proof-grid mb-3">
+                        {% for p in proofs %}
+                        <div class="admin-proof">
+                            {% if p.kind == 'video' %}
+                            <video src="{{ url_for('orders.proof_file', order_id=order.id, proof_id=p.id) }}" controls preload="metadata" playsinline></video>
+                            {% else %}
+                            <a href="{{ url_for('orders.proof_file', order_id=order.id, proof_id=p.id) }}" target="_blank" rel="noopener"><img src="{{ url_for('orders.proof_file', order_id=order.id, proof_id=p.id) }}" alt="Proof {{ loop.index }}"></a>
+                            {% endif %}
+                            <form method="POST" action="{{ url_for('admin.admin_delete_proof', order_id=order.id, proof_id=p.id) }}" data-confirm="Remove this file?" onsubmit="return confirm(this.dataset.confirm);">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-link btn-sm text-danger p-0">Remove</button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted small">Take photos or a short video of the <strong>exact item</strong> as you pack it (show it working, the colour/size, and the sealed parcel with the label).
+                    The customer is asked to confirm it looks right before you send it.</p>
+                    {% endif %}
+                    {% if proofs|length < max_proof_files %}
+                    <form method="POST" action="{{ url_for('admin.admin_upload_proof', order_id=order.id) }}" enctype="multipart/form-data" class="d-flex flex-wrap align-items-center" style="gap:.5rem">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="file" name="proof" accept="image/*,video/*" capture="environment" multiple class="form-control-file" style="max-width:320px" required>
+                        <button class="btn btn-primary btn-sm"><i class="fas fa-upload mr-1"></i> Add &amp; ask customer</button>
+                    </form>
+                    <small class="text-muted">Photos or videos (up to 25 MB each). On a phone this opens the camera.</small>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# ---------- Delivery confirmation ---------- #}
+            {% if order.status in ['Shipped', 'Delivered'] and order.delivery_pin %}
+            <div class="card shadow mb-4" id="delivery">
+                <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-key mr-1"></i> Delivery confirmation</h6></div>
+                <div class="card-body">
+                    {% if order.status == 'Delivered' %}
+                        {% if order.delivered_with_pin %}
+                        <p class="text-success font-weight-bold mb-0"><i class="fas fa-check-circle"></i> Delivered and confirmed with the customer's PIN.</p>
+                        {% else %}
+                        <p class="text-warning font-weight-bold mb-0"><i class="fas fa-exclamation-triangle"></i> Marked delivered <u>without</u> the customer's PIN (see history for the reason).</p>
+                        {% endif %}
+                    {% else %}
+                        <p class="small text-muted">The customer has a 4-digit PIN (SMS, email and their order page). The order becomes <em>Delivered</em> when the PIN is entered.</p>
+                        {% if rider_link %}
+                        <label class="font-weight-bold small mb-1">Rider link - send it to whoever delivers</label>
+                        <div class="input-group input-group-sm mb-2">
+                            <input type="text" class="form-control" id="rider-link" value="{{ rider_link }}" readonly>
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-secondary" type="button" id="copy-rider-link">Copy</button>
+                                <a class="btn btn-success" target="_blank" rel="noopener"
+                                   href="https://wa.me/?text={{ ('Delivery for order #' ~ order.id ~ ' - ' ~ (order.contact_name or '') ~ ', ' ~ (order.delivery_zone or '') ~ '. Open to see the address, and enter the customer\'s PIN when you hand over the parcel: ' ~ rider_link)|urlencode }}"><i class="fab fa-whatsapp"></i> WhatsApp</a>
+                            </div>
+                        </div>
+                        <small class="text-muted d-block mb-3">The link works for {{ config.RIDER_LINK_DAYS }} days and shows only the delivery details.</small>
+                        {% endif %}
+                        <form method="POST" action="{{ url_for('admin.admin_confirm_delivery', order_id=order.id) }}" class="form-inline" style="gap:.5rem">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="text" name="pin" class="form-control form-control-sm" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="Customer's PIN" required style="width:140px">
+                            <button class="btn btn-sm btn-success">Confirm delivered</button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <div class="col-lg-4">
@@ -106,6 +184,12 @@
                             <label for="note" class="small text-muted mb-1">Note for the customer (optional)</label>
                             <input type="text" name="note" id="note" class="form-control form-control-sm" maxlength="200" placeholder="e.g. Rider: John, 0712 345 678">
                         </div>
+                        {% if order.delivery_pin and order.status != 'Delivered' %}
+                        <div class="form-group">
+                            <label for="override_reason" class="small text-muted mb-1">Only for "Delivered" without the customer's PIN: reason</label>
+                            <input type="text" name="override_reason" id="override_reason" class="form-control form-control-sm" maxlength="200" placeholder="e.g. Customer paid and collected, phone off">
+                        </div>
+                        {% endif %}
                         <button type="submit" class="btn btn-success btn-block">Update Status</button>
                         <small class="form-text text-muted">The customer is notified by email{{ ' and SMS' if sms_enabled }}.</small>
                     </form>
@@ -121,4 +205,18 @@
         </div>
     </div>
 </div>
+{% endblock %}
+{% block admin_scripts_extra %}
+<script>
+(function () {
+    var btn = document.getElementById('copy-rider-link');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+        var input = document.getElementById('rider-link');
+        input.select();
+        (navigator.clipboard ? navigator.clipboard.writeText(input.value) : Promise.resolve(document.execCommand('copy')))
+            .then(function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); });
+    });
+})();
+</script>
 {% endblock %}

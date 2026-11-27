@@ -39,6 +39,7 @@ def create_app(overrides=None):
 
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['PROMOTIONS_UPLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(app.config['PROOF_FOLDER'], exist_ok=True)
 
     # --- extensions ---
     from shop.extensions import bootstrap, csrf, login_manager, mail

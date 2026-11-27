@@ -35,7 +35,10 @@ class Config:
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
     PROMOTIONS_UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads', 'promotions')
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB per request
+    MAX_CONTENT_LENGTH = 30 * 1024 * 1024  # 30 MB per request (a short packing video fits)
+    # Packing-proof photos/videos can show customer details, so they are NOT in static/ (not public)
+    PROOF_FOLDER = env('PROOF_FOLDER', os.path.join(BASE_DIR, 'private_uploads', 'proofs'))
+    RIDER_LINK_DAYS = int(env('RIDER_LINK_DAYS', 7))
 
     # Cookies
     SESSION_COOKIE_HTTPONLY = True

@@ -1,4 +1,5 @@
 """Orders and payments: M-Pesa, stock, order status."""
+import secrets
 import base64
 import hashlib
 import hmac
@@ -110,3 +111,37 @@ def lipa_na_mpesa_stk_push(amount, phone_number, order_id_ref):
     except Exception as e:
         current_app.logger.error(f"M-Pesa general error: {e}")
         return {"ResponseCode": "1", "ResponseDescription": "M-Pesa is not reachable right now. Please try again or choose Cash on Delivery."}
+
+
+PIN_MAX_ATTEMPTS = 5   # per order, per 15 minutes
+
+
+def confirm_delivery_with_pin(order_id, pin, who):
+    """Mark an order Delivered if `pin` is its delivery PIN. Returns (ok, message)."""
+    from shop.db import get_db_connection
+    from shop.notifications import notify_order_event
+    from shop.security import log_activity, rate_limited, record_rate_event
+    key = f'order:{order_id}'
+    if rate_limited('pin_fail', key, PIN_MAX_ATTEMPTS, 15):
+        return False, 'Too many wrong PINs. Wait 15 minutes, or call the customer.'
+    pin = (pin or '').strip()
+    with get_db_connection() as conn:
+        order = conn.execute('SELECT status, delivery_pin FROM orders WHERE id = ?', (order_id,)).fetchone()
+        if not order:
+            return False, 'Order not found.'
+        if order['status'] == 'Delivered':
+            return True, 'This order is already marked delivered.'
+        if order['status'] != 'Shipped' or not order['delivery_pin']:
+            return False, 'This order is not out for delivery yet.'
+        if not secrets.compare_digest(pin, order['delivery_pin']):
+            record_rate_event('pin_fail', key)
+            log_activity('Wrong delivery PIN', details=f'Order ID: {order_id}, by {who}')
+            return False, "That PIN is not right. Ask the customer to check the SMS or their order page."
+        # Only one confirmation wins, even if two people press at the same moment
+        cur = conn.execute("UPDATE orders SET status = 'Delivered', delivered_with_pin = 1 WHERE id = ? AND status = 'Shipped'", (order_id,))
+        if cur.rowcount == 0:
+            return True, 'This order is already marked delivered.'
+        record_order_status(conn, order_id, 'Delivered', f"Confirmed with the customer's PIN ({who})")
+    log_activity('Delivery confirmed with PIN', details=f'Order ID: {order_id}, by {who}')
+    notify_order_event(order_id, 'status')
+    return True, 'Delivered - confirmed with the customer\'s PIN. Thank you!'

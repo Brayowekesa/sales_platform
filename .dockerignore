@@ -14,3 +14,4 @@ static/uploads
 backups
 tests
 *.md
+private_uploads

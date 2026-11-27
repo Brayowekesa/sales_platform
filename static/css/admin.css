@@ -62,3 +62,7 @@ body.admin{display:block;background:var(--bg)}
 .photo-item:has(input[name="main_photo"]:checked){border-color:var(--sky);box-shadow:0 0 0 .15rem rgba(29,143,214,.25)}
 .photo-item:has(input[name="remove_photo"]:checked){opacity:.45}
 .photo-remove{color:var(--danger)}
+/* Packing proof */
+.admin-proof-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.6rem}
+.admin-proof{border:1px solid var(--line);border-radius:10px;padding:.35rem;background:#fff;text-align:center}
+.admin-proof img,.admin-proof video{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:6px;background:#0b2545;display:block;margin-bottom:.2rem}

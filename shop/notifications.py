@@ -126,7 +126,11 @@ def notify_order_event(order_id, event):
         order, items = dict(order), [dict(i) for i in items]
         note = last['note'] if (last and event == 'status') else None
         is_pickup = order.get('delivery_method') == 'pickup'
-        if event == 'placed':
+        if event == 'proof':
+            headline = 'Check your item before we send it'
+            message = ("We've added photos/video of the exact item we're packing for you. "
+                       "Please take a look and tell us if it looks right.")
+        elif event == 'placed':
             headline = f"Order #{order_id} received"
             message = ('Check your phone and enter your M-Pesa PIN to complete the payment.' if order['status'] == 'Pending Payment'
                        else ("We'll call you when it's ready to collect." if is_pickup else "We'll call you to arrange delivery."))
@@ -134,6 +138,9 @@ def notify_order_event(order_id, event):
             headline, message = (PICKUP_OVERRIDES.get(order['status']) if is_pickup else None) or STATUS_MESSAGES.get(order['status'], (None, None))
             if not headline:
                 return   # statuses customers don't need to hear about
+            if order['status'] == 'Shipped' and order.get('delivery_pin'):
+                message += (f" Your PIN is {order['delivery_pin']} - show it when you collect." if is_pickup else
+                            f" Your delivery PIN is {order['delivery_pin']} - give it to the rider only when you have your parcel.")
         shop = get_shop_settings()
         order_url = url_for('orders.order_details', order_id=order_id, _external=True)
         html = render_template('emails/order_update.html', order=order, items=items, headline=headline,
