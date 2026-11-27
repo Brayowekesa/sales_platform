@@ -1,12 +1,23 @@
 """Admin dashboard, reports and activity log."""
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta, timezone
 from flask import current_app, flash, render_template, request
 from flask_login import login_required
 from shop.db import DatabaseError, get_db_connection
+from shop.helpers import SHOP_TZ
 from shop.security import admin_required
 
 from shop.admin import bp
+
+# Order statuses that are not money coming in (everything else counts towards "sales today")
+NOT_A_SALE = ('Cancelled', 'Payment Failed', 'Refunded')
+
+
+def today_start_utc(now=None):
+    """Midnight today in the shop's time zone, as a UTC 'YYYY-MM-DD HH:MM:SS' string (how order times are stored)."""
+    local_now = (now or datetime.now(timezone.utc)).astimezone(SHOP_TZ)
+    midnight = datetime.combine(local_now.date(), time.min, tzinfo=SHOP_TZ)
+    return midnight.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
 
 
 @bp.route('/dashboard')
@@ -41,6 +52,20 @@ def admin_dashboard():
         
         processing_count_data = conn.execute("SELECT COUNT(id) FROM orders WHERE status='Processing'").fetchone()
         processing_count = processing_count_data[0] if processing_count_data else 0
+
+        # Today (shop time zone) at a glance. Order times are stored in UTC, so compare against
+        # the UTC moment of local midnight - a plain text timestamp works on SQLite and PostgreSQL.
+        # Sales count every order that is still going ahead: cash on delivery orders are never
+        # marked 'Paid', so only cancelled / failed / refunded orders are left out.
+        since = today_start_utc()
+        today_row = conn.execute(
+            f"""SELECT COUNT(id) AS orders,
+                       SUM(CASE WHEN status NOT IN ({','.join('?' * len(NOT_A_SALE))}) THEN total_amount ELSE 0 END) AS sales
+                FROM orders WHERE order_date >= ?""",
+            (*NOT_A_SALE, since)).fetchone()
+        today_orders = today_row['orders'] or 0
+        today_sales = today_row['sales'] or 0
+        out_of_stock_count = conn.execute('SELECT COUNT(id) FROM products WHERE stock <= 0').fetchone()[0] or 0
 
 
         # Recent Orders (Last 5)
@@ -154,7 +179,10 @@ def admin_dashboard():
         low_stock_products_count=low_stock_products_count,
         low_stock_products_list=low_stock_products_list,
         low_stock_threshold=low_stock_threshold,
-        processed_recent_activities=processed_recent_activities # <-- PASS NEW DATA
+        processed_recent_activities=processed_recent_activities,
+        today_orders=today_orders,
+        today_sales=today_sales,
+        out_of_stock_count=out_of_stock_count,
     )
 
 

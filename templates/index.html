@@ -10,16 +10,26 @@
 
 
 {% block content %}
-<div class="page-content-wrapper">
+{# Icon for a category shortcut; unknown categories get a tag #}
+{% set CATEGORY_ICONS = {
+    'Electronics': 'fa-mobile-alt', 'Phones': 'fa-mobile-alt', 'Computers': 'fa-laptop',
+    'Home & Kitchen': 'fa-blender', 'Home Appliance': 'fa-blender', 'Home Appliances': 'fa-blender', 'Kitchen': 'fa-utensils',
+    'Fashion & Wear': 'fa-tshirt', 'Fashion': 'fa-tshirt', 'Clothing': 'fa-tshirt', 'Shoes': 'fa-shoe-prints',
+    'Beauty & Personal Care': 'fa-spa', 'Beauty': 'fa-spa', 'Health & Wellness': 'fa-heartbeat', 'Health': 'fa-heartbeat',
+    'Sports & Outdoors': 'fa-futbol', 'Sports': 'fa-futbol', 'Office & School': 'fa-pencil-alt', 'Stationery': 'fa-pencil-alt',
+    'Books': 'fa-book', 'Toys': 'fa-puzzle-piece', 'Baby': 'fa-baby', 'Groceries': 'fa-shopping-basket', 'Furniture': 'fa-couch'} %}
+{% macro cat_icon(name) %}<i class="fas {{ CATEGORY_ICONS.get(name, 'fa-tag') }}" aria-hidden="true"></i>{% endmacro %}
+
+<div class="page-content-wrapper home-page">
 
     <!-- Top section: Categories and Banner side by side -->
     <div class="d-flex align-items-start mb-4 top-section-flex-wrapper" style="gap:1.5rem;">
         <aside id="index-page-sidebar">
             <h3>Categories</h3>
             <div class="list-group list-group-flush">
-                <a href="{{ url_for('store.index', category='All') }}" class="list-group-item list-group-item-action {% if current_category == 'All' or not current_category %}active{% endif %}">All Categories</a>
+                <a href="{{ url_for('store.index', category='All') }}" class="list-group-item list-group-item-action {% if current_category == 'All' or not current_category %}active{% endif %}"><i class="fas fa-th-large" aria-hidden="true"></i>All Categories</a>
                 {% for cat_nav in categories_for_navbar %}
-                    <a href="{{ url_for('store.index', category=cat_nav) }}" class="list-group-item list-group-item-action {% if current_category == cat_nav %}active{% endif %}">{{ cat_nav }}</a>
+                    <a href="{{ url_for('store.index', category=cat_nav) }}" class="list-group-item list-group-item-action {% if current_category == cat_nav %}active{% endif %}">{{ cat_icon(cat_nav) }}{{ cat_nav }}</a>
                 {% else %}
                     <a href="{{ url_for('store.index', category='Electronics') }}" class="list-group-item list-group-item-action">Electronics</a>
                     <a href="{{ url_for('store.index', category='Home Appliance') }}" class="list-group-item list-group-item-action">Home Appliance</a>
@@ -30,9 +40,9 @@
 
         <div class="banner-section-wrapper">
             <nav class="category-chips d-lg-none" aria-label="Categories">
-                <a href="{{ url_for('store.index', category='All') }}" class="chip {% if current_category == 'All' or not current_category %}active{% endif %}">All</a>
+                <a href="{{ url_for('store.index', category='All') }}" class="chip {% if current_category == 'All' or not current_category %}active{% endif %}" {% if current_category == 'All' or not current_category %}aria-current="page"{% endif %}><i class="fas fa-th-large" aria-hidden="true"></i>All</a>
                 {% for cat_nav in categories_for_navbar %}
-                    <a href="{{ url_for('store.index', category=cat_nav) }}" class="chip {% if current_category == cat_nav %}active{% endif %}">{{ cat_nav }}</a>
+                    <a href="{{ url_for('store.index', category=cat_nav) }}" class="chip {% if current_category == cat_nav %}active{% endif %}" {% if current_category == cat_nav %}aria-current="page"{% endif %}>{{ cat_icon(cat_nav) }}{{ cat_nav }}</a>
                 {% endfor %}
             </nav>
             {% set filtering = current_category and current_category != 'All' %}
@@ -93,6 +103,31 @@
             {% endif %}
         </div>
     </div>
+
+    {% if not filtering %}
+    <!-- Why shop with us -->
+    <section class="why-strip" aria-labelledby="why-title">
+        <h2 id="why-title" class="sr-only">Why shop with us</h2>
+        <ul class="why-list">
+            <li class="why-item">
+                <span class="why-icon"><i class="fas fa-key" aria-hidden="true"></i></span>
+                <span><strong>Delivery PIN</strong><small>Only you can confirm delivery, with your 4-digit PIN</small></span>
+            </li>
+            <li class="why-item">
+                <span class="why-icon"><i class="fas fa-camera" aria-hidden="true"></i></span>
+                <span><strong>Packing proof</strong><small>See a photo of your item before we send it</small></span>
+            </li>
+            <li class="why-item">
+                <span class="why-icon is-ok"><i class="fas fa-check-circle" aria-hidden="true"></i></span>
+                <span><strong><a href="{{ url_for('pages.page_honest_prices') }}">Honest prices</a></strong><small>Every discount is checked against real price history</small></span>
+            </li>
+            <li class="why-item">
+                <span class="why-icon is-mpesa"><i class="fas fa-mobile-alt" aria-hidden="true"></i></span>
+                <span><strong>M-Pesa or cash</strong><small>Pay with M-Pesa or cash on delivery</small></span>
+            </li>
+        </ul>
+    </section>
+    {% endif %}
 
     <!-- Featured Products -->
     {% if featured_products and not filtering %}

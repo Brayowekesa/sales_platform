@@ -82,3 +82,19 @@ def test_every_template_compiles_and_every_link_exists(app):
         app.jinja_env.get_template(name)
         for ep in re.findall(r"url_for\(\s*'([\w.]+)'", open(path).read()):
             assert ep in endpoints, f'{name}: unknown page {ep}'
+
+
+def test_dashboard_today_at_a_glance(login, db):
+    """Top of the admin dashboard: today's orders and sales (shop time zone; cash on delivery counts, cancelled doesn't)."""
+    from datetime import datetime, timezone
+    from shop.admin.dashboard import today_start_utc
+    # 22:30 UTC is already 01:30 next day in Nairobi, so "today" started at 21:00 UTC
+    assert today_start_utc(datetime(2026, 11, 27, 22, 30, tzinfo=timezone.utc)) == '2026-11-27 21:00:00'
+    c = db()
+    for status, amount in [('Pending', 1000), ('Processing', 2000), ('Cancelled', 500)]:
+        c.execute("INSERT INTO orders(user_id,total_amount,status,payment_method) VALUES(2,?,?,'Cash on Delivery')", (amount, status))
+    c.execute("INSERT INTO orders(user_id,order_date,total_amount,status) VALUES(2,'2020-01-01 10:00:00',9999,'Delivered')")
+    c.commit()
+    page = login('admin', 'adminpass').get('/admin/dashboard').data.decode()
+    kpi = dict(re.findall(r'kpi-label">([^<]+)</span>.*?kpi-value">([^<]+)</span>', page, re.S))
+    assert kpi == {'Orders today': '3', 'Sales today': 'KSh 3,000', 'Awaiting action': '2', 'Low stock': '2'}

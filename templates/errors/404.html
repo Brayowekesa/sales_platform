@@ -5,38 +5,27 @@
 {% endblock %}
 
 {% block content %}
-<div class="container py-5">
-    <div class="card shadow-sm border-0 mx-auto" style="max-width: 900px;">
-        <div class="card-body p-4 p-md-5">
+<div class="container page-shell">
+    <div class="error-card">
+        <span class="error-icon"><i class="fas fa-compass" aria-hidden="true"></i></span>
+        <p class="error-code">Error 404</p>
+        <h1>Oops! Page Not Found.</h1>
+        <p class="error-text">The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.</p>
 
-            <div class="text-center py-4">
-                <h1 class="display-1 font-weight-bold text-danger mb-3">404</h1>
-                <h2 class="mb-3">Oops! Page Not Found.</h2>
-                <p class="lead text-muted mb-4">
-                    The page you are looking for might have been removed, had its name changed,
-                    or is temporarily unavailable.
-                </p>
+        <form class="error-search" action="{{ url_for('store.search') }}" method="GET" role="search">
+            <label for="error-search-input" class="sr-only">Search products</label>
+            <input type="search" id="error-search-input" name="query" class="form-control" placeholder="Search products...">
+            <button type="submit" class="btn btn-primary" aria-label="Search"><i class="fas fa-search" aria-hidden="true"></i></button>
+        </form>
 
-                <div class="mb-4">
-                    <i class="fas fa-compass fa-7x text-info" aria-hidden="true"></i>
-                </div>
-
-                <p class="mb-4">Let's get you back on track:</p>
-
-                <div class="d-flex justify-content-center flex-wrap gap-2">
-                    <a href="{{ url_for('store.index') }}" class="btn btn-primary btn-lg">
-                        <i class="fas fa-home mr-2"></i>Back to Home
-                    </a>
-                    <a href="javascript:history.back()" class="btn btn-outline-secondary btn-lg">
-                        <i class="fas fa-arrow-left mr-2"></i>Previous Page
-                    </a>
-                </div>
-            </div>
+        <div class="error-actions">
+            <a href="{{ url_for('store.index') }}" class="btn btn-primary">
+                <i class="fas fa-home mr-2" aria-hidden="true"></i>Back to Home
+            </a>
+            <a href="{{ url_for('pages.page_contact') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-life-ring mr-2" aria-hidden="true"></i>Get help
+            </a>
         </div>
     </div>
-
-    <footer class="text-center text-muted small mt-4">
-        © 2023 - 2026 E-Shop. All Rights Reserved.
-    </footer>
 </div>
 {% endblock %}

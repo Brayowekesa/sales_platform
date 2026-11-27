@@ -5,12 +5,14 @@
 {% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <h2 class="mb-2">Your Wishlist</h2>
+<div class="container page-shell">
+    <div class="page-head">
+        <h1 class="page-heading">Your Wishlist</h1>
+    </div>
 
     {% if wishlist_items %}
-        <p class="text-muted mb-4">{{ wishlist_items|length }} saved item{{ '' if wishlist_items|length == 1 else 's' }}. Moving an item to your cart removes it from this list.</p>
-        <div class="row wishlist-grid">
+        <p class="page-sub mb-3">{{ wishlist_items|length }} saved item{{ '' if wishlist_items|length == 1 else 's' }}. Moving an item to your cart removes it from this list.</p>
+        <div class="row wishlist-grid product-grid-tight">
             {% for product in wishlist_items %}
                 <div class="col-6 col-md-4 col-lg-3 mb-4">
                     {% set move_from_wishlist = True %}
@@ -19,10 +21,10 @@
             {% endfor %}
         </div>
     {% else %}
-        <div class="alert alert-info text-center" role="alert">
-            Your wishlist is currently empty.
-        </div>
-        <div class="text-center">
+        <div class="empty-state">
+            <span class="empty-state-icon"><i class="far fa-heart" aria-hidden="true"></i></span>
+            <h2>Your wishlist is currently empty.</h2>
+            <p>Tap the heart on any product to save it. We'll tell you if the price drops.</p>
             <a href="{{ url_for('store.index') }}" class="btn btn-lg btn-primary">Discover Products</a>
         </div>
     {% endif %}
