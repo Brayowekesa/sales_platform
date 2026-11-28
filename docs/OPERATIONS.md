@@ -264,8 +264,36 @@ them exactly on time even when nobody is browsing, also add:
 */5 * * * * cd /opt/shop && docker compose exec -T web flask --app app close-deals >> backups/deals.log 2>&1
 ```
 
-**Keep a copy off the server.** If the server is lost, backups on it are lost too. For example,
-copy `backups/` every night to cloud storage with [rclone](https://rclone.org).
+`backup.sh` sets `umask 077`, so the `backups/` folder (mode 700) and every file in it can only be
+read by the user who runs the script.
+
+**Keep an encrypted copy off the server.** If the server is lost, backups on it are lost too. The
+files hold customer names, phone numbers and addresses, so **encrypt them before they leave the
+server** - cloud storage accounts get hacked or shared by mistake.
+
+With [age](https://age-encryption.org) (`sudo apt install age`): make a key pair once **on your own
+computer** (not the server), keep `shop-backup.key` safe offline (password manager / USB stick),
+and copy only the public key (`age1...`) to the server:
+
+```bash
+age-keygen -o shop-backup.key            # on your computer; prints "Public key: age1..."
+```
+
+Then, on the server, encrypt and upload each night (e.g. with [rclone](https://rclone.org)):
+
+```bash
+for f in backups/db_*.dump backups/uploads_*.tar.gz; do
+  [ -e "$f.age" ] || age -r age1YOURPUBLICKEY... -o "$f.age" "$f"
+done
+rclone copy backups/ offsite:shop-backups --include '*.age'
+```
+
+To restore, download the `.age` file and decrypt it on a machine that has the key:
+`age -d -i shop-backup.key -o db_2026-01-31_0215.dump db_2026-01-31_0215.dump.age`.
+
+With gpg instead: `gpg --encrypt --recipient you@example.com backups/db_2026-01-31_0215.dump`
+(public key imported on the server, private key only on your computer); decrypt with `gpg -d`.
+Never keep the decryption key on the same server or in the same cloud account as the backups.
 
 ### Restore
 
@@ -326,11 +354,19 @@ Then check a few products and orders in the admin panel.
   Better Stack) at `https://YOUR_DOMAIN/healthz`.
 - **Errors:** set `SENTRY_DSN` to get crash reports by email from [sentry.io](https://sentry.io).
   Otherwise check `docker compose logs web` regularly.
-- **Logs:** Gunicorn writes requests and errors to `docker compose logs web`. Caddy logs requests too.
+- **Logs:** errors go to `docker compose logs web`; requests are logged by Caddy
+  (`docker compose logs caddy`). The Caddy access log replaces query strings and the secret part of
+  email-confirmation, password-reset, gift and rider links with `REDACTED`, and leaves out cookies,
+  `Authorization` and `Referer`. Gunicorn's own access log is off (it would record full URLs); set
+  `WEB_ACCESS_LOG=1` in `.env` to turn it on while debugging. **Retention:** Docker keeps at most
+  5 x 10 MB of logs per container (`x-logging` in `docker-compose.yml`) and deletes the oldest -
+  for a small shop that is roughly a few weeks. Logs contain IP addresses: don't copy them elsewhere
+  without a reason.
 - **Activity Logs** in the admin panel record logins, order changes, M-Pesa results and rejected callbacks.
 - **Code checks:** every push to GitHub runs the tests (SQLite and PostgreSQL), pyflakes, `pip-audit`
   and a Docker build (`.github/workflows/checks.yml`). The vulnerability scan also runs every Monday.
-  If it fails, update the package it names in `requirements.txt`.
+  If it fails, update the package it names in `requirements.txt`. Dependabot opens weekly update
+  pull requests for packages, Actions and Docker images (see section 7).
 
 ---
 
@@ -353,6 +389,69 @@ Then check a few products and orders in the admin panel.
 - [ ] Optional: `MPESA_CALLBACK_ALLOWED_IPS` set to Safaricom's published IPs.
 - [ ] `SENTRY_DSN` set, or logs checked regularly.
 - [ ] Give admin rights only to staff who need them; remove them when someone leaves.
+
+### What the setup already does
+
+- **No third-party scripts.** jQuery 3.7.1, Bootstrap 4.6.2, Font Awesome Free 5.15.4, Chart.js 4.6.1
+  and DataTables 1.13.11 are served from `static/vendor/<library>-<version>/` (with their licences),
+  not from CDNs. A hacked or blocked CDN can't change the shop's pages, and the Content Security
+  Policy (`shop/security.py`) allows scripts only from the shop itself. The only outside requests are
+  the Google Fonts stylesheet and font files (not loaded with data saver on). The policy still allows
+  inline `<script>`/`<style>` blocks (`'unsafe-inline'`); removing that needs the inline scripts in
+  the templates moved into `static/js` first.
+  *Updating a library:* download the new release from npm (`npm pack bootstrap@4.6.x`), copy its
+  `dist` files and licence into a new `static/vendor/<library>-<new version>/` folder, change the
+  paths in the templates (`layout.html`, `admin/admin_layout.html`, `admin/_datatables.html`,
+  `admin/report_sales_over_time.html`), test, then delete the old folder. The new folder name also
+  makes browsers fetch the new files instead of cached old ones.
+- **Containers** (`Dockerfile`, `docker-compose.yml`):
+  - base images pinned to exact versions (`python:3.12.16-slim-trixie`, `postgres:16.16-alpine3.24`,
+    `caddy:2.11.9-alpine`); the image installs Debian security updates when it is built, and pip is
+    removed from the final image;
+  - the shop runs as user `shop`; the code belongs to root, so the app can't change it. Only
+    `static/uploads` and `private_uploads` (Docker volumes) are writable;
+  - `web` has a **read-only** file system (`/tmp` is a 100 MB in-memory folder for uploads in
+    progress), **no Linux capabilities** (`cap_drop: ALL`) and `no-new-privileges`; `db` and `caddy`
+    have `no-new-privileges` too (Caddy keeps only the right to listen on ports 80/443);
+  - memory limits (web 512 MB, db 512 MB, caddy 128 MB) and at most 200 processes each, so one
+    runaway container can't take the whole server down;
+  - PostgreSQL has no published port: only the `web` container can reach it;
+  - Caddy adds `Strict-Transport-Security` (1 year, subdomains), `X-Content-Type-Options: nosniff`,
+    hides the `Server` header, limits requests to 32 MB and has a health check.
+  If you rebuild after a long time, run `docker compose build --pull` so the newest base image
+  security fixes are included.
+- **Dependency updates.** `.github/dependabot.yml` opens pull requests every week for Python
+  packages, GitHub Actions and the Docker images. Merge them once the checks pass. The GitHub
+  Actions in `.github/workflows/checks.yml` are pinned to full commit IDs (the version is in the
+  comment), so a moved tag can't run different code; Dependabot updates both together.
+  Every requirement has an upper bound on the next major version, so a breaking release is never
+  installed by surprise.
+
+### Server hardening checklist (VPS)
+
+Do these once on a new server, as your sudo user:
+
+- [ ] **Firewall: only SSH, HTTP and HTTPS.**
+      `sudo ufw default deny incoming && sudo ufw allow 22/tcp && sudo ufw allow 80,443/tcp && sudo ufw allow 443/udp && sudo ufw enable`
+      (443/udp is HTTP/3). Check with `sudo ufw status`. Note: ports published by Docker bypass ufw,
+      so never add `ports:` to the `db` or `web` services.
+- [ ] **SSH keys only.** Copy your key first (`ssh-copy-id you@server`) and check you can log in
+      with it, then in `/etc/ssh/sshd_config` (or a file in `/etc/ssh/sshd_config.d/`) set
+      `PasswordAuthentication no`, `KbdInteractiveAuthentication no` and `PermitRootLogin no`,
+      and run `sudo systemctl reload ssh`. Keep your current session open until a new login works.
+- [ ] **Automatic security updates.** `sudo apt install unattended-upgrades && sudo dpkg-reconfigure -plow unattended-upgrades`.
+      Reboot now and then when `/var/run/reboot-required` exists.
+- [ ] **fail2ban for SSH.** `sudo apt install fail2ban`, then create `/etc/fail2ban/jail.local` with
+      ```
+      [sshd]
+      enabled = true
+      maxretry = 5
+      bantime = 1h
+      ```
+      and `sudo systemctl restart fail2ban`; `sudo fail2ban-client status sshd` shows banned IPs.
+- [ ] **Check HTTPS after going live** at [SSL Labs](https://www.ssllabs.com/ssltest/) (aim for A or
+      A+) and the headers at [securityheaders.com](https://securityheaders.com). Repeat after big changes.
+- [ ] Docker itself is kept up to date (`sudo apt upgrade` covers it when installed from Docker's apt repository).
 
 ---
 

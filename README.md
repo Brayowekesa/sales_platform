@@ -30,10 +30,11 @@ email updates, optional SMS via Africa's Talking, promotions banner, reports and
 - Python 3 with Flask 3, Flask-Login, Flask-WTF, Flask-Mail
 - SQLite on your own computer, PostgreSQL on the live site (psycopg 3)
 - Pillow for resized WebP photos, pyotp + qrcode for two-step login
-- Bootstrap 4 templates (Jinja), a small service worker for the installable app
-- Gunicorn + Caddy (automatic HTTPS) in Docker
+- Bootstrap 4.6 templates (Jinja), a small service worker for the installable app
+- jQuery, Bootstrap, Font Awesome, Chart.js and DataTables are self-hosted in `static/vendor/` (no CDNs)
+- Gunicorn + Caddy (automatic HTTPS) in Docker; read-only, non-root `web` container (see docs/OPERATIONS.md, section 7)
 - Optional: Sentry for error reports, Africa's Talking for SMS
-- pytest test suite; GitHub Actions runs it on SQLite and PostgreSQL
+- pytest test suite; GitHub Actions runs it on SQLite and PostgreSQL; Dependabot proposes weekly updates
 
 ## Quick start (your own computer)
 
@@ -158,6 +159,7 @@ shop/
   admin/                admin panel (/admin): dashboard, products, orders, members, delivery, settings
 templates/              HTML (Jinja); admin/ for the admin panel, emails/ for email bodies
 static/                 CSS, JavaScript (incl. the service worker sw.js), logos and icons
+static/vendor/          self-hosted front-end libraries (jQuery, Bootstrap, Font Awesome, Chart.js, DataTables)
 static/uploads/         product and promotion photos (not in git)
 private_uploads/        packing-proof photos/videos - not public (not in git)
 tests/                  pytest suite
