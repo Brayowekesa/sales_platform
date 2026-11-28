@@ -12,6 +12,8 @@ def is_safe_next_url(target):
     """Only allow redirects to paths on this site (blocks ?next=https://evil.example)."""
     if not target:
         return False
+    if '\\' in target or any(ord(c) < 32 or ord(c) == 127 for c in target):
+        return False                    # browsers treat '/\\evil.example' like '//evil.example'
     parsed = urlparse(target)
     return not parsed.scheme and not parsed.netloc and target.startswith('/') and not target.startswith('//')
 

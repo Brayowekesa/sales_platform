@@ -23,6 +23,10 @@ def create_app(overrides=None):
     if overrides:
         app.config.update(overrides)
 
+    if not app.config.get('SECRET_KEY') and app.config.get('SESSION_COOKIE_SECURE') and not app.testing:
+        # Running for real (HTTPS) without a fixed key: logins, payment callbacks and rider/gift links
+        # would break between server workers and restarts. Refuse to start instead.
+        raise RuntimeError('FLASK_SECRET_KEY must be set in production (see docs/OPERATIONS.md).')
     if not app.config.get('SECRET_KEY'):
         # Safe, but everyone is logged out on restart and several server workers won't share sessions.
         app.config['SECRET_KEY'] = secrets.token_hex(32)
@@ -82,7 +86,7 @@ def create_app(overrides=None):
     if app.config['TRUSTED_PROXY_COUNT']:
         from werkzeug.middleware.proxy_fix import ProxyFix
         n = app.config['TRUSTED_PROXY_COUNT']
-        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=n, x_proto=n, x_host=n)
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=n, x_proto=n)   # not the Host header: links use PUBLIC_URL
 
     # --- make sure the database tables exist ---
     if app.config['AUTO_MIGRATE']:

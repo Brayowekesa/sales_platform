@@ -15,7 +15,7 @@ from shop.admin import bp
 @login_required
 @admin_required
 def admin_members():
-    page = request.args.get('page', 1, type=int)
+    page = max(1, min(request.args.get('page', 1, type=int), 10000))   # a huge or negative page can't break the query
     per_page = 10
 
     with get_db_connection() as conn:

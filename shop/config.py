@@ -28,6 +28,9 @@ class Config:
     AUTO_MIGRATE = env('AUTO_MIGRATE', '1') == '1'
     # Number of reverse proxies in front of the app (Caddy/nginx = 1). Needed for real visitor IPs and https links.
     TRUSTED_PROXY_COUNT = int(env('TRUSTED_PROXY_COUNT', 0))
+    # The shop's public address, e.g. https://shop.example.co.ke - used for links in emails and SMS
+    # (so a forged Host header can't make us email links to someone else's site)
+    PUBLIC_URL = env('PUBLIC_URL', '')
     # Admins must turn on two-step login before using the admin panel (the Docker setup sets 1)
     REQUIRE_ADMIN_2FA = env('REQUIRE_ADMIN_2FA', '0') == '1'
     # Browsers may cache CSS/JS/images for a day

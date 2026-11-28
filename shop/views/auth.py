@@ -4,12 +4,12 @@ import secrets
 from datetime import datetime, timedelta
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
-from werkzeug.security import generate_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from shop.db import IntegrityError, get_db_connection
 from shop.extensions import token_serializer
 from shop.forms import LoginForm, RegistrationForm, RequestResetForm, ResetPasswordForm, VerifyEmailForm
 from shop.models import end_other_sessions, load_user
-from shop.notifications import _password_fingerprint, send_password_reset_email, send_verification_email
+from shop.notifications import _password_fingerprint, send_account_exists_email, send_password_reset_email, send_verification_email
 from shop.security import LOGIN_LOCK_MINUTES, LOGIN_MAX_FAILS_PER_ACCOUNT, LOGIN_MAX_FAILS_PER_IP, clear_rate_events, client_ip, is_safe_next_url, log_activity, rate_limited, record_rate_event
 
 
@@ -17,6 +17,20 @@ bp = Blueprint('auth', __name__)
 
 
 MAX_VERIFICATION_ATTEMPTS = 5
+VERIFY_FAILS_PER_IP = 30          # wrong verification codes per network per hour
+VERIFY_EMAILS_PER_DAY = 5         # new-code emails per account per day
+
+# Checked when the username/email doesn't exist, so a login takes the same time either way
+# (otherwise the response time would tell an attacker which accounts exist)
+_DUMMY_HASH = generate_password_hash('not-a-real-password')
+
+
+def _may_send_code(user_id):
+    """At most VERIFY_EMAILS_PER_DAY verification emails per account (stops email bombing)."""
+    if rate_limited('verify_mail', str(user_id), VERIFY_EMAILS_PER_DAY, 24 * 60):
+        return False
+    record_rate_event('verify_mail', str(user_id))
+    return True
 
 
 def generate_verification_code():
@@ -47,6 +61,18 @@ def register():
             flash('This app is configured for approved email addresses only. Please use the registered administrator email.', 'danger')
             return render_template('register.html', title='Register', form=form)
 
+        with get_db_connection() as conn:
+            email_taken = conn.execute('SELECT 1 FROM users WHERE lower(email) = lower(?)', (email_value,)).fetchone()
+            name_taken = conn.execute('SELECT 1 FROM users WHERE lower(username) = lower(?)', (form.username.data.strip(),)).fetchone()
+        if name_taken:
+            flash('This username is already taken. Please choose another.', 'danger')
+            return render_template('register.html', title='Register', form=form)
+        if email_taken:
+            # Same answer as a new sign-up (don't reveal who has an account); the owner gets an email
+            record_rate_event('register_ip', client_ip())
+            send_account_exists_email(email_value)
+            flash('Registration successful! Check your email for the 6-digit verification code.', 'success')
+            return redirect(url_for('auth.verify_email', email=email_value))
         hashed_password = generate_password_hash(form.password.data)
         code = generate_verification_code()
         expires_at = (datetime.utcnow() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
@@ -68,13 +94,14 @@ def register():
         except IntegrityError:
             with get_db_connection() as conn:
                 existing_username = conn.execute('SELECT id FROM users WHERE username = ?', (form.username.data.strip(),)).fetchone()
-                existing_email = conn.execute('SELECT id FROM users WHERE lower(email) = lower(?)', (email_value,)).fetchone()
-            if existing_username and existing_email:
-                flash('This username and email are already registered.', 'danger')
-            elif existing_username:
-                flash('This username is already taken.', 'danger')
+            if existing_username:
+                flash('This username is already taken. Please choose another.', 'danger')   # usernames are public anyway
             else:
-                flash('This email is already registered.', 'danger')
+                # Don't reveal on the page that this email has an account: tell the owner by email instead
+                record_rate_event('register_ip', client_ip())
+                send_account_exists_email(email_value)
+                flash('Registration successful! Check your email for the 6-digit verification code.', 'success')
+                return redirect(url_for('auth.verify_email', email=email_value))
         except Exception as e:
             flash('Sorry, something went wrong. Please try again.', 'danger')
             log_activity("User registration failed", details=f"Username: {form.username.data}, Error: {str(e)}")
@@ -89,11 +116,16 @@ def verify_email():
         email = form.email.data.strip()
         submitted_code = form.verification_code.data.strip()
 
+        ip = client_ip()
+        if rate_limited('verify_fail_ip', ip, VERIFY_FAILS_PER_IP, 60):
+            flash('Too many wrong codes from your network. Please wait an hour and try again.', 'danger')
+            return render_template('verify_email.html', title='Verify Email', form=form)
         with get_db_connection() as conn:
             user = conn.execute('SELECT * FROM users WHERE lower(email) = lower(?)', (email,)).fetchone()
             if not user:
-                flash('No account found for that email.', 'danger')
-                return redirect(url_for('auth.register'))
+                record_rate_event('verify_fail_ip', ip)
+                flash('That code is not right. Check the email address and the code.', 'danger')   # same as a wrong code
+                return render_template('verify_email.html', title='Verify Email', form=form)
 
             if user['confirmed']:
                 flash('Account already confirmed. Please login.', 'info')
@@ -101,6 +133,9 @@ def verify_email():
 
             expires_at = user['verification_code_expires']
             if not expires_at or datetime.strptime(expires_at, '%Y-%m-%d %H:%M:%S') < datetime.utcnow():
+                if not _may_send_code(user['id']):
+                    flash("We've sent several codes today. Please try again tomorrow, or contact us.", 'warning')
+                    return render_template('verify_email.html', title='Verify Email', form=form)
                 new_code = generate_verification_code()
                 new_expires_at = (datetime.utcnow() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
                 conn.execute(
@@ -112,9 +147,18 @@ def verify_email():
                 flash('Your verification code expired. A new one has been sent to your email.', 'warning')
                 return redirect(url_for('auth.verify_email', email=email))
 
-            if not secrets.compare_digest(submitted_code, user['verification_code'] or ''):
+            # Count the try first, in one step, so parallel requests can't get extra guesses
+            counted = conn.execute('UPDATE users SET verification_attempts = COALESCE(verification_attempts, 0) + 1 '
+                                   'WHERE id = ? AND COALESCE(verification_attempts, 0) < ?',
+                                   (user['id'], MAX_VERIFICATION_ATTEMPTS)).rowcount
+            conn.commit()
+            if not counted or not secrets.compare_digest(submitted_code, user['verification_code'] or ''):
+                record_rate_event('verify_fail_ip', ip)
                 attempts = (user['verification_attempts'] or 0) + 1
                 if attempts >= MAX_VERIFICATION_ATTEMPTS:
+                    if not _may_send_code(user['id']):
+                        flash("Too many incorrect codes, and we've sent several codes today. Please try again tomorrow.", 'warning')
+                        return render_template('verify_email.html', title='Verify Email', form=form)
                     # Too many wrong guesses: throw this code away and send a fresh one
                     new_code = generate_verification_code()
                     new_expires_at = (datetime.utcnow() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
@@ -127,8 +171,6 @@ def verify_email():
                     log_activity("Verification code reset after failed attempts", details=f"Email: {user['email']}")
                     flash('Too many incorrect codes. We sent a new code to your email.', 'warning')
                     return redirect(url_for('auth.verify_email', email=user['email']))
-                conn.execute('UPDATE users SET verification_attempts = ? WHERE id = ?', (attempts, user['id']))
-                conn.commit()
                 flash(f'Invalid verification code. {MAX_VERIFICATION_ATTEMPTS - attempts} attempt(s) left.', 'danger')
                 return render_template('verify_email.html', title='Verify Email', form=form)
 
@@ -157,6 +199,9 @@ def resend_verification_code():
                 issued_at = (datetime.strptime(expires, '%Y-%m-%d %H:%M:%S') - timedelta(minutes=15)) if expires else None
                 if issued_at and datetime.utcnow() - issued_at < timedelta(seconds=60):
                     flash('Please wait a minute before asking for another code.', 'warning')
+                    return redirect(url_for('auth.verify_email', email=email))
+                if not _may_send_code(user['id']):
+                    flash("We've sent several codes today. Please try again tomorrow, or contact us.", 'warning')
                     return redirect(url_for('auth.verify_email', email=email))
                 code = generate_verification_code()
                 new_expires = (datetime.utcnow() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
@@ -238,6 +283,7 @@ def login():
                 else:
                     flash('Invalid username/email or password.', 'danger')
             else:
+                check_password_hash(_DUMMY_HASH, password)        # same time as a real check
                 flash('Invalid username/email or password.', 'danger')
             # Only reached on a failed login
             record_rate_event('login_fail_account', account_key)

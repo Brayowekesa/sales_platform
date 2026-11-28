@@ -7,8 +7,8 @@ import time
 import pyotp
 import qrcode
 import qrcode.image.svg
-from flask import Blueprint, current_app, flash, redirect, render_template, session, url_for
-from flask_login import current_user, login_required, login_user
+from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
+from flask_login import current_user, login_required, login_user, logout_user
 from flask_wtf import FlaskForm
 from werkzeug.security import check_password_hash, generate_password_hash
 from wtforms import PasswordField, StringField, SubmitField
@@ -73,14 +73,18 @@ def check_second_factor(user_row, code):
             cur = conn.execute('UPDATE users SET totp_last_step = ? WHERE id = ? AND (totp_last_step IS NULL OR totp_last_step < ?)',
                                (step, user_row['id'], step))
         return cur.rowcount == 1
-    hashes = json.loads(user_row['recovery_codes'] or '[]')
+    stored = user_row['recovery_codes'] or '[]'
+    hashes = json.loads(stored)
     for h in hashes:
         if check_password_hash(h, code):
             hashes.remove(h)
+            # Only if the list is still the one we read: two requests can't both use the same code
             with get_db_connection() as conn:
-                conn.execute('UPDATE users SET recovery_codes = ? WHERE id = ?', (json.dumps(hashes), user_row['id']))
-            log_activity('Recovery code used', user_id=user_row['id'], details=f'{len(hashes)} left')
-            return True
+                used = conn.execute('UPDATE users SET recovery_codes = ? WHERE id = ? AND recovery_codes = ?',
+                                    (json.dumps(hashes), user_row['id'], stored)).rowcount == 1
+            if used:
+                log_activity('Recovery code used', user_id=user_row['id'], details=f'{len(hashes)} left')
+            return used
     return False
 
 
@@ -180,10 +184,30 @@ def disable():
     return redirect(url_for('account.security'))
 
 
+@bp.route('/account/logout-everywhere', methods=['POST'])
+@login_required
+def logout_everywhere():
+    """Log out on every phone and computer (e.g. a lost phone, or a shared computer)."""
+    with get_db_connection() as conn:
+        end_other_sessions(conn, current_user.id)
+    log_activity('Logged out everywhere', user_id=current_user.id)
+    logout_user()
+    flash('You have been logged out on all devices. Log in again on this one.', 'success')
+    return redirect(url_for('auth.login'))
+
+
 @bp.route('/account/two-step/new-codes', methods=['POST'])
 @login_required
 def new_recovery_codes():
     if not current_user.totp_enabled:
+        return redirect(url_for('account.security'))
+    # Needs the password too: a stolen login cookie alone can't replace the owner's recovery codes
+    with get_db_connection() as conn:
+        row = conn.execute('SELECT password_hash FROM users WHERE id = ?', (current_user.id,)).fetchone()
+    key = f'user:{current_user.id}'
+    if rate_limited('2fa_fail', key, MAX_CODE_ATTEMPTS, 15) or not check_password_hash(row['password_hash'], request.form.get('password') or ''):
+        record_rate_event('2fa_fail', key)
+        flash('Your password is not right - your recovery codes were not changed.', 'danger')
         return redirect(url_for('account.security'))
     codes, hashes = _new_recovery_codes()
     with get_db_connection() as conn:

@@ -81,7 +81,7 @@ def lipa_na_mpesa_stk_push(amount, phone_number, order_id_ref):
 
         # 1. Get Access Token
         auth_url = 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials'
-        auth_response = requests.get(auth_url, auth=(current_app.config['MPESA_CONSUMER_KEY'], current_app.config['MPESA_CONSUMER_SECRET']))
+        auth_response = requests.get(auth_url, auth=(current_app.config['MPESA_CONSUMER_KEY'], current_app.config['MPESA_CONSUMER_SECRET']), timeout=(5, 20))
         auth_response.raise_for_status() # Raise HTTPError for bad responses (4XX or 5XX)
         access_token = auth_response.json()['access_token']
 
@@ -106,10 +106,10 @@ def lipa_na_mpesa_stk_push(amount, phone_number, order_id_ref):
             "TransactionDesc": f"Payment for Order #{order_id_ref}"
         }
 
-        response = requests.post(stk_push_url, json=payload, headers=headers)
+        response = requests.post(stk_push_url, json=payload, headers=headers, timeout=(5, 20))
         response.raise_for_status()
         # (No log_activity here: checkout calls this while its database transaction is open)
-        current_app.logger.info(f"M-Pesa STK Push initiated for order {order_id_ref}: {response.json()}")
+        current_app.logger.info(f"M-Pesa STK Push initiated for order {order_id_ref}: ResponseCode {response.json().get('ResponseCode')}")
         return response.json() # Contains CheckoutRequestID, ResponseCode, etc.
 
     except requests.exceptions.RequestException as e:

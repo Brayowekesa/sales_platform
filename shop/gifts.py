@@ -7,10 +7,9 @@ without prices (except the amount to pay, for cash on delivery) and a tracking l
 import re
 
 from itsdangerous import BadSignature, SignatureExpired
-from flask import url_for
 
 from shop.extensions import token_serializer
-from shop.helpers import SITE_NAME
+from shop.helpers import SITE_NAME, public_url
 
 GIFT_LINK_DAYS = 60
 GIFT_MESSAGE_MAX = 160
@@ -84,6 +83,6 @@ def recipient_sms(order, event):
                  if pickup else " We'll call you to deliver it.")
         if order.get('payment_method') == 'Cash on Delivery':
             text += f" Please have {_ksh(order.get('total_amount'))} ready to pay {'at pickup' if pickup else 'on delivery'}."
-        text += f" Track: {url_for('orders.gift_tracking', token=gift_token(oid), _external=True)}"
+        text += f" Track: {public_url('orders.gift_tracking', token=gift_token(oid))}"
         return text
     return None

@@ -5,6 +5,7 @@ from datetime import datetime
 from flask import current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from shop.deals import close_due_deals, open_deal_ids_for_order
+from shop.helpers import public_url
 from shop.db import DatabaseError, get_db_connection
 from shop.notifications import notify_order_event, sms_enabled
 from shop.payments import CheckoutError, STOCK_RELEASED_STATUSES, record_order_status, release_order_stock, reserve_order_stock
@@ -18,7 +19,7 @@ from shop.admin import bp
 @admin_required
 def admin_orders():
     close_due_deals()
-    page = request.args.get('page', 1, type=int)
+    page = max(1, min(request.args.get('page', 1, type=int), 10000))   # a huge or negative page can't break the query
     per_page = 15 # Number of orders per page
     status_filter = request.args.get('status', None)
 
@@ -162,7 +163,7 @@ def admin_order_details(order_id):
             WHERE oi.order_id = ?
         ''', (order_id,)).fetchall()
 
-    rider_link = url_for('orders.rider_delivery', token=rider_token(order_id), _external=True) \
+    rider_link = public_url('orders.rider_delivery', token=rider_token(order_id)) \
         if order.get('status') == 'Shipped' and order.get('delivery_method') != 'pickup' else None
     return render_template('admin/order_details.html', order=order, order_items=order_items, history=history,
                            open_deal=deals_open[0] if deals_open else None,
