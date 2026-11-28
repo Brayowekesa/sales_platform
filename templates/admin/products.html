@@ -52,8 +52,8 @@
                             </td>
                             <td>{{ product.name }}</td>
                             <td>{{ product.category }}</td>
-                            <td>{{ product.price|money }}</td>
-                            <td>
+                            <td data-order="{{ product.price }}">{{ product.price|money }}</td>
+                            <td data-order="{{ product.stock }}">
                                 {% if product.stock == 0 %}
                                     <span class="badge badge-danger">Out of Stock</span>
                                 {% elif product.stock < 10 %}
@@ -95,15 +95,17 @@
 {% endblock %}
 
 {% block admin_scripts_extra %}
-{# Optional: Add JavaScript for table sorting/searching using a library like DataTables
-   <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.25/css/jquery.dataTables.css">
-   <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.js"></script>
-   <script>
-       $(document).ready( function () {
-           $('#dataTableProducts').DataTable({
-                "order": [[ 6, "desc" ]] // Sort by "Added At" date descending
-           });
-       } );
-   </script>
-#}
+{% include 'admin/_datatables.html' %}
+<script>
+$(function () {
+    // Search and sort within the page shown; the server still pages through the full product list
+    $('#dataTableProducts').DataTable({
+        paging: false,
+        info: false,
+        order: [[6, 'desc']],                                   // newest first, like the server
+        columnDefs: [{ orderable: false, searchable: false, targets: [1, 7] }],  // image, actions
+        language: { search: 'Search this page:' }
+    });
+});
+</script>
 {% endblock %}

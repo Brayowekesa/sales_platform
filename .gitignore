@@ -15,3 +15,13 @@ private_uploads/
 
 # Claude Code helper worktrees
 .claude/worktrees/
+
+# Databases and dumps (customer data) - never commit them
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+
+# Local settings files hold passwords; only the example is committed
+.env.*
+!.env.example
