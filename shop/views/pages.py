@@ -1,13 +1,26 @@
 """Information pages, favicon/robots, the installable-app files and error pages."""
 import json
 
-from flask import Blueprint, current_app, render_template, request, url_for
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
+from flask_wtf.csrf import CSRFError
 from shop.db import get_db_connection
 from shop.helpers import active_delivery_zones
-from shop.security import log_activity
+from shop.security import log_activity, same_site_referrer
 
 
 bp = Blueprint('pages', __name__)
+
+
+@bp.app_errorhandler(CSRFError)
+def csrf_error(error):
+    """The form's security token is missing or old (page open for hours, or the shop restarted).
+    Instead of a bare 'Bad Request' page, send them back to try again."""
+    message = 'That page was open for a while, so for your safety please try again.'
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': False, 'message': message + ' (Reload the page first.)'}), 400
+    flash(message, 'warning')
+    back = same_site_referrer()
+    return redirect(back or url_for('store.index'))
 
 
 @bp.app_errorhandler(404)

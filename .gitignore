@@ -25,3 +25,6 @@ private_uploads/
 # Local settings files hold passwords; only the example is committed
 .env.*
 !.env.example
+
+# Local secret key made when FLASK_SECRET_KEY is not set (your own computer only)
+instance/
