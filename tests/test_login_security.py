@@ -53,3 +53,10 @@ def test_old_style_session_is_logged_out(app, login):
     with jane.session_transaction() as s:
         s['_user_id'] = '2'                       # session from before this change
     assert not logged_in(jane)
+
+
+def test_can_log_in_again_after_password_change(app, db):
+    c = db(); c.execute("UPDATE users SET session_version = 3 WHERE username='jane'"); c.commit()
+    client = app.test_client()
+    client.post('/login', data={'login_identifier': 'jane', 'password': 'janepass'})
+    assert logged_in(client) and logged_in(client)          # stays logged in on the next pages too

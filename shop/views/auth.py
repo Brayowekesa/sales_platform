@@ -8,7 +8,7 @@ from werkzeug.security import generate_password_hash
 from shop.db import IntegrityError, get_db_connection
 from shop.extensions import token_serializer
 from shop.forms import LoginForm, RegistrationForm, RequestResetForm, ResetPasswordForm, VerifyEmailForm
-from shop.models import User, end_other_sessions
+from shop.models import end_other_sessions, load_user
 from shop.notifications import _password_fingerprint, send_password_reset_email, send_verification_email
 from shop.security import LOGIN_LOCK_MINUTES, LOGIN_MAX_FAILS_PER_ACCOUNT, LOGIN_MAX_FAILS_PER_IP, clear_rate_events, client_ip, is_safe_next_url, log_activity, rate_limited, record_rate_event
 
@@ -217,11 +217,7 @@ def login():
                 return render_template('login.html', title='Login', form=form)
 
             if user_data:
-                user_obj = User(
-                    id=user_data['id'], username=user_data['username'], email=user_data['email'],
-                    password_hash=user_data['password_hash'], is_admin=user_data['is_admin'],
-                    confirmed=user_data['confirmed']
-                )
+                user_obj = load_user(user_data['id'])      # full user, incl. its current login version
                 if user_obj.verify_password(password):
                     clear_rate_events('login_fail_account', account_key)
                     if user_obj.confirmed and user_data['totp_enabled']:
