@@ -42,10 +42,9 @@ def create_app(overrides=None):
     os.makedirs(app.config['PROOF_FOLDER'], exist_ok=True)
 
     # --- extensions ---
-    from shop.extensions import bootstrap, csrf, login_manager, mail
+    from shop.extensions import csrf, login_manager, mail
     csrf.init_app(app)
     mail.init_app(app)
-    bootstrap.init_app(app)
     login_manager.init_app(app)
     # Importing these registers the user loader and the "please log in" handler with Flask-Login
     from shop.models import load_user_from_session as load_user
