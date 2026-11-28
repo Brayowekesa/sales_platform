@@ -5,8 +5,29 @@
 	request_body {
 		max_size 32MB
 	}
-	reverse_proxy web:8000
-	log
+	header {
+		# Browsers only use HTTPS for this site (and its subdomains) for the next year
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		# Don't advertise the server software
+		-Server
+	}
+	reverse_proxy web:8000 {
+		header_down -Server
+	}
+	# Access log (to `docker compose logs caddy`; kept 5 x 10 MB, see docker-compose.yml).
+	# Query strings and the secret part of email-confirmation, password-reset, gift-tracking and
+	# rider links are replaced with REDACTED, and the Referer header (which can hold them too) is dropped.
+	# Caddy already leaves out cookies and Authorization headers.
+	log {
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp "(/(?:confirm|reset_password|gift|deliver)/|\?).*$" "${1}REDACTED"
+				request>headers>Referer delete
+			}
+		}
+	}
 }
 
 # Send www.yourdomain to yourdomain (remove if you don't use www)
