@@ -12,7 +12,7 @@ x-logging: &logging
 
 services:
   db:
-    image: postgres:16.16-alpine3.24
+    image: postgres:19.0-alpine3.24
     restart: unless-stopped
     environment:
       POSTGRES_DB: shop
