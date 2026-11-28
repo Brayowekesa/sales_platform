@@ -62,6 +62,12 @@ You need Python 3.10 or newer (Docker and the automatic checks use 3.12).
    For local work you can leave most of it empty. Leave `DATABASE_URL` empty to use the
    SQLite file `sales.db`. Without email settings, emails are not sent. In debug mode the
    verification code is written to the terminal when the email fails.
+   If `FLASK_SECRET_KEY` is empty, the shop makes a key once and keeps it in `instance/secret_key`
+   (your computer only - the live server must have `FLASK_SECRET_KEY` set, or it won't start).
+
+   To open the shop on your phone, start it with `flask --app app run --host 0.0.0.0` and open
+   `http://<your PC's IPv4 address>:5000` on a phone on the same Wi-Fi (find the address with
+   `ipconfig` on Windows). Don't add `--debug` when other devices can reach it.
 
 4. Create the database and your admin account:
 

@@ -15,6 +15,30 @@ from flask import Flask  # noqa: E402
 from shop.config import BASE_DIR, Config  # noqa: E402
 
 
+def _local_secret_key(app):
+    """For your own computer only (production refuses to start without FLASK_SECRET_KEY):
+    make a random key once and keep it in instance/secret_key, so restarting the shop doesn't
+    log everyone out or break forms that were already open."""
+    path = os.path.join(app.instance_path, 'secret_key')
+    try:
+        with open(path) as f:
+            key = f.read().strip()
+        if len(key) >= 32:
+            return key
+    except OSError:
+        pass
+    key = secrets.token_hex(32)
+    try:
+        os.makedirs(app.instance_path, exist_ok=True)
+        with open(path, 'w') as f:
+            f.write(key)
+        os.chmod(path, 0o600)
+        print(f"Note: FLASK_SECRET_KEY is not set - using a local key saved in {path}. Set FLASK_SECRET_KEY on the live server.")
+    except OSError:
+        print("WARNING: FLASK_SECRET_KEY is not set - using a temporary random key (sessions reset on restart).")
+    return key
+
+
 def create_app(overrides=None):
     app = Flask(__name__,
                 template_folder=os.path.join(BASE_DIR, 'templates'),
@@ -28,9 +52,7 @@ def create_app(overrides=None):
         # would break between server workers and restarts. Refuse to start instead.
         raise RuntimeError('FLASK_SECRET_KEY must be set in production (see docs/OPERATIONS.md).')
     if not app.config.get('SECRET_KEY'):
-        # Safe, but everyone is logged out on restart and several server workers won't share sessions.
-        app.config['SECRET_KEY'] = secrets.token_hex(32)
-        print("WARNING: FLASK_SECRET_KEY is not set - using a temporary random key (sessions reset on restart).")
+        app.config['SECRET_KEY'] = _local_secret_key(app)
 
     if app.config.get('SENTRY_DSN') and not app.testing:
         try:
