@@ -1,6 +1,6 @@
 # ESA E-Shop - production image (Gunicorn). See DEPLOY.md.
 # Base image pinned to an exact Python patch release and Debian version; Dependabot proposes updates weekly.
-FROM python:3.12.16-slim-trixie
+FROM python:3.15.1-slim-trixie
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
