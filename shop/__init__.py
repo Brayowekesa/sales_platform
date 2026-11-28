@@ -48,7 +48,7 @@ def create_app(overrides=None):
     bootstrap.init_app(app)
     login_manager.init_app(app)
     # Importing these registers the user loader and the "please log in" handler with Flask-Login
-    from shop.models import load_user
+    from shop.models import load_user_from_session as load_user
     from shop.security import handle_needs_login
     assert load_user and handle_needs_login
 

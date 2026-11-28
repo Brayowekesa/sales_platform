@@ -433,6 +433,13 @@ After your password, the shop asks for the code from your app. You have 5 minute
 wait 15 minutes. If you do not have your phone, type one of your recovery codes instead. Each recovery
 code works once. When you are running low, go to **Account security** → **Make new recovery codes**.
 
+### Other devices are logged out
+
+When a password is changed or reset (by the person or by an admin), or two-step login is turned
+on or off, everyone logged in to that account on other phones or computers is logged out - including
+"Remember me". The device where the change was made stays logged in. Each authenticator code works
+only once.
+
 ### Lost phone and recovery codes
 
 Ask whoever runs the server to run:

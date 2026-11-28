@@ -54,7 +54,8 @@ def create_admin_command():
 def reset_2fa_command(username):
     """Turn off two-step login for USERNAME (e.g. an admin who lost their phone)."""
     with get_db_connection() as conn:
-        cur = conn.execute('UPDATE users SET totp_secret = NULL, totp_enabled = 0, recovery_codes = NULL WHERE username = ?', (username,))
+        cur = conn.execute('UPDATE users SET totp_secret = NULL, totp_enabled = 0, recovery_codes = NULL, totp_last_step = NULL, '
+                           'session_version = COALESCE(session_version, 0) + 1 WHERE username = ?', (username,))
     if not cur.rowcount:
         raise click.ClickException(f"No user called '{username}'.")
     log_activity('Two-step login reset via CLI', details=f'Username: {username}')

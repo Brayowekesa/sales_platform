@@ -8,7 +8,7 @@ from werkzeug.security import generate_password_hash
 from shop.db import IntegrityError, get_db_connection
 from shop.extensions import token_serializer
 from shop.forms import LoginForm, RegistrationForm, RequestResetForm, ResetPasswordForm, VerifyEmailForm
-from shop.models import User
+from shop.models import User, end_other_sessions
 from shop.notifications import _password_fingerprint, send_password_reset_email, send_verification_email
 from shop.security import LOGIN_LOCK_MINUTES, LOGIN_MAX_FAILS_PER_ACCOUNT, LOGIN_MAX_FAILS_PER_IP, clear_rate_events, client_ip, is_safe_next_url, log_activity, rate_limited, record_rate_event
 
@@ -302,6 +302,7 @@ def reset_token(token):
         hashed_password = generate_password_hash(form.password.data)
         with get_db_connection() as conn:
             conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hashed_password, user['id']))
+            end_other_sessions(conn, user['id'])          # anyone logged in with the old password is logged out
             conn.commit()
         flash('Your password has been updated! You are now able to log in.', 'success')
         log_activity("Password reset successfully", details=f"Email: {email}")
