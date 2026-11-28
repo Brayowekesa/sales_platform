@@ -159,5 +159,15 @@
     })();
     </script>
     {% block scripts_extra %}{% endblock %}
+<script>
+// Installed app: the window already starts with the shop name, so don't repeat it at the end
+(function () {
+    var name = {{ SITE_NAME|tojson }};
+    if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+        var t = document.title, end = ' - ' + name;
+        if (t.length > end.length && t.slice(-end.length) === end) document.title = t.slice(0, -end.length);
+    }
+})();
+</script>
 </body>
 </html>

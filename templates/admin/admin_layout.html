@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex">
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" sizes="any">
-    <title>{% block admin_title %}{{ title if title else "Admin Panel" }}{% endblock %} - ESA E-Shop</title>
+    <title>{% block admin_title %}{{ title if title else "Admin Panel" }}{% endblock %} - {{ SITE_NAME }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-4.6.2/css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome-free-5.15.4/css/all.min.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -46,7 +46,7 @@
                 <li class="{{ 'active' if request.endpoint == 'admin.admin_activity_logs' else '' }}"><a href="{{ url_for('admin.admin_activity_logs') }}"><i class="fas fa-clipboard-list mr-2"></i>Activity Logs</a></li>
             </ul>
             <ul class="list-unstyled CTAs">
-                <li><a href="{{ url_for('store.index') }}" class="btn btn-outline-light btn-sm btn-block" target="_blank"><i class="fas fa-store mr-1"></i> View Live Site</a></li>
+                <li><a href="{{ url_for('store.index') }}" class="btn btn-outline-light btn-sm btn-block" target="_blank" title="Open the shop in a new tab"><i class="fas fa-store mr-1"></i> Live site</a></li>
                 <li>
                     <form action="{{ url_for('auth.logout') }}" method="POST" style="margin: 0;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -88,5 +88,15 @@
     <script src="{{ url_for('static', filename='vendor/bootstrap-4.6.2/js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script> 
     {% block admin_scripts_extra %}{% endblock %}
+<script>
+// Installed app: the window already starts with the shop name, so don't repeat it at the end
+(function () {
+    var name = {{ SITE_NAME|tojson }};
+    if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+        var t = document.title, end = ' - ' + name;
+        if (t.length > end.length && t.slice(-end.length) === end) document.title = t.slice(0, -end.length);
+    }
+})();
+</script>
 </body>
 </html>

@@ -12,7 +12,7 @@
     <p class="text-muted">These options appear at checkout. The fee is added to the order total; leave "free when the order reaches" empty for no free-delivery offer.</p>
 
     <div class="row">
-        <div class="col-xl-7 mb-4">
+        <div class="col-12 mb-4">
             <div class="card shadow">
                 <div class="card-header"><h6 class="m-0 font-weight-bold text-primary">Current options</h6></div>
                 <div class="card-body p-0">
@@ -22,7 +22,7 @@
                         <tbody>
                         {% for z in zones %}
                         <tr class="{{ 'table-active' if editing and editing.id == z.id }}">
-                            <td><strong>{{ z.name }}</strong>{% if z.details %}<br><small class="text-muted d-inline-block text-truncate" style="max-width:240px">{{ z.details }}</small>{% endif %}</td>
+                            <td><strong>{{ z.name }}</strong>{% if z.details %}<br><small class="text-muted d-block zone-details">{{ z.details }}</small>{% endif %}</td>
                             <td>{{ 'Pickup' if z.kind == 'pickup' else 'Delivery' }}</td>
                             <td>{{ 'Free' if not z.fee else z.fee|money }}</td>
                             <td>{{ z.free_over|money if z.free_over else '-' }}</td>
@@ -46,7 +46,7 @@
             </div>
         </div>
 
-        <div class="col-xl-5 mb-4">
+        <div class="col-xl-8 col-lg-10 mb-4">
             <div class="card shadow">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h6 class="m-0 font-weight-bold text-primary">{{ 'Edit: ' ~ editing.name if editing else 'Add an option' }}</h6>

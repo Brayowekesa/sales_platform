@@ -24,6 +24,10 @@ h1,h2,h3,h4,h5{letter-spacing:-.01em;font-weight:700}
 .btn-outline-danger:hover{background:#fff1f2;border-color:#fecdd3;color:var(--danger)}
 .btn-sm{padding:.4rem .75rem}
 .form-control{border-radius:10px;border-color:var(--line);padding:.6rem .85rem}
+/* Bootstrap fixes the height of inputs/selects; with our larger padding that cut the text off ("All" looked like "AII") */
+input.form-control,select.form-control{height:auto;line-height:1.5}
+select.form-control{padding-right:2rem;text-overflow:ellipsis}
+.form-control-sm{padding:.35rem .6rem}
 .form-control:focus{border-color:var(--brand);box-shadow:0 0 0 .2rem rgba(29,143,214,.2)}
 .card{border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);background:var(--card)}
 .card-header{background:transparent;border-bottom:1px solid var(--line)}

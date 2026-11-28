@@ -130,3 +130,25 @@ a.mini-stat:hover{color:var(--ink);text-decoration:none;border-color:#b9dcf5}
   .dash-action-links{margin-left:0}
   .admin-main h1.dash-title{font-size:1.35rem}
 }
+
+/* ===== Fit on laptop screens (e.g. 1920 px at 150% = 1280 px) ===== */
+.sidebar-header{padding:.8rem 1rem}
+.sidebar-header img{max-height:38px}
+#admin-sidebar ul.components{padding:.6rem .6rem;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent}
+#admin-sidebar ul.components::-webkit-scrollbar{width:6px}
+#admin-sidebar ul.components::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:3px}
+#admin-sidebar ul li a{padding:.5rem .8rem;font-size:.92rem}
+#admin-sidebar ul ul{padding:.1rem 0 .2rem 1.2rem}
+#admin-sidebar ul ul a{padding:.35rem .8rem!important}
+#admin-sidebar ul.CTAs{display:flex;gap:.5rem;padding:.7rem .6rem}
+#admin-sidebar ul.CTAs li{flex:1;min-width:0}
+#admin-sidebar ul.CTAs a,#admin-sidebar ul.CTAs button{margin-bottom:0;white-space:nowrap;font-size:.82rem;padding:.4rem .3rem}
+@media (max-height:700px){
+  #admin-sidebar ul li a{padding:.38rem .8rem}
+  .sidebar-header{padding:.55rem 1rem}
+}
+.admin-main .table td,.admin-main .table th{padding:.6rem .75rem}
+.admin-main .table th{white-space:nowrap}
+.admin-main .table img{max-width:48px;max-height:48px}
+.zone-details{white-space:normal;max-width:360px;line-height:1.35}
+@media (max-width:1399.98px){ .admin-main .wide-only{display:none} }
