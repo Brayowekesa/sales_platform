@@ -5,62 +5,48 @@
 {% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <h2 class="mb-4">Your Order History</h2>
+<div class="container page-shell">
+    <div class="page-head">
+        <h1 class="page-heading">Your Order History</h1>
+        {% if orders %}<p class="page-sub">{{ orders|length }} order{{ '' if orders|length == 1 else 's' }}. Tap an order to track it.</p>{% endif %}
+    </div>
 
     {% if orders %}
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead class="thead-light">
-                    <tr>
-                        <th scope="col">Order ID</th>
-                        <th scope="col">Date Placed</th>
-                        <th scope="col">Total Amount</th>
-                        <th scope="col">Payment Method</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for order in orders %}
-                    <tr>
-                        <td>#{{ order.id }}</td>
-                                                <td>{{ order.order_date_formatted if order.order_date_formatted else 'N/A' }}</td>
-                        <td>${{ "%.2f"|format(order.total_amount) }}</td>
-                        <td>{{ order.payment_method if order.payment_method else 'N/A' }}</td>
-                        <td>
-                            {% if order.status == 'Paid' or order.status == 'Delivered' or order.status == 'Processing' %}
-                                <span class="badge badge-success">{{ order.status }}</span>
-                            {% elif order.status == 'Pending' or order.status == 'Pending Payment' %}
-                                <span class="badge badge-warning">{{ order.status }}</span>
-                            {% elif order.status == 'Shipped' %}
-                                <span class="badge badge-info">{{ order.status }}</span>
-                            {% elif order.status == 'Cancelled' or order.status == 'Payment Failed' or order.status == 'Refunded' %}
-                                <span class="badge badge-danger">{{ order.status }}</span>
-                            {% else %}
-                                <span class="badge badge-secondary">{{ order.status if order.status else 'Unknown' }}</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <a href="{{ url_for('order_details', order_id=order.id) }}" class="btn btn-sm btn-outline-primary">View Details</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+        <ul class="order-list">
+            {% for order in orders %}
+            {% if order.status in ['Paid', 'Delivered'] %}{% set tone = 'success' %}
+            {% elif order.status in ['Pending', 'Pending Payment'] %}{% set tone = 'warning' %}
+            {% elif order.status in ['Processing', 'Shipped'] %}{% set tone = 'info' %}
+            {% elif order.status in ['Cancelled', 'Payment Failed', 'Refunded'] %}{% set tone = 'danger' %}
+            {% else %}{% set tone = 'secondary' %}{% endif %}
+            <li>
+                <a href="{{ url_for('orders.order_details', order_id=order.id) }}" class="order-row" aria-label="Order #{{ order.id }}, {{ order.status or 'Unknown' }}, {{ order.total_amount|money }}">
+                    <span class="order-row-icon"><i class="fas fa-receipt" aria-hidden="true"></i></span>
+                    <span class="order-row-main">
+                        <strong>Order #{{ order.id }}</strong>
+                        <small>{{ order.order_date_formatted if order.order_date_formatted else 'N/A' }} · {{ order.payment_method if order.payment_method else 'N/A' }}</small>
+                    </span>
+                    <span class="order-row-side">
+                        <span class="order-row-total">{{ order.total_amount|money }}</span>
+                        <span class="badge badge-{{ tone }}">{{ order.status if order.status else 'Unknown' }}</span>
+                    </span>
+                    <i class="fas fa-chevron-right order-row-go" aria-hidden="true"></i>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
 
         {# Pagination #}
         {% if total_pages and total_pages > 1 %}
-            {% set endpoint = 'order_history' %}
+            {% set endpoint = 'orders.order_history' %}
             {% include 'includes/_pagination.html' %}
         {% endif %}
     {% else %}
-        <div class="alert alert-info text-center" role="alert">
-            You haven't placed any orders yet.
-        </div>
-        <div class="text-center">
-            <a href="{{ url_for('index') }}" class="btn btn-lg btn-primary">Start Shopping!</a>
+        <div class="empty-state">
+            <span class="empty-state-icon"><i class="fas fa-receipt" aria-hidden="true"></i></span>
+            <h2>You haven't placed any orders yet.</h2>
+            <p>When you order, you can track it here, right up to your door.</p>
+            <a href="{{ url_for('store.index') }}" class="btn btn-lg btn-primary">Start Shopping!</a>
         </div>
     {% endif %}
 </div>

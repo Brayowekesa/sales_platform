@@ -8,7 +8,7 @@
 <div class="container-fluid">
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0 text-gray-800">Order Details <small class="text-muted">#{{ order.id }}</small></h1>
-        <a href="{{ url_for('admin_orders') }}" class="btn btn-secondary btn-sm shadow-sm">
+        <a href="{{ url_for('admin.admin_orders') }}" class="btn btn-secondary btn-sm shadow-sm">
             <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Orders
         </a>
     </div>
@@ -36,19 +36,19 @@
                                 {% for item in order_items %}
                                 <tr>
                                     <td>
-                                        <img src="{{ url_for('static', filename=item.image if item.image else 'uploads/default.jpg') }}" alt="{{ item.name }}" style="max-width: 50px; max-height: 50px; object-fit: contain;">
+                                        <img src="{{ product_img(item.image, 'thumb') }}" alt="{{ item.name }}" style="max-width: 50px; max-height: 50px; object-fit: contain;">
                                     </td>
                                     <td>{{ item.name }}</td>
                                     <td class="text-center">{{ item.quantity }}</td>
-                                    <td class="text-right">${{ "%.2f"|format(item.price) }}</td>
-                                    <td class="text-right">${{ "%.2f"|format(item.price * item.quantity) }}</td>
+                                    <td class="text-right">{{ item.price|money }}</td>
+                                    <td class="text-right">{{ (item.price * item.quantity)|money }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                             <tfoot>
                                 <tr>
                                     <td colspan="4" class="text-right font-weight-bold">Order Total:</td>
-                                    <td class="text-right font-weight-bold">${{ "%.2f"|format(order.total_amount) }}</td>
+                                    <td class="text-right font-weight-bold">{{ order.total_amount|money }}</td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -58,6 +58,87 @@
                     {% endif %}
                 </div>
             </div>
+
+            {# ---------- Packing proof ---------- #}
+            <div class="card shadow mb-4" id="proof">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-camera mr-1"></i> Packing proof</h6>
+                    {% if order.proof_response == 'ok' %}<span class="badge badge-success"><i class="fas fa-check"></i> Customer: looks right</span>
+                    {% elif order.proof_response == 'problem' %}<span class="badge badge-danger">Customer reported a problem</span>
+                    {% elif proofs %}<span class="badge badge-secondary">Waiting for the customer</span>{% endif %}
+                </div>
+                <div class="card-body">
+                    {% if order.proof_response == 'problem' %}
+                    <div class="alert alert-danger mb-3"><strong>Customer says:</strong> {{ order.proof_response_note }}<br><small>Call {{ order.sender_phone if order.is_gift else order.contact_phone }} before sending.</small></div>
+                    {% endif %}
+                    {% if proofs %}
+                    <div class="admin-proof-grid mb-3">
+                        {% for p in proofs %}
+                        <div class="admin-proof">
+                            {% if p.kind == 'video' %}
+                            <video src="{{ url_for('orders.proof_file', order_id=order.id, proof_id=p.id) }}" controls preload="metadata" playsinline></video>
+                            {% else %}
+                            <a href="{{ url_for('orders.proof_file', order_id=order.id, proof_id=p.id) }}" target="_blank" rel="noopener"><img src="{{ url_for('orders.proof_file', order_id=order.id, proof_id=p.id) }}" alt="Proof {{ loop.index }}"></a>
+                            {% endif %}
+                            <form method="POST" action="{{ url_for('admin.admin_delete_proof', order_id=order.id, proof_id=p.id) }}" data-confirm="Remove this file?" onsubmit="return confirm(this.dataset.confirm);">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-link btn-sm text-danger p-0">Remove</button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted small">Take photos or a short video of the <strong>exact item</strong> as you pack it (show it working, the colour/size, and the sealed parcel with the label).
+                    The customer is asked to confirm it looks right before you send it.</p>
+                    {% endif %}
+                    {% if proofs|length < max_proof_files %}
+                    <form method="POST" action="{{ url_for('admin.admin_upload_proof', order_id=order.id) }}" enctype="multipart/form-data" class="d-flex flex-wrap align-items-center" style="gap:.5rem">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="file" name="proof" accept="image/*,video/*" capture="environment" multiple class="form-control-file" style="max-width:320px" required>
+                        <button class="btn btn-primary btn-sm"><i class="fas fa-upload mr-1"></i> Add &amp; ask customer</button>
+                    </form>
+                    <small class="text-muted">Photos or videos (up to 25 MB each). On a phone this opens the camera.</small>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# ---------- Delivery confirmation ---------- #}
+            {% if order.status in ['Shipped', 'Delivered'] and order.delivery_pin %}
+            <div class="card shadow mb-4" id="delivery">
+                <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-key mr-1"></i> Delivery confirmation</h6></div>
+                <div class="card-body">
+                    {% if order.status == 'Delivered' %}
+                        {% if order.delivered_with_pin %}
+                        <p class="text-success font-weight-bold mb-0"><i class="fas fa-check-circle"></i> Delivered and confirmed with the customer's PIN.</p>
+                        {% else %}
+                        <p class="text-warning font-weight-bold mb-0"><i class="fas fa-exclamation-triangle"></i> Marked delivered <u>without</u> the customer's PIN.</p>
+                        {% if order.delivery_override_reason %}<p class="small mb-0 mt-1"><strong>Staff reason (not shown to the customer):</strong> {{ order.delivery_override_reason }}</p>{% endif %}
+                        {% endif %}
+                    {% else %}
+                        <p class="small text-muted">The customer has a 4-digit PIN (SMS, email and their order page). The order becomes <em>Delivered</em> when the PIN is entered.</p>
+                        {% if (order.pin_attempts or 0) >= 10 %}<div class="alert alert-danger py-2 small mb-2"><i class="fas fa-lock"></i> The PIN is locked after 10 wrong tries. Call the customer; mark it Delivered with a reason below once you're sure they have it.</div>
+                        {% elif order.pin_attempts %}<p class="small text-warning mb-2"><i class="fas fa-exclamation-triangle"></i> {{ order.pin_attempts }} wrong PIN tries so far (locks at 10).</p>{% endif %}
+                        {% if rider_link %}
+                        <label class="font-weight-bold small mb-1">Rider link - send it to whoever delivers</label>
+                        <div class="input-group input-group-sm mb-2">
+                            <input type="text" class="form-control" id="rider-link" value="{{ rider_link }}" readonly>
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-secondary" type="button" id="copy-rider-link">Copy</button>
+                                <a class="btn btn-success" target="_blank" rel="noopener"
+                                   href="https://wa.me/?text={{ ('Delivery for order #' ~ order.id ~ ' - ' ~ (order.contact_name or '') ~ ', ' ~ (order.delivery_zone or '') ~ '. Open to see the address, and enter the customer\'s PIN when you hand over the parcel: ' ~ rider_link)|urlencode }}"><i class="fab fa-whatsapp"></i> WhatsApp</a>
+                            </div>
+                        </div>
+                        <small class="text-muted d-block mb-3">The link works for {{ config.RIDER_LINK_DAYS }} days and shows only the delivery details.</small>
+                        {% endif %}
+                        <form method="POST" action="{{ url_for('admin.admin_confirm_delivery', order_id=order.id) }}" class="form-inline" style="gap:.5rem">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="text" name="pin" class="form-control form-control-sm" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="Customer's PIN" required style="width:140px">
+                            <button class="btn btn-sm btn-success">Confirm delivered</button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <div class="col-lg-4">
@@ -68,15 +149,30 @@
                 <div class="card-body">
                     <p><strong>Order ID:</strong> #{{ order.id }}</p>
                     <p><strong>Customer:</strong> {{ order.username }} ({{ order.email }})</p>
-                    <p><strong>Order Date:</strong> {{ order.order_date.strftime('%Y-%m-%d %H:%M:%S') if order.order_date else 'N/A' }}</p>
+                    <p><strong>Order Date:</strong> {{ order.order_date|localtime }}</p>
                     <p><strong>Payment Method:</strong> {{ order.payment_method if order.payment_method else 'N/A' }}</p>
                     {% if order.transaction_id %}
                         <p><strong>Transaction ID:</strong> {{ order.transaction_id }}</p>
                     {% endif %}
-                    <h6><strong>Shipping Address:</strong></h6>
-                    <p style="white-space: pre-line;">{{ order.shipping_address if order.shipping_address else "Not provided" }}</p>
                     <hr>
-                    <form action="{{ url_for('admin_update_order_status', order_id=order.id) }}" method="POST">
+                    <h6 class="font-weight-bold">{{ 'Pickup' if order.delivery_method == 'pickup' else 'Delivery' }}</h6>
+                    {% if open_deal %}<div class="alert alert-warning py-2 small"><i class="fas fa-users"></i> <strong>In a Pamoja deal</strong> that ends {{ open_deal.ends_at|localtime }}. Don't send it yet - the final price is set when the deal ends. <a href="{{ url_for('admin.admin_deals') }}">Manage deals</a></div>{% endif %}
+                    {% if order.deal_refund_due %}<div class="alert alert-info py-2 small"><i class="fas fa-undo"></i> <strong>Refund {{ order.deal_refund_due|money }}</strong> to the customer's M-Pesa: the Pamoja deal ended at a lower price than they paid.</div>{% endif %}
+                    {% if order.is_gift %}<p class="mb-2"><span class="badge badge-warning"><i class="fas fa-gift"></i> Gift order</span> from <strong>{{ order.sender_name }}</strong> ({{ order.sender_phone }}){% if order.gift_message %}<br><small class="text-muted">Message: "{{ order.gift_message }}"</small>{% endif %}<br><small class="text-muted">Don't show prices to the receiver{% if order.payment_method == 'Cash on Delivery' %} - they pay {{ order.total_amount|money }} on delivery{% endif %}.</small></p>{% endif %}
+                    {% if order.contact_name %}<p class="mb-1"><strong>Receiver:</strong> {{ order.contact_name }}</p>{% endif %}
+                    {% if order.contact_phone %}
+                    {% set wa = order.contact_phone|replace('+','') %}{% set wa = ('254' ~ wa[1:]) if wa.startswith('0') else wa %}
+                    <p class="mb-1"><strong>Phone:</strong> <a href="tel:{{ order.contact_phone }}">{{ order.contact_phone }}</a>
+                        · <a href="https://wa.me/{{ wa }}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> WhatsApp</a></p>
+                    {% endif %}
+                    {% if order.delivery_zone %}<p class="mb-1"><strong>{{ 'Pickup point' if order.delivery_method == 'pickup' else 'Area' }}:</strong> {{ order.delivery_zone }}</p>{% endif %}
+                    {% if order.delivery_method != 'pickup' %}<p class="mb-1"><strong>Address:</strong></p><p style="white-space: pre-line;">{{ order.shipping_address if order.shipping_address else "Not provided" }}</p>{% endif %}
+                    {% if order.delivery_landmark %}<p class="mb-1"><strong>Landmark:</strong> {{ order.delivery_landmark }}</p>{% endif %}
+                    {% if order.delivery_lat is not none and order.delivery_lng is not none %}<p><a href="https://www.google.com/maps/search/?api=1&query={{ order.delivery_lat }},{{ order.delivery_lng }}" target="_blank" rel="noopener"><i class="fas fa-map-marked-alt"></i> Open pin in Google Maps</a></p>{% endif %}
+                    <p class="mb-1"><strong>Subtotal:</strong> {{ (order.subtotal if order.subtotal is not none else order.total_amount)|money }}</p>
+                    <p class="mb-1"><strong>Delivery fee:</strong> {{ 'Free' if not order.delivery_fee else order.delivery_fee|money }}</p>
+                    <hr>
+                    <form action="{{ url_for('admin.admin_update_order_status', order_id=order.id) }}" method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="form-group">
                             <label for="status" class="font-weight-bold">Order Status:</label>
@@ -92,11 +188,43 @@
                                 <option value="Payment Failed" {% if order.status == 'Payment Failed' %}selected{% endif %}>Payment Failed</option>
                             </select>
                         </div>
+                        <div class="form-group">
+                            <label for="note" class="small text-muted mb-1">Note for the customer (optional)</label>
+                            <input type="text" name="note" id="note" class="form-control form-control-sm" maxlength="200" placeholder="e.g. Rider: John, 0712 345 678">
+                        </div>
+                        {% if order.delivery_pin and order.status != 'Delivered' %}
+                        <div class="form-group">
+                            <label for="override_reason" class="small text-muted mb-1">Only for "Delivered" without the customer's PIN: reason</label>
+                            <input type="text" name="override_reason" id="override_reason" class="form-control form-control-sm" maxlength="200" placeholder="e.g. Customer paid and collected, phone off">
+                        </div>
+                        {% endif %}
                         <button type="submit" class="btn btn-success btn-block">Update Status</button>
+                        <small class="form-text text-muted">The customer is notified by email{{ ' and SMS' if sms_enabled }}.</small>
                     </form>
+                    {% if history %}
+                    <hr>
+                    <h6 class="font-weight-bold">History</h6>
+                    <ul class="list-unstyled small mb-0">
+                        {% for h in history %}<li class="mb-1"><span class="text-muted">{{ h.created_at|localtime }}</span> - {{ h.status }}{% if h.note %}: {{ h.note }}{% endif %}</li>{% endfor %}
+                    </ul>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+{% block admin_scripts_extra %}
+<script>
+(function () {
+    var btn = document.getElementById('copy-rider-link');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+        var input = document.getElementById('rider-link');
+        input.select();
+        (navigator.clipboard ? navigator.clipboard.writeText(input.value) : Promise.resolve(document.execCommand('copy')))
+            .then(function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); });
+    });
+})();
+</script>
 {% endblock %}

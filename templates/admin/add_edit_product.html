@@ -8,7 +8,7 @@
 <div class="container-fluid">
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0 text-gray-800">{{ action }} Product</h1>
-        <a href="{{ url_for('admin_products') }}" class="btn btn-secondary btn-sm shadow-sm">
+        <a href="{{ url_for('admin.admin_products') }}" class="btn btn-secondary btn-sm shadow-sm">
             <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Products
         </a>
     </div>
@@ -30,27 +30,27 @@
                 </div>
 
                 <div class="form-group">
-                    {{ form.image.label(class="form-control-label") }}
-                    {{ form.image(class="form-control-file" + (" is-invalid" if form.image.errors else "")) }}
-                    {% if form.image.errors %}
-                        <div class="invalid-feedback d-block">{% for error in form.image.errors %}<span>{{ error }}</span>{% endfor %}</div>
-                    {% endif %}
-                    <small class="form-text text-muted">
-                        Allowed types: png, jpg, jpeg, gif. Max size: 16MB.
-                        {% if action == 'Edit' and product and product.image_path %}
-                            If no new image is chosen, the current image ("{{ product.image_path.split('/')[-1] }}") will be kept.
-                        {% elif action == 'Edit' %}
-                            No current image. Upload one if desired.
-                        {% endif %}
-                    </small>
-                    {% if action == 'Edit' and product and product.image_path %}
-                    <div class="mt-2">
-                        <p class="mb-1 small text-muted">Current Image:</p>
-                        <img src="{{ url_for('static', filename=product.image_path) }}" alt="{{ product.name or 'Current Product Image' }}" class="img-thumbnail" style="max-width: 300px; max-height: 150px; object-fit: contain;">
+                    <label class="form-control-label">Photos <small class="text-muted">(up to {{ max_photos }})</small></label>
+                    <div class="photo-tips">
+                        <i class="fas fa-lightbulb"></i>
+                        <span><strong>Tips for great photos:</strong> square photos (at least 800 × 800), on a plain white or light background, product filling most of the frame.
+                        Add the front, back and a close-up. The <strong>main</strong> photo shows on product cards.</span>
+                    </div>
+                    {% if photos %}
+                    <div class="photo-grid">
+                        {% for p in photos %}
+                        <div class="photo-item">
+                            <img src="{{ product_img(p, 'thumb') }}" alt="Photo {{ loop.index }}">
+                            <label class="photo-main"><input type="radio" name="main_photo" value="{{ p }}" {% if loop.first %}checked{% endif %}> Main</label>
+                            <label class="photo-remove" title="Remove this photo"><input type="checkbox" name="remove_photo" value="{{ p }}"> Remove</label>
+                        </div>
+                        {% endfor %}
                     </div>
                     {% endif %}
+                    <input type="file" name="photos" id="photos" class="form-control-file mt-2" accept="image/png,image/jpeg,image/gif,image/webp" multiple>
+                    <small class="form-text text-muted">PNG, JPG, GIF or WebP, up to {{ max_upload_mb }} MB in total. You can choose several photos at once{% if photos %}; new photos are added after the current ones{% endif %}.</small>
                 </div>
-                
+
                 <div class="form-group">
                     {{ form.price.label(class="form-control-label required") }}
                     {{ form.price(class="form-control" + (" is-invalid" if form.price.errors else ""), placeholder="e.g., 129.00") }}
@@ -65,7 +65,17 @@
                     {% if form.original_price.errors %}
                         <div class="invalid-feedback">{% for error in form.original_price.errors %}<span>{{ error }}</span>{% endfor %}</div>
                     {% endif %}
-                    <small class="form-text text-muted">Original 'was' price (for sales). Leave blank if not on sale.</small>
+                    <small class="form-text text-muted">Original 'was' price (for sales). Leave blank if not on sale.
+                        Honest-price rule: the discount only shows if the product really sold at this price for 14 days in the last 90, and for at most 60 days.</small>
+                    {% if discount_status %}
+                        {% if discount_status.shown %}
+                        <div class="small text-success font-weight-bold mt-1"><i class="fas fa-check-circle"></i> Discount shown to customers (checked).</div>
+                        {% elif discount_status.verified %}
+                        <div class="small text-warning font-weight-bold mt-1"><i class="fas fa-hourglass-end"></i> Not shown any more: this sale has run for over 60 days. Make it the normal price, or end the sale.</div>
+                        {% else %}
+                        <div class="small text-warning font-weight-bold mt-1"><i class="fas fa-info-circle"></i> Not shown yet: it sold at {{ product.original_price|money }} for {{ discount_status.days }} of the {{ discount_status.need }} days needed. Keep the normal price for now and start the sale later.</div>
+                        {% endif %}
+                    {% endif %}
                 </div>
 
                 <div class="form-group">
@@ -93,7 +103,7 @@
                 </div>
 
                 <div class="form-group text-right">
-                    <a href="{{ url_for('admin_products') }}" class="btn btn-secondary mr-2">Cancel</a>
+                    <a href="{{ url_for('admin.admin_products') }}" class="btn btn-secondary mr-2">Cancel</a>
                     {{ form.submit(class="btn btn-primary", value=(action + " Product")) }}
                 </div>
             </form>

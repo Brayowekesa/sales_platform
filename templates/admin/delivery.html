@@ -1,0 +1,79 @@
+{% extends "admin/admin_layout.html" %}
+
+{% block admin_title %}Delivery & Pickup{% endblock %}
+
+{% macro errors(field) %}{% for e in field.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}{% endmacro %}
+
+{% block admin_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-3">
+        <h1 class="h3 mb-0">Delivery &amp; Pickup</h1>
+    </div>
+    <p class="text-muted">These options appear at checkout. The fee is added to the order total; leave "free when the order reaches" empty for no free-delivery offer.</p>
+
+    <div class="row">
+        <div class="col-xl-7 mb-4">
+            <div class="card shadow">
+                <div class="card-header"><h6 class="m-0 font-weight-bold text-primary">Current options</h6></div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead><tr><th>Name</th><th>Type</th><th>Fee</th><th>Free over</th><th>Time</th><th>Shown</th><th></th></tr></thead>
+                        <tbody>
+                        {% for z in zones %}
+                        <tr class="{{ 'table-active' if editing and editing.id == z.id }}">
+                            <td><strong>{{ z.name }}</strong>{% if z.details %}<br><small class="text-muted d-inline-block text-truncate" style="max-width:240px">{{ z.details }}</small>{% endif %}</td>
+                            <td>{{ 'Pickup' if z.kind == 'pickup' else 'Delivery' }}</td>
+                            <td>{{ 'Free' if not z.fee else z.fee|money }}</td>
+                            <td>{{ z.free_over|money if z.free_over else '-' }}</td>
+                            <td>{{ z.eta or '-' }}</td>
+                            <td>{% if z.is_active %}<span class="badge badge-success">Yes</span>{% else %}<span class="badge badge-secondary">Hidden</span>{% endif %}</td>
+                            <td class="text-right" style="white-space:nowrap">
+                                <a href="{{ url_for('admin.admin_edit_delivery', zone_id=z.id) }}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="fas fa-pen"></i></a>
+                                <form action="{{ url_for('admin.admin_delete_delivery', zone_id=z.id) }}" method="POST" class="d-inline" data-confirm="Delete {{ z.name }}?" onsubmit="return confirm(this.dataset.confirm);">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="fas fa-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="7" class="text-center text-muted py-4">No delivery options yet - customers can't check out until you add one.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-5 mb-4">
+            <div class="card shadow">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">{{ 'Edit: ' ~ editing.name if editing else 'Add an option' }}</h6>
+                    {% if editing %}<a href="{{ url_for('admin.admin_delivery') }}" class="small">Cancel</a>{% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('admin.admin_edit_delivery', zone_id=editing.id) if editing else url_for('admin.admin_delivery') }}">
+                        {{ form.hidden_tag() }}
+                        <div class="form-row">
+                            <div class="form-group col-md-7">{{ form.name.label }} {{ form.name(class="form-control", placeholder="e.g. Nairobi suburbs") }}{{ errors(form.name) }}</div>
+                            <div class="form-group col-md-5">{{ form.kind.label }} {{ form.kind(class="form-control") }}</div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group col-md-5">{{ form.fee.label }} {{ form.fee(class="form-control", step="10") }}{{ errors(form.fee) }}</div>
+                            <div class="form-group col-md-7">{{ form.free_over.label }} {{ form.free_over(class="form-control", placeholder="e.g. 3000") }}{{ errors(form.free_over) }}</div>
+                        </div>
+                        <div class="form-group">{{ form.eta.label }} {{ form.eta(class="form-control") }}</div>
+                        <div class="form-group">{{ form.details.label }} {{ form.details(class="form-control", rows="2") }}</div>
+                        <div class="form-row align-items-center">
+                            <div class="form-group col-6">{{ form.sort_order.label }} {{ form.sort_order(class="form-control") }}</div>
+                            <div class="form-group col-6 pt-4"><div class="form-check">{{ form.is_active(class="form-check-input") }} {{ form.is_active.label(class="form-check-label") }}</div></div>
+                        </div>
+                        {{ form.submit(class="btn btn-primary btn-block") }}
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

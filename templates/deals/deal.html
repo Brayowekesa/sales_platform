@@ -1,0 +1,83 @@
+{% extends "layout.html" %}
+{% block title %}{{ title }} - {{ SITE_NAME }}{% endblock %}
+{% block meta_description %}Buy together and pay less: {{ deal.product_name }} drops to {{ deal.best_price|money }} when {{ deal.tiers[-1].buyers }} people join.{% endblock %}
+{% block og_title %}Pamoja deal: {{ deal.product_name }} from {{ deal.best_price|money }}{% endblock %}
+{% block og_image %}{% if deal.product_image %}{{ url_for('static', filename=deal.product_image, _external=True) }}{% else %}{{ url_for('static', filename='images/og-default.png', _external=True) }}{% endif %}{% endblock %}
+{% block wa_text %}Hi {{ SITE_NAME }}, I have a question about the Pamoja deal for {{ deal.product_name }}.{% endblock %}
+{% set share_url = url_for('deals.deal_page', deal_id=deal.id, _external=True) %}
+{% set share_text = 'Join me on this Pamoja deal at ' ~ SITE_NAME ~ ': ' ~ deal.product_name ~ ' - the more of us buy, the cheaper it gets (down to ' ~ (deal.best_price|money) ~ '). ' ~ share_url %}
+{% block content %}
+<div class="container deal-page my-4 my-md-5">
+    <a href="{{ url_for('deals.deal_list') }}" class="small text-muted d-inline-block mb-3"><i class="fas fa-arrow-left mr-1"></i> All Pamoja deals</a>
+    <div class="row">
+        <div class="col-md-5 mb-4">
+            <div class="deal-photo"><img src="{{ product_img(deal.product_image, 'large') }}" alt="{{ deal.product_name }}"></div>
+        </div>
+        <div class="col-md-7">
+            <span class="deal-kicker"><i class="fas fa-users"></i> Pamoja deal · buy together, pay less</span>
+            <h1 class="deal-title">{{ deal.title or deal.product_name }}</h1>
+            {% if deal.title %}<p class="text-muted mb-2">{{ deal.product_name }}</p>{% endif %}
+
+            <div class="deal-price-row">
+                <span class="deal-price-now">{{ deal.current_price|money }}</span>
+                {% if deal.normal_price > deal.current_price %}<span class="deal-price-normal">Normal price {{ deal.normal_price|money }}</span>{% endif %}
+            </div>
+
+            {% include 'deals/_ladder.html' %}
+
+            {% if deal.is_open %}
+                <div class="deal-countdown" data-ends="{{ deal.ends_at_iso }}">
+                    <i class="far fa-clock"></i> Ends in <strong class="deal-countdown-value">{{ (deal.seconds_left // 86400) }}d {{ (deal.seconds_left % 86400) // 3600 }}h</strong>
+                    <span class="text-muted">({{ deal.ends_at|localtime }})</span>
+                </div>
+                {% if deal.stock > 0 %}
+                <form method="POST" action="{{ url_for('deals.join_deal', deal_id=deal.id) }}" class="deal-join">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <label for="deal-qty" class="sr-only">Quantity</label>
+                    <select id="deal-qty" name="quantity" class="form-control">
+                        {% for n in range(1, [deal.max_per_buyer, deal.stock]|min + 1) %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
+                    </select>
+                    <button class="btn btn-cart btn-lg flex-fill"><i class="fas fa-users mr-1"></i> {{ 'Add more' if deal.joined else 'Join' }} at {{ deal.join_price|money }}</button>
+                </form>
+                <p class="small text-muted mt-2 mb-0"><i class="fas fa-shield-alt mr-1"></i> You'll never pay more than {{ deal.join_price|money }}. If more people join, everyone pays the lower price - even those who joined first.
+                    We send the orders when the deal ends. Max {{ deal.max_per_buyer }} per person.</p>
+                {% else %}
+                <p class="text-danger font-weight-bold">Sold out.</p>
+                {% endif %}
+            {% else %}
+                <div class="deal-ended"><i class="fas fa-flag-checkered"></i> This deal has ended{% if deal.final_buyers %} with {{ deal.final_buyers }} buyers at {{ deal.current_price|money }} each{% endif %}.
+                    <a href="{{ url_for('store.product_details', product_id=deal.product_id) }}">See the product</a></div>
+            {% endif %}
+
+            <div class="deal-share">
+                <span class="deal-share-label">Bring your chama, workmates or estate group:</span>
+                <a class="btn btn-whatsapp" target="_blank" rel="noopener" href="https://wa.me/?text={{ share_text|urlencode }}"><i class="fab fa-whatsapp mr-1"></i> Share on WhatsApp</a>
+                <button type="button" class="btn btn-outline-secondary" id="copy-deal-link" data-link="{{ share_url }}"><i class="fas fa-link mr-1"></i> Copy link</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts_extra %}
+<script>
+(function () {
+    var box = document.querySelector('.deal-countdown');
+    if (box) {
+        var end = new Date(box.dataset.ends).getTime(), out = box.querySelector('.deal-countdown-value');
+        var tick = function () {
+            var s = Math.max(0, Math.floor((end - Date.now()) / 1000));
+            if (s === 0) { out.textContent = 'now'; return; }
+            var d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+            out.textContent = (d ? d + 'd ' : '') + h + 'h ' + m + 'm ' + (d ? '' : sec + 's');
+        };
+        tick(); setInterval(tick, 1000);
+    }
+    var copy = document.getElementById('copy-deal-link');
+    if (copy) copy.addEventListener('click', function () {
+        (navigator.clipboard ? navigator.clipboard.writeText(copy.dataset.link) : Promise.reject()).then(function () {
+            copy.innerHTML = '<i class="fas fa-check mr-1"></i> Link copied';
+        }, function () { window.prompt('Copy this link:', copy.dataset.link); });
+    });
+})();
+</script>
+{% endblock %}

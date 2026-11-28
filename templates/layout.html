@@ -4,20 +4,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
-    <title>{% block title %}E-Shop{% endblock %}</title>
+    <title>{% block title %}{{ SITE_NAME }}{% endblock %}</title>
+    {# Description for search engines and link previews (WhatsApp, Facebook, X). Pages can override these blocks. #}
+    {% set page_description %}{% block meta_description %}{{ SHOP.tagline }}{% endblock %}{% endset %}
+    <meta name="description" content="{{ page_description|trim }}">
+    <meta property="og:site_name" content="{{ SITE_NAME }}">
+    <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}{{ title ~ ' - ' ~ SITE_NAME if title else SITE_NAME }}{% endblock %}">
+    <meta property="og:description" content="{{ page_description|trim }}">
+    <meta property="og:url" content="{{ request.base_url }}">
+    <meta property="og:image" content="{% block og_image %}{{ url_for('static', filename='images/og-default.png', _external=True) }}{% endblock %}">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" sizes="any">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon-32.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/apple-touch-icon.png') }}">
+    <meta name="theme-color" content="#0b2545">
+    <link rel="manifest" href="{{ url_for('pages.manifest') }}">
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <!-- Font Awesome CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <!-- Your Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% if not data_saver %}{# data saver: use the phone's own font instead of downloading one #}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    {% endif %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
     <style>
-        html, body {
-            height: 100%;
-        }
+        html { height: 100%; }
         body {
             display: flex;
             flex-direction: column;
+            min-height: 100%;
             /* Padding-top for navbar is only needed if navbar is visible and fixed */
             /* padding-top: 56px; */ 
         }
@@ -29,21 +47,18 @@
         .full-width-page-wrapper {
             display: flex;
             flex-grow: 1;
-            overflow: hidden;
         }
         #page-sidebar { /* This is for index.html etc. when logged in */
             width: 250px;
             flex-shrink: 0;
             background-color: #f8f9fa;
             padding: 0px 15px 20px 15px;
-            overflow-y: auto;
             border-right: 1px solid #dee2e6;
         }
         #main-content-area { /* This will contain the login form */
             flex-grow: 1;
             padding: 0; /* No padding here, login.html will add its own */
-            overflow-y: auto;
-            overflow-x: hidden;
+            min-width: 0;
             background-color: #f4f6f9; /* Light grey background for the whole content area on login */
         }
         .main-content-inner-container { /* Not directly used by login page's outer structure */
@@ -73,9 +88,11 @@
     </style>
     {% block head_extra %}{% endblock %}
 </head>
-<body {% if current_user.is_authenticated %}class="with-navbar"{% endif %}> 
+{# Sign-in pages keep their focused, centred look; every other page gets the shop navbar and footer #}
+{% set auth_page = request.endpoint in ['auth.login', 'auth.register', 'auth.verify_email', 'auth.reset_request', 'auth.reset_token', 'account.login_code', 'orders.rider_delivery'] %}
+<body {% if not auth_page %}class="with-navbar"{% endif %}>
 
-    {% if current_user.is_authenticated %}
+    {% if not auth_page %}
         {% include 'includes/_navbar.html' %}
     {% endif %}
 
@@ -106,14 +123,41 @@
         </main>
     </div>
 
-    {% if current_user.is_authenticated and self.sidebar() is defined %} {# Footer only with sidebar pages for now #}
+    {% if not auth_page %}
         {% include 'includes/_footer.html' %}
+        {% if SHOP.whatsapp_link %}
+        {% set wa_message %}{% block wa_text %}Hi {{ SITE_NAME }}, I have a question.{% endblock %}{% endset %}
+        <a class="wa-float" href="{{ SHOP.whatsapp_link }}?text={{ wa_message|trim|urlencode }}" target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp">
+            <i class="fab fa-whatsapp"></i><span>Chat</span>
+        </a>
+        {% endif %}
     {% endif %}
 
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+    // Installable app: register the service worker and show "Install app" when the phone offers it
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
+    }
+    (function () {
+        var prompt = null, links = document.querySelectorAll('.install-app');
+        window.addEventListener('beforeinstallprompt', function (e) {
+            e.preventDefault(); prompt = e;
+            links.forEach(function (l) { l.hidden = false; });
+        });
+        links.forEach(function (l) {
+            l.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                if (!prompt) return;
+                prompt.prompt();
+                prompt.userChoice.finally(function () { prompt = null; links.forEach(function (x) { x.hidden = true; }); });
+            });
+        });
+        window.addEventListener('appinstalled', function () { links.forEach(function (x) { x.hidden = true; }); });
+    })();
+    </script>
     {% block scripts_extra %}{% endblock %}
 </body>
 </html>

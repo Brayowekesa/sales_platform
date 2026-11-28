@@ -8,117 +8,151 @@
     {% endif %}
 {% endblock %}
 
-{% block head_extra %}
-<style>
-    /* Page Specific Styles for index.html */
-    body, html { /* overflow-x: hidden; */ }
-    .page-content-wrapper { padding-left: 15px; padding-right: 15px; }
-    #index-page-sidebar { min-width: 220px; max-width: 270px; flex-shrink: 0; }
-    #index-page-sidebar h3 { font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem; margin-top: 0.25rem; }
-    #index-page-sidebar .list-group-item { font-size: 0.9rem; padding-top: 0.6rem; padding-bottom: 0.6rem; }
-    .banner-section-wrapper { flex-grow: 1; }
-    #promoCarousel .carousel-inner { border-radius: 0.25rem; }
-    .section-title-bar { background: #343a40; color: #ffffff; font-weight: 600; margin-bottom: 1.5rem; margin-top: 2rem; letter-spacing: 0.5px; padding: 0.75rem 0; width: 100%; display: block; }
-    .section-title-bar h2, .section-title-bar h3 { margin-bottom: 0; font-size: 1.6rem; color: inherit; }
-    .horizontal-scroll-section { }
-    .horizontal-scroll-wrapper { display: flex; overflow-x: auto; gap: 1rem; padding-bottom: 1rem; padding-left: 15px; margin-left: -15px; margin-right: -15px; width: calc(100% + 30px); }
-    .horizontal-scroll-wrapper .product-card-item { flex: 0 0 auto; min-width: 200px; width: 230px; max-width: 260px; }
-    .product-card-item .card, .product-grid-5-per-line .card { height: 360px; display: flex; flex-direction: column; border: 1px solid #e9ecef; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: box-shadow 0.2s ease-in-out; }
-    .product-card-item .card:hover, .product-grid-5-per-line .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-    .card-img-wrapper { height: 180px; background: #ffffff; display: flex; align-items: center; justify-content: center; padding: 5px; border-bottom: 1px solid #e9ecef; }
-    .card-img-top { max-height: 100%; max-width: 100%; width: auto; object-fit: contain; }
-    .card-body { flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; padding: 0.85rem; }
-    .card-body-content { flex-grow: 1; }
-    .card-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.3rem; color: #333; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.8em; }
-    .card-title a { color: inherit; text-decoration: none; }
-    .card-title a:hover { color: #007bff; }
-    .card h5.product-price { font-size: 1.1rem; font-weight: bold; color: #007bff; margin-bottom: 0.5rem; }
-    .card h5.product-price .original-price { text-decoration: line-through; color: #6c757d; font-size: 0.8em; margin-left: 0.5em; font-weight: normal; }
-    .card h5.product-price .discount-badge { font-size: 0.75em; padding: 0.3em 0.5em; vertical-align: middle; margin-left: 0.5em; }
-    .card-text.product-description { font-size: 0.85rem; color: #6c757d; margin-bottom: 0.75rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.5em; }
-    .card-footer { padding: 0.75rem; background-color: #f8f9fa; border-top: 1px solid #e9ecef; text-align: center; }
-    .card-footer .btn { font-size: 0.875rem; }
-    .all-products-section .main-content-inner-container { padding-left: 15px; padding-right: 15px; }
-    @media (min-width: 992px) { .product-grid-5-per-line .col-lg-custom-5 { flex: 0 0 20%; max-width: 20%; } }
-    @media (max-width: 992px) { .horizontal-scroll-wrapper .product-card-item { min-width: 190px; width: 200px; } }
-    @media (max-width: 768px) { .horizontal-scroll-wrapper .product-card-item { min-width: 160px; width: 180px; } .page-content-wrapper, .horizontal-scroll-section .main-content-inner-container { padding-left: 8px; padding-right: 8px; } .horizontal-scroll-wrapper { padding-left: 8px; margin-left: -8px; margin-right: -8px; width: calc(100% + 16px); } }
-    @media (max-width: 576px) { .horizontal-scroll-wrapper .product-card-item { min-width: calc(50% - 0.5rem); width: calc(50% - 0.5rem); } #index-page-sidebar { display: none; } .top-section-flex-wrapper { flex-direction: column; } #index-page-sidebar, .banner-section-wrapper { width: 100% !important; max-width: 100% !important; } }
-</style>
-{% endblock %}
 
 {% block content %}
-<div class="page-content-wrapper">
+{# Icon for a category shortcut; unknown categories get a tag #}
+{% set CATEGORY_ICONS = {
+    'Electronics': 'fa-mobile-alt', 'Phones': 'fa-mobile-alt', 'Computers': 'fa-laptop',
+    'Home & Kitchen': 'fa-blender', 'Home Appliance': 'fa-blender', 'Home Appliances': 'fa-blender', 'Kitchen': 'fa-utensils',
+    'Fashion & Wear': 'fa-tshirt', 'Fashion': 'fa-tshirt', 'Clothing': 'fa-tshirt', 'Shoes': 'fa-shoe-prints',
+    'Beauty & Personal Care': 'fa-spa', 'Beauty': 'fa-spa', 'Health & Wellness': 'fa-heartbeat', 'Health': 'fa-heartbeat',
+    'Sports & Outdoors': 'fa-futbol', 'Sports': 'fa-futbol', 'Office & School': 'fa-pencil-alt', 'Stationery': 'fa-pencil-alt',
+    'Books': 'fa-book', 'Toys': 'fa-puzzle-piece', 'Baby': 'fa-baby', 'Groceries': 'fa-shopping-basket', 'Furniture': 'fa-couch'} %}
+{% macro cat_icon(name) %}<i class="fas {{ CATEGORY_ICONS.get(name, 'fa-tag') }}" aria-hidden="true"></i>{% endmacro %}
+
+<div class="page-content-wrapper home-page">
 
     <!-- Top section: Categories and Banner side by side -->
     <div class="d-flex align-items-start mb-4 top-section-flex-wrapper" style="gap:1.5rem;">
         <aside id="index-page-sidebar">
             <h3>Categories</h3>
             <div class="list-group list-group-flush">
-                <a href="{{ url_for('index', category='All') }}" class="list-group-item list-group-item-action {% if current_category == 'All' or not current_category %}active{% endif %}">All Categories</a>
+                <a href="{{ url_for('store.index', category='All') }}" class="list-group-item list-group-item-action {% if current_category == 'All' or not current_category %}active{% endif %}"><i class="fas fa-th-large" aria-hidden="true"></i>All Categories</a>
                 {% for cat_nav in categories_for_navbar %}
-                    <a href="{{ url_for('index', category=cat_nav) }}" class="list-group-item list-group-item-action {% if current_category == cat_nav %}active{% endif %}">{{ cat_nav }}</a>
+                    <a href="{{ url_for('store.index', category=cat_nav) }}" class="list-group-item list-group-item-action {% if current_category == cat_nav %}active{% endif %}">{{ cat_icon(cat_nav) }}{{ cat_nav }}</a>
                 {% else %}
-                    <a href="{{ url_for('index', category='Electronics') }}" class="list-group-item list-group-item-action">Electronics</a>
-                    <a href="{{ url_for('index', category='Home Appliance') }}" class="list-group-item list-group-item-action">Home Appliance</a>
-                    <a href="{{ url_for('index', category='Fashion') }}" class="list-group-item list-group-item-action">Fashion</a>
+                    <a href="{{ url_for('store.index', category='Electronics') }}" class="list-group-item list-group-item-action">Electronics</a>
+                    <a href="{{ url_for('store.index', category='Home Appliance') }}" class="list-group-item list-group-item-action">Home Appliance</a>
+                    <a href="{{ url_for('store.index', category='Fashion') }}" class="list-group-item list-group-item-action">Fashion</a>
                 {% endfor %}
             </div>
         </aside>
 
         <div class="banner-section-wrapper">
-            {% if promotions %}
-            <div id="promoCarousel" class="carousel slide" data-ride="carousel">
-                {% if promotions|length > 1 %}
-                <ol class="carousel-indicators">
-                    {% for promo in promotions %}
-                        <li data-target="#promoCarousel" data-slide-to="{{ loop.index0 }}" class="{{ 'active' if loop.first }}"></li>
-                    {% endfor %}
-                </ol>
-                {% endif %}
-                <div class="carousel-inner" role="listbox" style="height: 350px;">
-                    {% for promo in promotions %}
-                    <div class="carousel-item {{ 'active' if loop.first }}" style="height: 100%; background-color: #f0f0f0;">
-                        <a href="{{ promo.target_url if promo.target_url else '#' }}" style="display:block; width:100%; height:100%; position: relative;">
-                            <img class="d-block w-100 h-100"
-                                 src="{{ url_for('static', filename=promo.image_path) if promo.image_path else 'https://via.placeholder.com/1600x350/eeeeee/999999?text=Promotion%20Banner' }}"
-                                 alt="{{ promo.alt_text or promo.title }}"
-                                 style="object-fit: contain;">
-                            {% if promo.title or (promo.original_price and promo.promo_price and promo.original_price > promo.promo_price) or promo.discount_text %}
-                            <div class="carousel-caption d-none d-md-block">
-                                {% if promo.title %}<h5>{{ promo.title }}</h5>{% endif %}
-                                {% if promo.original_price and promo.promo_price and promo.original_price > promo.promo_price %}
-                                    <p>
-                                        <span class="original-price">${{ "%.2f"|format(promo.original_price) }}</span>
-                                        Now <strong class="promo-now-price">${{ "%.2f"|format(promo.promo_price) }}</strong>
-                                        {% set percentage_saved = ((promo.original_price - promo.promo_price) / promo.original_price * 100)|round|int %}
-                                        {% if percentage_saved > 0 %}
-                                            <span class="badge badge-danger discount-badge">SAVE {{ percentage_saved }}%</span>
-                                        {% endif %}
-                                    </p>
-                                {% elif promo.discount_text %}
-                                    <p>{{ promo.discount_text }}</p>
+            <nav class="category-chips d-lg-none" aria-label="Categories">
+                <a href="{{ url_for('store.index', category='All') }}" class="chip {% if current_category == 'All' or not current_category %}active{% endif %}" {% if current_category == 'All' or not current_category %}aria-current="page"{% endif %}><i class="fas fa-th-large" aria-hidden="true"></i>All</a>
+                {% for cat_nav in categories_for_navbar %}
+                    <a href="{{ url_for('store.index', category=cat_nav) }}" class="chip {% if current_category == cat_nav %}active{% endif %}" {% if current_category == cat_nav %}aria-current="page"{% endif %}>{{ cat_icon(cat_nav) }}{{ cat_nav }}</a>
+                {% endfor %}
+            </nav>
+            {% set filtering = current_category and current_category != 'All' %}
+            {% if filtering %}
+            <div class="category-header">
+                <div>
+                    <span class="category-kicker">Category</span>
+                    <h1>{{ current_category }}</h1>
+                    <p>{{ total_products }} product{{ '' if total_products == 1 else 's' }}</p>
+                </div>
+                <a href="{{ url_for('store.index') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-times mr-1"></i>Clear filter</a>
+            </div>
+            {% elif promotions %}
+            <section class="promo-strip" aria-roledescription="carousel" aria-label="Current offers" data-count="{{ promotions|length }}">
+                <div class="promo-viewport">
+                    <div class="promo-track">
+                        {% for promo in promotions %}
+                        {% set has_img = promo.image_path and product_img(promo.image_path) != product_img(None) %}
+                        {# Promotions aren't linked to a product, so a "was" price / -% badge can't be checked
+                           against the honest-price rules (shop/pricing.py): only the promo price is shown. #}
+                        <a class="promo-tile" href="{{ promo.target_url|safe_link }}" aria-roledescription="slide" aria-label="{{ loop.index }} of {{ loop.length }}: {{ promo.title }}">
+                            <div class="promo-media {% if not has_img %}is-plain{% endif %}">
+                                {% if has_img %}
+                                    <img src="{{ product_img(promo.image_path, 'promo') }}" alt="{{ promo.alt_text or promo.title }}" loading="{{ 'eager' if loop.index <= 3 else 'lazy' }}">
+                                {% else %}
+                                    <i class="fas fa-tags" aria-hidden="true"></i>
+                                {% endif %}
+                                {% if promo.discount_text %}
+                                    <span class="promo-pill">{{ promo.discount_text }}</span>
                                 {% endif %}
                             </div>
-                            {% endif %}
+                            <div class="promo-body">
+                                <h3 class="promo-title">{{ promo.title }}</h3>
+                                {% if promo.promo_price %}
+                                    <div class="promo-prices"><span class="promo-now">{{ promo.promo_price|money }}</span></div>
+                                {% elif promo.discount_text %}
+                                    <p class="promo-sub">{{ promo.discount_text }}</p>
+                                {% endif %}
+                                <span class="promo-cta">Shop now <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+                            </div>
                         </a>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
                 {% if promotions|length > 1 %}
-                <a class="carousel-control-prev" href="#promoCarousel" role="button" data-slide="prev"><span class="carousel-control-prev-icon"></span></a>
-                <a class="carousel-control-next" href="#promoCarousel" role="button" data-slide="next"><span class="carousel-control-next-icon"></span></a>
+                <button type="button" class="promo-nav promo-prev" aria-label="Previous offer"><i class="fas fa-chevron-left"></i></button>
+                <button type="button" class="promo-nav promo-next" aria-label="Next offer"><i class="fas fa-chevron-right"></i></button>
+                <div class="promo-dots" role="tablist" aria-label="Choose offer"></div>
                 {% endif %}
-            </div>
+            </section>
             {% else %}
-            <div style="height: 350px; background-color: #f0f0f0; display:flex; align-items:center; justify-content:center; color: #777; border-radius: 0.25rem;">
-                <p>No active promotions currently.</p>
+            <div class="home-hero">
+                <h1>Shop smarter at {{ SITE_NAME }}</h1>
+                <p>Electronics, fashion, home appliances and more, delivered to your door. Pay with M-Pesa or cash on delivery.</p>
+                <a href="#all-products" class="btn btn-light">Browse products</a>
             </div>
             {% endif %}
         </div>
     </div>
 
+    {% if not filtering %}
+    <!-- Why shop with us -->
+    <section class="why-strip" aria-labelledby="why-title">
+        <h2 id="why-title" class="sr-only">Why shop with us</h2>
+        <ul class="why-list">
+            <li class="why-item">
+                <span class="why-icon"><i class="fas fa-key" aria-hidden="true"></i></span>
+                <span><strong>Delivery PIN</strong><small>Only you can confirm delivery, with your 4-digit PIN</small></span>
+            </li>
+            <li class="why-item">
+                <span class="why-icon"><i class="fas fa-camera" aria-hidden="true"></i></span>
+                <span><strong>Packing proof</strong><small>See a photo of your item before we send it</small></span>
+            </li>
+            <li class="why-item">
+                <span class="why-icon is-ok"><i class="fas fa-check-circle" aria-hidden="true"></i></span>
+                <span><strong><a href="{{ url_for('pages.page_honest_prices') }}">Honest prices</a></strong><small>Every discount is checked against real price history</small></span>
+            </li>
+            <li class="why-item">
+                <span class="why-icon is-mpesa"><i class="fas fa-mobile-alt" aria-hidden="true"></i></span>
+                <span><strong>M-Pesa or cash</strong><small>Pay with M-Pesa or cash on delivery</small></span>
+            </li>
+        </ul>
+    </section>
+    {% endif %}
+
+    <!-- Pamoja deals -->
+    {% if home_deals and not filtering %}
+    <section class="home-deals" aria-labelledby="deals-title">
+        <div class="home-deals-head">
+            <h2 id="deals-title"><i class="fas fa-users"></i> Pamoja deals <small>buy together, pay less</small></h2>
+            <a href="{{ url_for('deals.deal_list') }}">See all <i class="fas fa-chevron-right"></i></a>
+        </div>
+        <div class="deal-grid">
+            {% for deal in home_deals %}
+            <a class="deal-card" href="{{ url_for('deals.deal_page', deal_id=deal.id) }}">
+                <img src="{{ product_img(deal.product_image, 'card') }}" alt="" loading="lazy">
+                <div class="deal-card-body">
+                    <strong class="deal-card-title">{{ deal.title or deal.product_name }}</strong>
+                    <div class="deal-card-price"><span>{{ deal.current_price|money }}</span> <small>now · down to {{ deal.best_price|money }}</small></div>
+                    <div class="deal-progress" aria-hidden="true"><span style="width: {{ deal.progress }}%"></span></div>
+                    <small class="text-muted">{{ deal.buyers }} joined{% if deal.next_tier %} · {{ deal.next_tier.needed }} more for {{ deal.next_tier.price|money }}{% endif %}</small>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
     <!-- Featured Products -->
-    {% if featured_products %}
+    {% if featured_products and not filtering %}
     <section class="horizontal-scroll-section">
         <div class="section-title-bar">
             <div class="main-content-inner-container"><h3>Featured Products</h3></div>
@@ -135,7 +169,7 @@
     {% endif %}
 
     <!-- All Products Grid -->
-    <section class="all-products-section">
+    <section class="all-products-section" id="all-products">
         <div class="section-title-bar">
             <div class="main-content-inner-container">
                 <h2>
@@ -175,51 +209,5 @@
 {% endblock %}
 
 {% block scripts_extra %}
-<script>
-$(document).ready(function() {
-    // AJAX for Add to Cart
-    $('body').on('submit', '.add-to-cart-form-js', function(e) {
-        e.preventDefault(); 
-        var form = $(this);
-        var url = form.attr('action');
-        $.ajax({
-            type: "POST",
-            url: url,
-            data: form.serialize(), 
-            dataType: 'json', 
-            success: function(response) {
-                if(response.success) {
-                    $('#cart-count').text(response.count);
-                    var successMsg = $(
-                        '<div class="alert alert-success alert-dismissible fade show fixed-top-right m-3" role="alert">' +
-                        (response.message || 'Item added to cart!') +
-                        '<button type="button" class="close" data-dismiss="alert" aria-label="Close">' +
-                        '<span aria-hidden="true">×</span>' +
-                        '</button></div>'
-                    );
-                    $('body').append(successMsg);
-                    setTimeout(function() {
-                        successMsg.alert('close');
-                    }, 3000);
-                } else {
-                    alert('Error: ' + (response.message || 'Could not add item to cart.'));
-                }
-            },
-            error: function(xhr, status, error) {
-                var errorMsg = 'An error occurred while adding to cart.';
-                if (xhr.responseJSON && xhr.responseJSON.message) { errorMsg = xhr.responseJSON.message; } 
-                else if (xhr.responseText) { try { var parsed = JSON.parse(xhr.responseText); errorMsg = parsed.message || xhr.statusText || error; } catch(e) { errorMsg = xhr.statusText || error || 'Unknown AJAX error.'; } } 
-                else { errorMsg = error || 'Unknown AJAX error.'; }
-                alert('AJAX Error: ' + errorMsg);
-                console.error("AJAX Error Details:", xhr, status, error);
-            }
-        });
-    });
-
-    // Initialize Bootstrap Carousel
-    $('#promoCarousel').carousel({
-        interval: 5000 
-    });
-});
-</script>
+    {# Promo strip and add-to-cart are handled in static/js/main.js #}
 {% endblock %}

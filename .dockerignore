@@ -1,0 +1,17 @@
+.git
+.github
+.venv
+venv
+env
+__pycache__
+*.pyc
+.pytest_cache
+.env
+*.db
+*.db-shm
+*.db-wal
+static/uploads
+backups
+tests
+*.md
+private_uploads

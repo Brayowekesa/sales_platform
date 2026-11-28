@@ -1,0 +1,11 @@
+{% extends "pages/_page.html" %}
+{% block page_body %}
+<p class="lead">Every discount you see on {{ SITE_NAME }} is real. Our shop checks it automatically.</p>
+<div class="honest-rules">
+    <div><i class="fas fa-history"></i><span><strong>The old price was real.</strong> A crossed-out price only appears if the item actually sold at that price for at least {{ verify_days }} days in the last 90 days.</span></div>
+    <div><i class="fas fa-hourglass-end"></i><span><strong>Sales end.</strong> A discount stops showing after {{ max_sale_days }} days. A "sale" that never ends is just the normal price.</span></div>
+    <div><i class="fas fa-chart-line"></i><span><strong>See for yourself.</strong> Each product page shows its price history, and tells you when today's price is the lowest in 90 days.</span></div>
+    <div><i class="far fa-bell"></i><span><strong>Wait for a better price.</strong> Add an item to your wishlist and we'll tell you when its price drops or it's back in stock.</span></div>
+</div>
+<p class="mt-4 mb-0">Many sites show inflated "was" prices to make discounts look bigger. We don't, and you can check.</p>
+{% endblock %}

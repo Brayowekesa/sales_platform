@@ -23,92 +23,71 @@
 {% endblock %}
 
 {% block admin_content %}
-<div class="container-fluid">
+<div class="container-fluid dashboard">
     <!-- Page Heading -->
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800">Admin Dashboard</h1>
+    <div class="dash-head">
+        <div>
+            <span class="dash-kicker">Today at a glance</span>
+            <h1 class="dash-title">Admin Dashboard</h1>
+        </div>
+        <div class="dash-head-actions">
+            <a href="{{ url_for('admin.admin_orders') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-file-invoice mr-1" aria-hidden="true"></i> All orders</a>
+            <a href="{{ url_for('admin.admin_add_product') }}" class="btn btn-cart btn-sm"><i class="fas fa-plus mr-1" aria-hidden="true"></i> Add product</a>
+        </div>
     </div>
 
-    <!-- Pending Orders Alert -->
-    {% if pending_orders_count and pending_orders_count > 0 %}
-    <div class="alert alert-warning alert-dismissible fade show shadow-sm" role="alert">
-        <h4 class="alert-heading"><i class="fas fa-exclamation-triangle mr-2"></i>Action Required!</h4>
-        <p>You have <strong>{{ pending_orders_count }}</strong> order(s) with status 'Pending', 'Pending Payment', or 'Processing'. Please review them.</p>
-        <hr>
-        <p class="mb-0">
-            <a href="{{ url_for('admin_orders', status='Pending') }}" class="btn btn-sm btn-outline-warning mr-1">
-                View Pending ({{ pending_count if pending_count is defined else (conn.execute("SELECT COUNT(id) FROM orders WHERE status='Pending'").fetchone() or [0])[0] }})
-            </a>
-            <a href="{{ url_for('admin_orders', status='Pending Payment') }}" class="btn btn-sm btn-outline-warning mr-1">
-                View Pending Payment ({{ pending_payment_count if pending_payment_count is defined else (conn.execute("SELECT COUNT(id) FROM orders WHERE status='Pending Payment'").fetchone() or [0])[0] }})
-            </a>
-            <a href="{{ url_for('admin_orders', status='Processing') }}" class="btn btn-sm btn-outline-info">
-                View Processing ({{ processing_count if processing_count is defined else (conn.execute("SELECT COUNT(id) FROM orders WHERE status='Processing'").fetchone() or [0])[0] }})
-            </a>
-        </p>
-        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-            <span aria-hidden="true">×</span>
-        </button>
+    <!-- Today: the four numbers that matter -->
+    <section class="kpi-grid" aria-label="Today at a glance">
+        <a href="{{ url_for('admin.admin_orders') }}" class="kpi-card">
+            <span class="kpi-top"><span class="kpi-label">Orders today</span><span class="kpi-icon"><i class="fas fa-shopping-bag" aria-hidden="true"></i></span></span>
+            <span class="kpi-value">{{ today_orders }}</span>
+            <span class="kpi-note">since midnight</span>
+        </a>
+        <a href="{{ url_for('admin.report_sales_over_time') }}" class="kpi-card">
+            <span class="kpi-top"><span class="kpi-label">Sales today</span><span class="kpi-icon is-ok"><i class="fas fa-coins" aria-hidden="true"></i></span></span>
+            <span class="kpi-value">{{ today_sales|money }}</span>
+            <span class="kpi-note">all orders except cancelled</span>
+        </a>
+        <a href="{{ url_for('admin.admin_orders', status='Pending') }}" class="kpi-card {{ 'is-alert' if pending_orders_count }}">
+            <span class="kpi-top"><span class="kpi-label">Awaiting action</span><span class="kpi-icon is-accent"><i class="fas fa-hourglass-half" aria-hidden="true"></i></span></span>
+            <span class="kpi-value">{{ pending_orders_count }}</span>
+            <span class="kpi-note">{{ pending_count }} pending · {{ processing_count }} processing{% if pending_payment_count %} · {{ pending_payment_count }} awaiting payment{% endif %}</span>
+        </a>
+        <a href="{{ url_for('admin.report_low_stock') }}" class="kpi-card {{ 'is-alert' if low_stock_products_count }}">
+            <span class="kpi-top"><span class="kpi-label">Low stock</span><span class="kpi-icon is-danger"><i class="fas fa-battery-quarter" aria-hidden="true"></i></span></span>
+            <span class="kpi-value">{{ low_stock_products_count }}</span>
+            <span class="kpi-note">{{ low_stock_threshold }} or fewer left{% if out_of_stock_count %} · {{ out_of_stock_count }} sold out{% endif %}</span>
+        </a>
+    </section>
+
+    {% if pending_orders_count %}
+    <div class="dash-action" role="status">
+        <i class="fas fa-bell" aria-hidden="true"></i>
+        <span class="dash-action-text"><strong>{{ pending_orders_count }}</strong> order{{ '' if pending_orders_count == 1 else 's' }} need{{ 's' if pending_orders_count == 1 }} your attention.</span>
+        <span class="dash-action-links">
+            {% if pending_count %}<a href="{{ url_for('admin.admin_orders', status='Pending') }}" class="btn btn-sm btn-light">View Pending ({{ pending_count }})</a>{% endif %}
+            {% if pending_payment_count %}<a href="{{ url_for('admin.admin_orders', status='Pending Payment') }}" class="btn btn-sm btn-light">View Pending Payment ({{ pending_payment_count }})</a>{% endif %}
+            {% if processing_count %}<a href="{{ url_for('admin.admin_orders', status='Processing') }}" class="btn btn-sm btn-light">View Processing ({{ processing_count }})</a>{% endif %}
+        </span>
     </div>
     {% endif %}
 
-    <!-- Stats Cards Row 1 -->
-    <div class="row">
-        <div class="col-xl-3 col-md-6 mb-4 dashboard-stat-card">
-            <div class="card border-left-primary shadow h-100 py-2"><div class="card-body"><div class="row no-gutters align-items-center"><div class="col mr-2">
-                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Sales (Paid)</div>
-                <div class="h5 mb-0 font-weight-bold text-gray-800">${{ "%.2f"|format(total_sales) }}</div>
-            </div><div class="col-auto"><i class="fas fa-dollar-sign fa-2x text-gray-300"></i></div></div></div></div>
-        </div>
-        <div class="col-xl-3 col-md-6 mb-4 dashboard-stat-card">
-            <div class="card border-left-success shadow h-100 py-2"><div class="card-body"><div class="row no-gutters align-items-center"><div class="col mr-2">
-                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Users</div>
-                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_users }}</div>
-            </div><div class="col-auto"><i class="fas fa-users fa-2x text-gray-300"></i></div></div></div></div>
-        </div>
-        <div class="col-xl-3 col-md-6 mb-4 dashboard-stat-card">
-             <div class="card border-left-secondary shadow h-100 py-2"><div class="card-body"><div class="row no-gutters align-items-center"><div class="col mr-2">
-                <div class="text-xs font-weight-bold text-secondary text-uppercase mb-1">Total Products</div>
-                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_products }}</div>
-            </div><div class="col-auto"><i class="fas fa-boxes fa-2x text-gray-300"></i></div></div></div></div>
-        </div>
-        <div class="col-xl-3 col-md-6 mb-4 dashboard-stat-card">
-            <div class="card border-left-warning shadow h-100 py-2"><div class="card-body"><div class="row no-gutters align-items-center"><div class="col mr-2">
-                <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Orders Requiring Action</div>
-                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ pending_orders_count }}</div>
-            </div><div class="col-auto"><i class="fas fa-hourglass-half fa-2x text-gray-300"></i></div></div>
-            <a href="{{ url_for('admin_orders') }}" class="stretched-link" title="View All Orders"></a></div></div>
-        </div>
-    </div>
-
-    <!-- Stats Cards Row 2 -->
-    <div class="row">
-        <div class="col-xl-3 col-md-6 mb-4 dashboard-stat-card">
-            <div class="card border-left-info shadow h-100 py-2"><div class="card-body"><div class="row no-gutters align-items-center"><div class="col mr-2">
-                <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Promotions</div>
-                <div class="h5 mb-0 font-weight-bold text-gray-800" title="{{ total_promos_count }} Total Promotions">{{ active_promos_count }} Active</div>
-                <small class="text-muted">{{ total_promos_count - active_promos_count }} Inactive</small>
-            </div><div class="col-auto"><i class="fas fa-bullhorn fa-2x text-gray-300"></i></div></div>
-            <a href="{{ url_for('admin_promotions') }}" class="stretched-link" title="Manage Promotions"></a></div></div>
-        </div>
-        <div class="col-xl-3 col-md-6 mb-4 dashboard-stat-card">
-            <div class="card {% if low_stock_products_count > 0 %}border-left-danger{% else %}border-left-success{% endif %} shadow h-100 py-2">
-                <div class="card-body"><div class="row no-gutters align-items-center"><div class="col mr-2">
-                    <div class="text-xs font-weight-bold {% if low_stock_products_count > 0 %}text-danger{% else %}text-success{% endif %} text-uppercase mb-1">Low Stock Items (≤ {{low_stock_threshold}})</div>
-                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ low_stock_products_count }}</div>
-                </div><div class="col-auto"><i class="fas fa-battery-quarter fa-2x text-gray-300"></i></div></div>
-                <a href="{{ url_for('admin_products') }}#lowStockAnchor" class="stretched-link" title="View Products"></a></div></div>
-        </div>
-    </div>
+    <!-- Shop totals -->
+    <section class="mini-stats" aria-label="Shop totals">
+        <div class="mini-stat"><i class="fas fa-money-bill-wave" aria-hidden="true"></i><span><small>Paid online (all time)</small><strong>{{ total_sales|money }}</strong></span></div>
+        <div class="mini-stat"><i class="fas fa-users" aria-hidden="true"></i><span><small>Users</small><strong>{{ total_users }}</strong></span></div>
+        <div class="mini-stat"><i class="fas fa-boxes" aria-hidden="true"></i><span><small>Products</small><strong>{{ total_products }}</strong></span></div>
+        <a class="mini-stat" href="{{ url_for('admin.admin_promotions') }}"><i class="fas fa-bullhorn" aria-hidden="true"></i><span><small>Promotions</small><strong>{{ active_promos_count }} active</strong></span></a>
+    </section>
 
     <!-- Content Row with Recent Data -->
     <div class="row">
         <div class="col-lg-7 mb-4">
             <!-- Recent Orders Table -->
-            <div class="card shadow mb-4">
+            <div class="card dash-card mb-4">
                 <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary">Recent Orders (Last 5)</h6>
-                    <a href="{{ url_for('admin_orders') }}">View All Orders &rarr;</a>
+                    <h2 class="dash-card-title">Recent Orders (Last 5)</h2>
+                    <a href="{{ url_for('admin.admin_orders') }}">View All Orders <i class="fas fa-arrow-right ml-1" aria-hidden="true"></i></a>
                 </div>
                 <div class="card-body p-0">
                     {% if recent_orders %}
@@ -118,10 +97,10 @@
                                 <tbody>
                                 {% for order in recent_orders %}
                                     <tr>
-                                        <td><a href="{{ url_for('admin_order_details', order_id=order.id) }}">#{{ order.id }}</a></td>
+                                        <td><a href="{{ url_for('admin.admin_order_details', order_id=order.id) }}">#{{ order.id }}</a></td>
                                         <td>{{ order.username }}</td>
-                                        <td>${{ "%.2f"|format(order.total_amount) }}</td>
-                                        <td>{{ order.order_date_formatted }}</td>
+                                        <td>{{ order.total_amount|money }}</td>
+                                        <td>{{ order.order_date|localtime('%b %d, %Y %H:%M') }}</td>
                                         <td><span class="badge badge-{{ 'success' if order.status == 'Paid' or order.status == 'Delivered' else ('primary' if order.status == 'Shipped' else ('info' if order.status == 'Processing' else ('warning' if order.status == 'Pending' or order.status == 'Pending Payment' else 'secondary'))) }}">{{ order.status }}</span></td>
                                     </tr>
                                 {% endfor %}
@@ -133,10 +112,10 @@
             </div>
 
             <!-- NEW: Recent Site Activity -->
-            <div class="card shadow mb-4">
+            <div class="card dash-card mb-4">
                 <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary">Recent Site Activity (Last 7)</h6>
-                    <a href="{{ url_for('admin_activity_logs') }}">View All Activity &rarr;</a>
+                    <h2 class="dash-card-title">Recent Site Activity (Last 7)</h2>
+                    <a href="{{ url_for('admin.admin_activity_logs') }}">View All Activity <i class="fas fa-arrow-right ml-1" aria-hidden="true"></i></a>
                 </div>
                 <div class="card-body" style="max-height: 350px; overflow-y: auto;">
                     {% if processed_recent_activities %}
@@ -145,7 +124,7 @@
                             <li class="list-group-item">
                                 <div class="d-flex w-100 justify-content-between">
                                     <strong style="font-size: 0.9rem;">{{ activity.action }}</strong>
-                                    <small class="text-muted">{{ activity.timestamp_formatted }}</small>
+                                    <small class="text-muted">{{ activity.timestamp|localtime('%b %d, %H:%M') }}</small>
                                 </div>
                                 {% if activity.username %}
                                     <small class="text-muted d-block">User: {{ activity.username }}</small>
@@ -168,10 +147,10 @@
 
         <div class="col-lg-5 mb-4">
             <!-- Active Promotions List Card -->
-            <div class="card shadow mb-4">
+            <div class="card dash-card mb-4">
                  <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary">Active Promotions (Top 3)</h6>
-                     <a href="{{ url_for('admin_promotions') }}">Manage All &rarr;</a>
+                    <h2 class="dash-card-title">Active Promotions (Top 3)</h2>
+                     <a href="{{ url_for('admin.admin_promotions') }}">Manage All <i class="fas fa-arrow-right ml-1" aria-hidden="true"></i></a>
                 </div>
                 <div class="card-body" style="max-height: 300px; overflow-y: auto;">
                     {% if dashboard_active_promotions %}
@@ -179,13 +158,13 @@
                         {% for promo in dashboard_active_promotions %}
                             <li class="list-group-item px-0 py-2">
                                 <div class="d-flex w-100 justify-content-between">
-                                    <strong style="font-size: 0.9rem;"><a href="{{ url_for('admin_edit_promotion', promo_id=promo.id) }}">{{ promo.title }}</a></strong>
+                                    <strong style="font-size: 0.9rem;"><a href="{{ url_for('admin.admin_edit_promotion', promo_id=promo.id) }}">{{ promo.title }}</a></strong>
                                     <small class="text-muted">Order: {{ promo.display_order }}</small>
                                 </div>
                                 {% if promo.image_path %}<img src="{{ url_for('static', filename=promo.image_path) }}" alt="{{ promo.title }}" class="small-promo-img my-1">{% endif %}
                                 <p class="mb-1 small text-muted">
                                     {% if promo.original_price and promo.promo_price and promo.original_price > promo.promo_price %}
-                                        Was: ${{ "%.2f"|format(promo.original_price) }}, Now: ${{ "%.2f"|format(promo.promo_price) }}
+                                        Was: {{ promo.original_price|money }}, Now: {{ promo.promo_price|money }}
                                     {% elif promo.discount_text %}{{ promo.discount_text }}
                                     {% else %}Target: {{ promo.target_url|truncate(30, True) if promo.target_url else "General" }}{% endif %}
                                 </p>
@@ -197,11 +176,11 @@
             </div>
             <!-- Product Insights Card -->
             {% if top_products or low_stock_products_list %}
-            <div class="card shadow mb-4">
-                <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary">Product Insights</h6></div>
+            <div class="card dash-card mb-4">
+                <div class="card-header py-3"><h2 class="dash-card-title">Product Insights</h2></div>
                 <div class="card-body" style="max-height: 250px; overflow-y: auto;">
                     {% if top_products %}<strong class="d-block mb-1">Top Selling:</strong><ul class="list-group list-group-flush mb-2">{% for product in top_products %}<li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1"><small>{{ product.name }}</small><span class="badge badge-primary badge-pill">{{ product.total_sold }}</span></li>{% endfor %}</ul>{% endif %}
-                    {% if low_stock_products_list %}<strong class="text-danger d-block mb-1">Critically Low Stock (≤ {{low_stock_threshold}}):</strong><ul class="list-group list-group-flush">{% for item in low_stock_products_list %}<li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1"><small><a href="{{ url_for('admin_edit_product', product_id=item.id) }}">{{ item.name }}</a></small><span class="badge badge-danger badge-pill">{{ item.stock }}</span></li>{% endfor %}</ul>{% endif %}
+                    {% if low_stock_products_list %}<strong class="text-danger d-block mb-1">Critically Low Stock (≤ {{low_stock_threshold}}):</strong><ul class="list-group list-group-flush">{% for item in low_stock_products_list %}<li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1"><small><a href="{{ url_for('admin.admin_edit_product', product_id=item.id) }}">{{ item.name }}</a></small><span class="badge badge-danger badge-pill">{{ item.stock }}</span></li>{% endfor %}</ul>{% endif %}
                     {% if not top_products and not low_stock_products_list %}<p class="text-muted text-center py-3">No product insights.</p>{% endif %}
                 </div>
             </div>

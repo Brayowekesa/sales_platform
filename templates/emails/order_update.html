@@ -1,0 +1,31 @@
+{# Order email. Inline styles only - email apps ignore stylesheets. #}
+<!DOCTYPE html>
+<html><body style="margin:0;padding:0;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#0b2545;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7fb;padding:24px 12px;"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e1e8f0;">
+  <tr><td style="background:#0b2545;padding:18px 24px;color:#ffffff;font-size:20px;font-weight:bold;">{{ SITE_NAME }}</td></tr>
+  <tr><td style="padding:24px;">
+    <h1 style="margin:0 0 8px;font-size:22px;color:#0b2545;">{{ headline }}</h1>
+    <p style="margin:0 0 4px;font-size:15px;line-height:1.5;">Hi {{ order.contact_name or order.username }},</p>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.5;">{{ message }}</p>
+    {% if note %}<p style="margin:0 0 16px;padding:12px 14px;background:#e8f3fc;border-radius:8px;font-size:14px;"><strong>Note from us:</strong> {{ note }}</p>{% endif %}
+    <p style="margin:0 0 6px;font-size:13px;color:#5b6b82;">Order #{{ order.id }}</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e1e8f0;font-size:14px;">
+      {% for i in items %}
+      <tr><td style="padding:8px 0;border-bottom:1px solid #f1f5f9;">{{ i.name }} × {{ i.quantity }}</td><td align="right" style="padding:8px 0;border-bottom:1px solid #f1f5f9;">{{ (i.price * i.quantity)|money }}</td></tr>
+      {% endfor %}
+      <tr><td style="padding:8px 0;color:#5b6b82;">Delivery{% if order.delivery_zone %} ({{ order.delivery_zone }}){% endif %}</td><td align="right" style="padding:8px 0;color:#5b6b82;">{{ 'Free' if not order.delivery_fee else order.delivery_fee|money }}</td></tr>
+      <tr><td style="padding:8px 0;font-weight:bold;font-size:16px;">Total</td><td align="right" style="padding:8px 0;font-weight:bold;font-size:16px;">{{ order.total_amount|money }}</td></tr>
+    </table>
+    <p style="margin:16px 0 0;font-size:14px;line-height:1.5;"><strong>Payment:</strong> {{ order.payment_method }}<br>
+      {% if order.delivery_method == 'pickup' %}<strong>Pickup:</strong> {{ order.delivery_zone }}{% else %}<strong>Deliver to:</strong> {{ order.shipping_address }}{% endif %}<br>
+      <strong>Phone:</strong> {{ order.contact_phone }}</p>
+    <p style="margin:24px 0 0;"><a href="{{ order_url }}" style="display:inline-block;background:#f97316;color:#0b2545;font-weight:bold;text-decoration:none;padding:12px 22px;border-radius:8px;">View your order</a></p>
+  </td></tr>
+  <tr><td style="padding:16px 24px;background:#f8fafc;font-size:12px;color:#5b6b82;line-height:1.5;">
+    Questions? {% if shop.phone %}Call {{ shop.phone }}{% endif %}{% if shop.whatsapp %} · WhatsApp {{ shop.whatsapp }}{% endif %}{% if shop.email %} · {{ shop.email }}{% endif %}<br>
+    You're receiving this because you placed an order at {{ SITE_NAME }}.
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>

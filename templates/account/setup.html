@@ -1,0 +1,29 @@
+{% extends "layout.html" %}
+{% block title %}Turn on two-step login - {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="container my-4 my-md-5" style="max-width: 760px;">
+    <h1 class="mb-4">Turn on two-step login</h1>
+    <div class="info-card">
+        <ol class="setup-steps">
+            <li>
+                <strong>Install an authenticator app</strong> on your phone if you don't have one:
+                Google Authenticator, Microsoft Authenticator or Authy (free).
+            </li>
+            <li>
+                <strong>Scan this QR code</strong> with the app (tap <em>+</em> or <em>Add account</em>).
+                <div class="qr-box">{{ qr_svg|safe }}</div>
+                <small class="text-muted">Can't scan? Choose "enter a setup key" in the app and type: <code class="setup-key">{{ secret }}</code></small>
+            </li>
+            <li>
+                <strong>Enter the 6-digit code</strong> the app now shows for {{ SITE_NAME }}:
+                <form method="POST" action="{{ url_for('account.setup') }}" class="mt-2" style="max-width: 320px;" autocomplete="off">
+                    {{ form.hidden_tag() }}
+                    <div class="form-group">{{ form.code(class="form-control form-control-lg code-input", inputmode="numeric", autocomplete="one-time-code", placeholder="123456") }}</div>
+                    <button type="submit" class="btn btn-primary btn-block">Turn on</button>
+                </form>
+            </li>
+        </ol>
+        <p class="mb-0"><a href="{{ url_for('account.security') }}">Cancel</a></p>
+    </div>
+</div>
+{% endblock %}

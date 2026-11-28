@@ -1,30 +1,30 @@
-{% extends "layout.html" %} {# Or "admin/admin_layout.html" if you want different error pages for admin section #}
+{% extends "layout.html" %}
 
 {% block title %}
     404 - Page Not Found
 {% endblock %}
 
 {% block content %}
-<div class="container text-center mt-5 pt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <h1 class="display-1 text-danger">404</h1>
-            <h2 class="mb-4">Oops! Page Not Found.</h2>
-            <p class="lead text-muted mb-4">
-                The page you are looking for might have been removed, had its name changed,
-                or is temporarily unavailable.
-            </p>
-            <div class="mb-4">
-                <i class="fas fa-compass fa-7x text-info"></i>
-            </div>
-            <p>Let's get you back on track:</p>
-            <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg mr-2">
-                <i class="fas fa-home"></i> Go to Homepage
+<div class="container page-shell">
+    <div class="error-card">
+        <span class="error-icon"><i class="fas fa-compass" aria-hidden="true"></i></span>
+        <p class="error-code">Error 404</p>
+        <h1>Oops! Page Not Found.</h1>
+        <p class="error-text">The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.</p>
+
+        <form class="error-search" action="{{ url_for('store.search') }}" method="GET" role="search">
+            <label for="error-search-input" class="sr-only">Search products</label>
+            <input type="search" id="error-search-input" name="query" class="form-control" placeholder="Search products...">
+            <button type="submit" class="btn btn-primary" aria-label="Search"><i class="fas fa-search" aria-hidden="true"></i></button>
+        </form>
+
+        <div class="error-actions">
+            <a href="{{ url_for('store.index') }}" class="btn btn-primary">
+                <i class="fas fa-home mr-2" aria-hidden="true"></i>Back to Home
             </a>
-            {# You could add a search bar or other helpful links here #}
-            {# <a href="javascript:history.back()" class="btn btn-outline-secondary btn-lg">
-                <i class="fas fa-arrow-left"></i> Go Back
-            </a> #}
+            <a href="{{ url_for('pages.page_contact') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-life-ring mr-2" aria-hidden="true"></i>Get help
+            </a>
         </div>
     </div>
 </div>

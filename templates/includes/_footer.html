@@ -1,5 +1,55 @@
-<footer class="footer mt-auto py-3 bg-light text-center">
+<footer class="site-footer-pro mt-auto">
     <div class="container">
-        <span class="text-muted">© {% if SCRIPT_START_YEAR and SCRIPT_START_YEAR != current_year %}{{ SCRIPT_START_YEAR }} - {% endif %}{{ current_year }} E-Shop. All Rights Reserved.</span>
+        <div class="row footer-cols">
+            <div class="col-lg-4 col-md-6 mb-4">
+                <a href="{{ url_for('store.index') }}" class="footer-brand"><img src="{{ url_for('static', filename='images/logo_light.png') }}" alt="{{ SITE_NAME }}"></a>
+                <p class="footer-tagline">{{ SHOP.tagline }}</p>
+                <div class="footer-social">
+                    {% if SHOP.whatsapp_link %}<a href="{{ SHOP.whatsapp_link }}" target="_blank" rel="noopener" aria-label="WhatsApp"><i class="fab fa-whatsapp"></i></a>{% endif %}
+                    {% if SHOP.facebook %}<a href="{{ SHOP.facebook|safe_link }}" target="_blank" rel="noopener" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>{% endif %}
+                    {% if SHOP.instagram %}<a href="{{ SHOP.instagram|safe_link }}" target="_blank" rel="noopener" aria-label="Instagram"><i class="fab fa-instagram"></i></a>{% endif %}
+                    {% if SHOP.tiktok %}<a href="{{ SHOP.tiktok|safe_link }}" target="_blank" rel="noopener" aria-label="TikTok"><i class="fab fa-tiktok"></i></a>{% endif %}
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-6 col-6 mb-4">
+                <h2 class="footer-title">Shop</h2>
+                <ul class="footer-links">
+                    {% for cat in (categories_for_navbar or [])[:6] %}<li><a href="{{ url_for('store.index', category=cat) }}">{{ cat }}</a></li>{% endfor %}
+                </ul>
+            </div>
+            <div class="col-lg-2 col-md-6 col-6 mb-4">
+                <h2 class="footer-title">Help</h2>
+                <ul class="footer-links">
+                    <li><a href="{{ url_for('pages.page_delivery') }}">Delivery &amp; pickup</a></li>
+                    <li><a href="{{ url_for('pages.page_returns') }}">Returns &amp; refunds</a></li>
+                    <li><a href="{{ url_for('pages.page_honest_prices') }}">Honest prices</a></li>
+                    <li><a href="{{ url_for('orders.order_history') }}">Track my order</a></li>
+                    <li><a href="{{ url_for('pages.page_contact') }}">Contact us</a></li>
+                </ul>
+            </div>
+            <div class="col-lg-4 col-md-6 mb-4">
+                <h2 class="footer-title">Get in touch</h2>
+                <ul class="footer-contact">
+                    {% if SHOP.phone %}<li><i class="fas fa-phone-alt"></i><a href="tel:{{ SHOP.phone|replace(' ', '') }}">{{ SHOP.phone }}</a></li>{% endif %}
+                    {% if SHOP.whatsapp_link %}<li><i class="fab fa-whatsapp"></i><a href="{{ SHOP.whatsapp_link }}" target="_blank" rel="noopener">Chat on WhatsApp</a></li>{% endif %}
+                    {% if SHOP.email %}<li><i class="fas fa-envelope"></i><a href="mailto:{{ SHOP.email }}">{{ SHOP.email }}</a></li>{% endif %}
+                    {% if SHOP.address %}<li><i class="fas fa-map-marker-alt"></i><span>{{ SHOP.address }}</span></li>{% endif %}
+                    {% if SHOP.hours %}<li><i class="far fa-clock"></i><span>{{ SHOP.hours }}</span></li>{% endif %}
+                    {% if not (SHOP.phone or SHOP.email or SHOP.address) %}<li><i class="fas fa-comments"></i><a href="{{ url_for('pages.page_contact') }}">Contact us</a></li>{% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        <div class="container d-flex flex-wrap justify-content-between align-items-center">
+            <span>© {% if SCRIPT_START_YEAR and SCRIPT_START_YEAR != current_year %}{{ SCRIPT_START_YEAR }}–{% endif %}{{ current_year }} {{ SITE_NAME }}</span>
+            <span class="footer-pay"><span class="pay-chip mpesa">M-PESA</span><span class="pay-chip">Cash on Delivery</span></span>
+            <span>
+                {% if data_saver %}<a href="{{ url_for('pages.data_saver', state='off', next=request.full_path.rstrip('?')) }}"><i class="fas fa-leaf"></i> Data saver: ON · turn off</a>
+                {% else %}<a href="{{ url_for('pages.data_saver', state='on', next=request.full_path.rstrip('?')) }}" title="Smaller photos and no extra downloads - saves your bundles"><i class="fas fa-leaf"></i> Data saver</a>{% endif %}
+                <a href="#" class="install-app" hidden> · <i class="fas fa-download"></i> Install app</a>
+                · <a href="{{ url_for('pages.page_privacy') }}">Privacy</a> · <a href="{{ url_for('pages.page_terms') }}">Terms</a>
+            </span>
+        </div>
     </div>
 </footer>

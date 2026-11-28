@@ -1,0 +1,60 @@
+# Production setup: the shop + PostgreSQL + Caddy (automatic HTTPS).
+#   1. Copy .env.example to .env and fill in DOMAIN, POSTGRES_PASSWORD, FLASK_SECRET_KEY, email and M-Pesa
+#   2. docker compose up -d --build
+# Full guide: DEPLOY.md
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shop
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop -d shop"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://shop:${POSTGRES_PASSWORD}@db:5432/shop
+      TRUSTED_PROXY_COUNT: "1"     # Caddy sits in front
+      SESSION_COOKIE_SECURE: "1"   # cookies only over HTTPS
+      AUTO_MIGRATE: "0"            # the entrypoint migrates once before starting workers
+      REQUIRE_ADMIN_2FA: "1"       # admins must use two-step login
+      FLASK_DEBUG: "0"
+    volumes:
+      - uploads:/app/static/uploads
+      - private_uploads:/app/private_uploads   # packing-proof photos/videos (not public)
+    depends_on:
+      db:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env, e.g. shop.example.co.ke}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data        # HTTPS certificates
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  pgdata:
+  uploads:
+  private_uploads:
+  caddy_data:
+  caddy_config:

@@ -31,7 +31,7 @@
                         {% for log_entry in logs %}
                         <tr>
                             <td>{{ log_entry.id }}</td>
-                            <td>{{ log_entry.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log_entry.timestamp else 'N/A' }}</td>
+                            <td>{{ log_entry.timestamp|localtime('%Y-%m-%d %H:%M:%S') or 'N/A' }}</td>
                             <td>{{ log_entry.username if log_entry.username else 'System' }}</td>
                             <td>{{ log_entry.action }}</td>
                             <td><small>{{ log_entry.details if log_entry.details else '-' }}</small></td>
@@ -41,12 +41,10 @@
                 </table>
             </div>
 
-          {# templates/admin/activity_logs.html (Corrected) #}
-{% if total_pages and total_pages > 1 %}
-    {% with pagination_endpoint='admin_activity_logs', current_query_params=query_params %} {# Use context vars from route #}
-        {% include 'includes/_pagination.html' %}
-    {% endwith %}
-{% endif %}
+            {% if total_pages and total_pages > 1 %}
+                {% include 'includes/_pagination.html' %}
+            {% endif %}
+            {% else %}
             <div class="alert alert-info text-center">
                 No activity logs found.
             </div>

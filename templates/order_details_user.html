@@ -1,98 +1,221 @@
 {% extends "layout.html" %}
 
-{% block title %}
-    Order Details - #{{ order.id }}
-{% endblock %}
+{% block title %}Order #{{ order.id }} - {{ SITE_NAME }}{% endblock %}
+{% block wa_text %}Hi, I have a question about my order #{{ order.id }}.{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Order Details <small class="text-muted">#{{ order.id }}</small></h2>
-        <a href="{{ url_for('order_history') }}" class="btn btn-outline-secondary">« Back to Order History</a>
-    </div>
+<div class="container order-page my-4 my-md-5">
 
-    <div class="card shadow-sm mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">Order Summary</h5>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <p><strong>Order ID:</strong> #{{ order.id }}</p>
-                                       <p><strong>Order Date:</strong> {{ order.order_date_formatted }}</p>
-                    <p><strong>Order Status:</strong>
-                        {% if order.status == 'Paid' or order.status == 'Delivered' or order.status == 'Processing' %}
-                            <span class="badge badge-success">{{ order.status }}</span>
-                        {% elif order.status == 'Pending' or order.status == 'Pending Payment' %}
-                            <span class="badge badge-warning">{{ order.status }}</span>
-                        {% elif order.status == 'Shipped' %}
-                            <span class="badge badge-info">{{ order.status }}</span>
-                        {% elif order.status == 'Cancelled' or order.status == 'Payment Failed' or order.status == 'Refunded' %}
-                            <span class="badge badge-danger">{{ order.status }}</span>
-                        {% else %}
-                            <span class="badge badge-secondary">{{ order.status if order.status else 'Unknown' }}</span>
-                        {% endif %}
-                    </p>
-                </div>
-                <div class="col-md-6">
-                    <p><strong>Total Amount:</strong> <span class="font-weight-bold text-success">${{ "%.2f"|format(order.total_amount) }}</span></p>
-                    <p><strong>Payment Method:</strong> {{ order.payment_method if order.payment_method else 'N/A' }}</p>
-                    {% if order.transaction_id and order.payment_method == 'Lipa na M-Pesa' %}
-                        <p><strong>M-Pesa Transaction ID:</strong> {{ order.transaction_id }}</p>
-                    {% endif %}
-                </div>
-            </div>
-            {% if order.shipping_address %}
-            <hr>
-            <h6><strong>Shipping Address:</strong></h6>
-            <p style="white-space: pre-line;">{{ order.shipping_address }}</p>
+    {% if just_placed %}
+    <div class="order-thanks">
+        <i class="fas fa-check-circle"></i>
+        <div>
+            <h1>Thank you, your order is placed!</h1>
+            {% if order.status == 'Pending Payment' %}
+                <p>Check your phone and enter your M-Pesa PIN to pay <strong>{{ order.total_amount|money }}</strong>. This page updates once the payment comes through.</p>
+            {% elif order.is_gift %}
+                {% if sms_on %}<p>We'll text <strong>{{ order.contact_name }}</strong> ({{ order.contact_phone }}) that a parcel from you is coming, and keep them updated. No prices are shown to them{% if order.payment_method == 'Cash on Delivery' %}, except the amount to pay on delivery{% endif %}.</p>
+                {% else %}<p>We'll call <strong>{{ order.contact_name }}</strong> ({{ order.contact_phone }}) to deliver it. Send them their tracking link with the WhatsApp button below - it shows no prices{% if order.payment_method == 'Cash on Delivery' %}, except the amount to pay on delivery{% endif %}.</p>{% endif %}
+            {% elif order.delivery_method == 'pickup' %}
+                <p>We'll call <strong>{{ order.contact_phone }}</strong> when it's ready to collect. Pay when you pick it up.</p>
+            {% else %}
+                <p>We'll call <strong>{{ order.contact_phone }}</strong> to arrange delivery. Pay when it arrives.</p>
             {% endif %}
         </div>
     </div>
+    {% endif %}
 
-    <h4 class="mb-3">Items in this Order</h4>
-    {% if order_items %}
-        <div class="table-responsive">
-            <table class="table">
-                <thead class="thead-light">
-                    <tr>
-                        <th scope="col" style="width: 10%;">Product</th>
-                        <th scope="col" style="width: 40%;"></th>
-                        <th scope="col" class="text-center">Unit Price</th>
-                        <th scope="col" class="text-center">Quantity</th>
-                        <th scope="col" class="text-right">Subtotal</th>
-                    </tr>
-                </thead>
-                <tbody>
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3" style="gap:.5rem">
+        <div>
+            <h2 class="mb-0">Order #{{ order.id }}</h2>
+            <small class="text-muted">Placed {{ order.order_date_formatted }}</small>
+        </div>
+        <a href="{{ url_for('orders.order_history') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left mr-1"></i> All orders</a>
+    </div>
+
+    {# ---------- Progress tracker ---------- #}
+    <div class="order-card">
+        {% if progress.current is none %}
+            <div class="order-stopped">
+                <i class="fas fa-times-circle"></i>
+                <div><strong>{{ order.status }}</strong>
+                    <p class="mb-0">{% if order.status == 'Payment Failed' %}The M-Pesa payment didn't go through. Your items were returned to stock - you can order again any time.{% else %}This order is no longer active. Contact us if you have questions.{% endif %}</p>
+                </div>
+            </div>
+        {% else %}
+            <ol class="order-tracker">
+                {% for step in progress.steps %}
+                <li class="{{ 'is-done' if loop.index0 < progress.current else ('is-current' if loop.index0 == progress.current else '') }}">
+                    <span class="dot">{% if loop.index0 < progress.current %}<i class="fas fa-check"></i>{% else %}{{ loop.index }}{% endif %}</span>
+                    <span class="label">{{ step }}</span>
+                </li>
+                {% endfor %}
+            </ol>
+            {% if order.status == 'Pending Payment' %}<p class="order-tracker-note"><i class="fas fa-mobile-alt mr-1"></i> Waiting for your M-Pesa payment.</p>{% endif %}
+        {% endif %}
+
+        {% if history %}
+        <details class="order-history-log" {% if not just_placed %}open{% endif %}>
+            <summary>Order updates</summary>
+            <ul>
+                <li><span class="when">{{ order.order_date|localtime }}</span><span>Order placed</span></li>
+                {% for h in history %}
+                <li><span class="when">{{ h.created_at|localtime }}</span><span>{{ h.status }}{% if h.note %} - <span class="text-muted">{{ h.note }}</span>{% endif %}</span></li>
+                {% endfor %}
+            </ul>
+        </details>
+        {% endif %}
+    </div>
+
+    {# ---------- Pamoja deal still running / refund due ---------- #}
+    {% if open_deal %}
+    <a class="deal-box mb-4" href="{{ url_for('deals.deal_page', deal_id=open_deal.id) }}">
+        <span class="deal-box-icon"><i class="fas fa-users"></i></span>
+        <span class="deal-box-text"><strong>Your Pamoja deal is still running - price now {{ open_deal.current_price|money }}</strong>
+            <small>{{ open_deal.buyers }} joined{% if open_deal.next_tier %} · {{ open_deal.next_tier.needed }} more to drop to {{ open_deal.next_tier.price|money }}{% endif %}.
+            We send your order when the deal ends ({{ open_deal.ends_at|localtime('%d %b, %H:%M') }}). Share it to bring the price down!</small></span>
+        <span class="deal-box-go">Share <i class="fas fa-chevron-right"></i></span>
+    </a>
+    {% endif %}
+    {% if order.deal_refund_due %}
+    <div class="alert alert-info"><i class="fas fa-undo mr-1"></i> Good news: the Pamoja deal ended at a lower price. We'll send <strong>{{ order.deal_refund_due|money }}</strong> back to your M-Pesa.</div>
+    {% endif %}
+
+    {# ---------- Tuma kwa Mama: who it's going to ---------- #}
+    {% if order.is_gift %}
+    <div class="gift-card">
+        <span class="gift-card-icon"><i class="fas fa-gift"></i></span>
+        <div class="gift-card-body">
+            <span class="gift-card-kicker">Sending to</span>
+            <strong>{{ order.contact_name }}</strong> <span class="text-muted">· {{ order.contact_phone }}</span>
+            {% if order.gift_message %}<p class="gift-card-message">"{{ order.gift_message }}"</p>{% endif %}
+            <p class="small text-muted mb-2">{% if sms_on %}We text them at each step{% if order.gift_notified_at %} (first text sent){% endif %}.{% else %}Send them their tracking link on WhatsApp so they can follow the parcel.{% endif %}</p>
+            <div class="gift-card-actions">
+                {% set wa_to = order.contact_phone|replace(' ', '')|replace('+', '') %}{% if wa_to.startswith('0') %}{% set wa_to = '254' ~ wa_to[1:] %}{% endif %}
+                <a class="btn btn-whatsapp btn-sm" target="_blank" rel="noopener"
+                   href="https://wa.me/{{ wa_to }}?text={{ ('Hi ' ~ order.contact_name ~ ', I have sent you a parcel from ' ~ SITE_NAME ~ '! Follow it here: ' ~ gift_link)|urlencode }}"><i class="fab fa-whatsapp mr-1"></i> Send them the tracking link</a>
+                {% if sms_on and order.status in ('Processing', 'Paid', 'Shipped') %}
+                <form method="POST" action="{{ url_for('orders.gift_resend', order_id=order.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-outline-secondary btn-sm"><i class="fas fa-sms mr-1"></i> Re-send their text</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ---------- Delivery PIN (while the order is on its way / ready for pickup) ---------- #}
+    {% if order.status == 'Shipped' and order.delivery_pin %}
+    <div class="pin-card">
+        <div>
+            <span class="pin-label">{{ 'Pickup PIN' if order.delivery_method == 'pickup' else 'Delivery PIN' }}</span>
+            <span class="pin-code" aria-label="PIN {{ order.delivery_pin|join(' ') }}">{{ order.delivery_pin }}</span>
+        </div>
+        <p class="mb-0">{% if order.is_gift %}We've texted this PIN to <strong>{{ order.contact_name }}</strong>. They give it to {{ 'the shop when they collect' if order.delivery_method == 'pickup' else 'the rider once they have the parcel' }} - only share it with them.
+        {% elif order.delivery_method == 'pickup' %}Show this PIN when you collect your order. Never share it before that.{% else %}Give this PIN to the rider <strong>only once you have your parcel</strong> and checked it. Never share it before that.{% endif %}</p>
+    </div>
+    {% endif %}
+
+    {# ---------- Packing proof ---------- #}
+    {% if proofs %}
+    <div class="order-card proof-card" id="proof">
+        <h3 class="order-card-title"><i class="fas fa-camera mr-1"></i> Your item, before we send it</h3>
+        <p class="text-muted small mb-3">These are photos/video of the exact item we packed for you.</p>
+        <div class="proof-grid">
+            {% for p in proofs %}
+                {% if p.kind == 'video' %}
+                <video class="proof-media" src="{{ url_for('orders.proof_file', order_id=order.id, proof_id=p.id) }}" controls preload="metadata" playsinline></video>
+                {% else %}
+                <a href="{{ url_for('orders.proof_file', order_id=order.id, proof_id=p.id) }}" target="_blank" rel="noopener"><img class="proof-media" src="{{ url_for('orders.proof_file', order_id=order.id, proof_id=p.id) }}" alt="Packing photo {{ loop.index }}" loading="lazy"></a>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% if order.proof_response == 'ok' %}
+            <p class="proof-answer is-ok"><i class="fas fa-check-circle"></i> You confirmed this looks right. Thank you!</p>
+        {% elif order.proof_response == 'problem' %}
+            <p class="proof-answer is-problem"><i class="fas fa-exclamation-circle"></i> You reported: "{{ order.proof_response_note }}". We'll contact you before sending.</p>
+        {% elif order.status not in ['Delivered', 'Cancelled', 'Refunded', 'Payment Failed'] %}
+        <div class="proof-actions">
+            <form method="POST" action="{{ url_for('orders.proof_response', order_id=order.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="answer" value="ok">
+                <button class="btn btn-success"><i class="fas fa-check mr-1"></i> Looks right</button>
+            </form>
+            <details class="proof-problem">
+                <summary class="btn btn-outline-danger">Something's wrong</summary>
+                <form method="POST" action="{{ url_for('orders.proof_response', order_id=order.id) }}" class="mt-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="answer" value="problem">
+                    <textarea name="note" class="form-control mb-2" rows="2" maxlength="300" required placeholder="e.g. Wrong colour - I ordered black"></textarea>
+                    <button class="btn btn-danger btn-sm">Send to the shop</button>
+                </form>
+            </details>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="row">
+        {# ---------- Items ---------- #}
+        <div class="col-lg-7 mb-4">
+            <div class="order-card h-100">
+                <h3 class="order-card-title">Items</h3>
+                <ul class="order-items">
                     {% for item in order_items %}
-                    <tr>
-                        <td>
-                            <a href="{{ url_for('product_details', product_id=item.product_id) }}">
-                                <img src="{{ url_for('static', filename=item.image if item.image else 'uploads/default.jpg') }}" alt="{{ item.name }}" class="img-fluid rounded" style="max-height: 60px; object-fit: contain;">
-                            </a>
-                        </td>
-                        <td>
-                            <a href="{{ url_for('product_details', product_id=item.product_id) }}" class="text-dark">{{ item.name }}</a>
-                        </td>
-                        <td class="text-center">${{ "%.2f"|format(item.price) }}</td>
-                        <td class="text-center">{{ item.quantity }}</td>
-                        <td class="text-right">${{ "%.2f"|format(item.price * item.quantity) }}</td>
-                    </tr>
+                    <li>
+                        <a href="{{ url_for('store.product_details', product_id=item.product_id) }}" class="thumb"><img src="{{ product_img(item.image, 'thumb') }}" alt=""></a>
+                        <div class="info">
+                            <a href="{{ url_for('store.product_details', product_id=item.product_id) }}">{{ item.name }}</a>
+                            <small class="text-muted">{{ item.quantity }} × {{ item.price|money }}</small>
+                        </div>
+                        <strong>{{ (item.price * item.quantity)|money }}</strong>
+                    </li>
                     {% endfor %}
-                </tbody>
-            </table>
+                </ul>
+                <dl class="summary-totals">
+                    <div><dt>Subtotal</dt><dd>{{ (order.subtotal if order.subtotal is not none else order.total_amount)|money }}</dd></div>
+                    <div><dt>Delivery</dt><dd>{{ 'Free' if not order.delivery_fee else order.delivery_fee|money }}</dd></div>
+                    <div class="summary-total"><dt>Total</dt><dd>{{ order.total_amount|money }}</dd></div>
+                </dl>
+            </div>
         </div>
-    {% else %}
-        <div class="alert alert-info">No items found for this order. This should not normally happen.</div>
-    {% endif %}
 
-    {% if order.status == 'Pending Payment' and order.payment_method == 'Lipa na M-Pesa' %}
-        <div class="alert alert-info mt-4">
-            Your M-Pesa payment is pending. If you have completed the payment on your phone but the status hasn't updated, please wait a few moments.
-            You can <a href="{{ url_for('order_details', order_id=order.id) }}">refresh this page</a> to check for updates.
-            If the issue persists, please contact support with your Order ID #{{order.id}}.
+        {# ---------- Delivery + payment ---------- #}
+        <div class="col-lg-5 mb-4">
+            <div class="order-card h-100">
+                <h3 class="order-card-title">{{ 'Pickup' if order.delivery_method == 'pickup' else 'Delivery' }}</h3>
+                <dl class="order-facts">
+                    {% if order.contact_name %}<dt>Receiver</dt><dd>{{ order.contact_name }}</dd>{% endif %}
+                    {% if order.contact_phone %}<dt>Phone</dt><dd>{{ order.contact_phone }}</dd>{% endif %}
+                    {% if order.delivery_zone %}<dt>{{ 'Pickup point' if order.delivery_method == 'pickup' else 'Area' }}</dt><dd>{{ order.delivery_zone }}</dd>{% endif %}
+                    {% if order.shipping_address and order.delivery_method != 'pickup' %}<dt>Address</dt><dd style="white-space: pre-line;">{{ order.shipping_address }}</dd>{% endif %}
+                    {% if order.delivery_landmark and order.delivery_method != 'pickup' %}<dt>Landmark</dt><dd>{{ order.delivery_landmark }}</dd>{% endif %}
+                    {% if order.delivery_lat is not none and order.delivery_method != 'pickup' %}<dt>Map pin</dt><dd><i class="fas fa-check-circle text-success"></i> Added</dd>{% endif %}
+                </dl>
+                <h3 class="order-card-title mt-3">Payment</h3>
+                <dl class="order-facts">
+                    <dt>Method</dt><dd>{{ order.payment_method or 'N/A' }}</dd>
+                    <dt>Status</dt><dd>{{ order.status }}</dd>
+                </dl>
+                <p class="small text-muted mb-0 mt-3">Questions about this order?
+                    {% if SHOP.whatsapp_link %}<a href="{{ SHOP.whatsapp_link }}?text={{ ('Hi, I have a question about my order #' ~ order.id)|urlencode }}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> Ask on WhatsApp</a> or
+                    {% endif %}<a href="{{ url_for('pages.page_contact') }}">contact us</a> and mention order #{{ order.id }}.</p>
+            </div>
         </div>
-    {% endif %}
-
+    </div>
 </div>
+{% endblock %}
+
+{% block scripts_extra %}
+{% if order.status == 'Pending Payment' %}
+<script>
+// Waiting for M-Pesa: check again every 10 seconds (for up to 5 minutes)
+(function () {
+    var n = parseInt(new URLSearchParams(window.location.search).get('w') || '0', 10);
+    if (n >= 30) return;   // stop after ~5 minutes
+    setTimeout(function () { window.location.replace(window.location.pathname + '?w=' + (n + 1)); }, 10000);
+})();
+</script>
+{% endif %}
 {% endblock %}

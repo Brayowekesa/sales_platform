@@ -24,7 +24,7 @@
 
         {# Pagination #}
         {% if total_pages and total_pages > 1 %}
-            {% set endpoint = 'search' %}
+            {% set endpoint = 'store.search' %}
             {% include 'includes/_pagination.html' %}
         {% endif %}
     {% else %}
@@ -34,7 +34,7 @@
                     No products found matching your search term "{{ query }}". Please try a different search.
                 </div>
                 <div class="text-center">
-                    <a href="{{ url_for('index') }}" class="btn btn-info">Back to Shop</a>
+                    <a href="{{ url_for('store.index') }}" class="btn btn-info">Back to Shop</a>
                 </div>
             </div>
         </div>

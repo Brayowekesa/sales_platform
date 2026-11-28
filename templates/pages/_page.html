@@ -1,0 +1,23 @@
+{% extends "layout.html" %}
+{# Shared layout for the information pages (Contact, Delivery, Returns, Privacy, Terms) #}
+{% block title %}{{ title }} - {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="container info-page my-4 my-md-5">
+    <div class="row">
+        <aside class="col-lg-3 mb-4">
+            <nav class="info-nav" aria-label="Help pages">
+                <span class="info-nav-title">Help</span>
+                {% for ep, label in [('pages.page_contact','Contact us'), ('pages.page_delivery','Delivery & pickup'), ('pages.page_returns','Returns & refunds'), ('pages.page_honest_prices','Honest prices'), ('pages.page_privacy','Privacy policy'), ('pages.page_terms','Terms of service')] %}
+                <a href="{{ url_for(ep) }}" class="{{ 'active' if request.endpoint == ep }}">{{ label }}</a>
+                {% endfor %}
+            </nav>
+        </aside>
+        <article class="col-lg-9">
+            <div class="info-card">
+                <h1>{{ title }}</h1>
+                {% block page_body %}{% endblock %}
+            </div>
+        </article>
+    </div>
+</div>
+{% endblock %}

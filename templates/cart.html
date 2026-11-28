@@ -5,118 +5,82 @@
 {% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <h2 class="mb-4">Your Shopping Cart</h2>
+<div class="container page-shell">
+    <div class="page-head">
+        <h1 class="page-heading">Your Shopping Cart</h1>
+        {% if cart_items %}<p class="page-sub">{{ cart_items|length }} item{{ '' if cart_items|length == 1 else 's' }} in your cart</p>{% endif %}
+    </div>
 
     {% if cart_items %}
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th scope="col" style="width: 15%;">Product</th>
-                        <th scope="col" style="width: 35%;"></th>
-                        <th scope="col" style="width: 15%;" class="text-center">Price</th>
-                        <th scope="col" style="width: 15%;" class="text-center">Quantity</th>
-                        <th scope="col" style="width: 15%;" class="text-right">Total</th>
-                        <th scope="col" style="width: 5%;"></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in cart_items %}
-                    <tr>
-                        <td>
-                            <a href="{{ url_for('product_details', product_id=item.id) }}">
-                                <img src="{{ url_for('static', filename=item.image if item.image else 'uploads/default.jpg') }}" alt="{{ item.name }}" class="img-fluid rounded" style="max-height: 75px; object-fit: contain;">
-                            </a>
-                        </td>
-                        <td>
-                            <a href="{{ url_for('product_details', product_id=item.id) }}" class="text-dark">{{ item.name }}</a>
-                            {% if item.quantity > item.stock %}
-                                <p class="small text-danger mb-0">Note: Requested quantity ({{ item.quantity }}) exceeds available stock ({{ item.stock }}). Please adjust.</p>
-                            {% elif item.stock < 5 %}
-                                 <p class="small text-warning mb-0">Low stock!</p>
-                            {% endif %}
-                        </td>
-                        <td class="text-center">${{ "%.2f"|format(item.price) }}</td>
-                        <td class="text-center">
+    <div class="row">
+        <div class="col-lg-8 mb-4">
+            <ul class="cart-list">
+                {% for item in cart_items %}
+                <li class="cart-item">
+                    <a href="{{ url_for('store.product_details', product_id=item.id) }}" class="cart-thumb" tabindex="-1" aria-hidden="true">
+                        <img src="{{ product_img(item.image, 'thumb') }}" alt="" loading="lazy">
+                    </a>
+                    <div class="cart-info">
+                        <a href="{{ url_for('store.product_details', product_id=item.id) }}" class="cart-name">{{ item.name }}</a>
+                        <span class="cart-unit">{{ item.price|money }} each{% if item.deal %} <span class="deal-chip"><i class="fas fa-users"></i> Pamoja price</span>{% endif %}</span>
+                        {% if item.deal %}<p class="small text-muted mb-0">Drops to {{ item.deal.best_price|money }} if {{ item.deal.tiers[-1].buyers }} people buy. You pay the lowest price reached. Max {{ item.deal.max_per_buyer }} per person.</p>{% endif %}
+                        {% if item.quantity > item.stock %}
+                            <p class="small text-danger mb-0">Note: Requested quantity ({{ item.quantity }}) exceeds available stock ({{ item.stock }}). Please adjust.</p>
+                        {% elif item.stock < 5 %}
+                            <p class="small text-warning mb-0">Low stock!</p>
+                        {% endif %}
+                        <div class="cart-controls">
                             {# Update Quantity Form #}
-                            <form action="{{ url_for('update_cart_item', product_id=item.id) }}" method="POST" class="form-inline justify-content-center cart-update-form">
+                            <form action="{{ url_for('cart.update_cart_item', product_id=item.id) }}" method="POST" class="cart-qty cart-update-form">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <input type="number" name="quantity" value="{{ item.quantity }}" min="1" max="{{ item.stock }}" class="form-control form-control-sm" style="width: 70px;" required>
-                                <button type="submit" class="btn btn-sm btn-outline-secondary ml-1" title="Update Quantity"><i class="fas fa-sync-alt"></i></button>
+                                <label for="qty_{{ item.id }}" class="sr-only">Quantity of {{ item.name }}</label>
+                                <input type="number" id="qty_{{ item.id }}" name="quantity" value="{{ item.quantity }}" min="1" max="{{ item.stock }}" class="form-control" required>
+                                <button type="submit" class="btn btn-outline-secondary btn-icon" title="Update quantity" aria-label="Update quantity of {{ item.name }}"><i class="fas fa-sync-alt" aria-hidden="true"></i></button>
                             </form>
-                        </td>
-                        <td class="text-right">${{ "%.2f"|format(item.price * item.quantity) }}</td>
-                        <td class="text-right">
                             {# Remove from Cart Form #}
-                            <form action="{{ url_for('remove_from_cart', product_id=item.id) }}" method="POST">
-                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove Item"><i class="fas fa-trash-alt"></i></button>
+                            <form action="{{ url_for('cart.remove_from_cart', product_id=item.id) }}" method="POST">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="btn btn-outline-danger btn-icon" title="Remove item" aria-label="Remove {{ item.name }} from cart"><i class="fas fa-trash-alt" aria-hidden="true"></i></button>
                             </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <hr>
-
-        <div class="row justify-content-end">
-            <div class="col-md-5 col-lg-4">
-                <h4>Cart Summary</h4>
-                <ul class="list-group mb-3">
-                    <li class="list-group-item d-flex justify-content-between lh-condensed">
-                        <div>
-                            <h6 class="my-0">Subtotal</h6>
                         </div>
-                        <span class="text-muted">${{ "%.2f"|format(total_price) }}</span>
-                    </li>
-                    {# You can add lines for Shipping, Tax etc. here if applicable #}
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span>Total (USD)</span>
-                        <strong>${{ "%.2f"|format(total_price) }}</strong>
-                    </li>
-                </ul>
-
-                <div class="d-flex justify-content-between mb-2">
-                    <a href="{{ url_for('index') }}" class="btn btn-info"><i class="fas fa-shopping-bag"></i> Continue Shopping</a>
-                     {% if cart_items %} {# Only show checkout if there are items #}
-                    <a href="{{ url_for('checkout') }}" class="btn btn-success"><i class="fas fa-credit-card"></i> Proceed to Checkout</a>
-                     {% endif %}
-                </div>
-                 <form action="{{ url_for('empty_cart') }}" method="POST" class="text-right">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to empty your cart?');">
-                        <i class="fas fa-times-circle"></i> Empty Cart
-                    </button>
-                </form>
-            </div>
+                    </div>
+                    <div class="cart-line-total">{{ (item.price * item.quantity)|money }}</div>
+                </li>
+                {% endfor %}
+            </ul>
+            <form action="{{ url_for('cart.empty_cart') }}" method="POST" class="mt-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="btn btn-link text-muted px-0" onclick="return confirm('Are you sure you want to empty your cart?');">
+                    <i class="fas fa-times-circle" aria-hidden="true"></i> Empty Cart
+                </button>
+            </form>
         </div>
+
+        <div class="col-lg-4">
+            <aside class="summary-card" aria-labelledby="cart-summary-title">
+                <h2 id="cart-summary-title" class="summary-card-title">Cart Summary</h2>
+                <dl class="summary-totals">
+                    <div><dt>Subtotal</dt><dd>{{ total_price|money }}</dd></div>
+                    <div><dt>Delivery</dt><dd class="text-muted font-weight-normal">Chosen at checkout</dd></div>
+                    <div class="summary-total"><dt>Total</dt><dd>{{ total_price|money }}</dd></div>
+                </dl>
+                <a href="{{ url_for('orders.checkout') }}" class="btn btn-cart btn-block btn-lg mt-3"><i class="fas fa-lock mr-1" aria-hidden="true"></i> Proceed to Checkout</a>
+                <a href="{{ url_for('store.index') }}" class="btn btn-outline-secondary btn-block mt-2"><i class="fas fa-shopping-bag mr-1" aria-hidden="true"></i> Continue Shopping</a>
+                <ul class="summary-perks">
+                    <li><i class="fas fa-mobile-alt" aria-hidden="true"></i> Pay with M-Pesa or cash on delivery</li>
+                    <li><i class="fas fa-key" aria-hidden="true"></i> Delivery confirmed with your PIN</li>
+                </ul>
+            </aside>
+        </div>
+    </div>
 
     {% else %}
-        <div class="alert alert-info text-center" role="alert">
-            Your shopping cart is currently empty.
-        </div>
-        <div class="text-center">
-            <a href="{{ url_for('index') }}" class="btn btn-lg btn-primary">Start Shopping!</a>
+        <div class="empty-state">
+            <span class="empty-state-icon"><i class="fas fa-shopping-cart" aria-hidden="true"></i></span>
+            <h2>Your shopping cart is currently empty.</h2>
+            <p>Find something you like and it will show up here.</p>
+            <a href="{{ url_for('store.index') }}" class="btn btn-primary btn-lg">Start Shopping!</a>
         </div>
     {% endif %}
 </div>
-{% endblock %}
-
-{% block scripts_extra %}
-<script>
-// Optional: Auto-submit quantity update form on change, with a small delay (debounce)
-// $(document).ready(function() {
-//     let debounceTimer;
-//     $('.cart-update-form input[name="quantity"]').on('change input', function() {
-//         clearTimeout(debounceTimer);
-//         var form = $(this).closest('form');
-//         debounceTimer = setTimeout(function() {
-//             form.submit();
-//         }, 750); // Submit after 750ms of no changes
-//     });
-// });
-</script>
 {% endblock %}

@@ -8,7 +8,7 @@
 <div class="container-fluid">
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0 text-gray-800">{{ action }} Promotion</h1>
-        <a href="{{ url_for('admin_promotions') }}" class="btn btn-secondary btn-sm shadow-sm">
+        <a href="{{ url_for('admin.admin_promotions') }}" class="btn btn-secondary btn-sm shadow-sm">
             <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Promotions
         </a>
     </div>
@@ -36,7 +36,7 @@
                         <div class="invalid-feedback d-block">{% for error in form.image.errors %}<span>{{ error }}</span>{% endfor %}</div>
                     {% endif %}
                     <small class="form-text text-muted">
-                        Recommended image size: 900x350px or similar wide banner format. Allowed types: png, jpg, jpeg, gif. Max size: 16MB.
+                        Recommended image size: 900x350px or similar wide banner format. Allowed types: png, jpg, jpeg, gif. Max size: {{ max_upload_mb }} MB.
                         {% if action == 'Edit' and promotion and promotion.image_path %}
                             If no new image is chosen, the current image ("{{ promotion.image_path.split('/')[-1] }}") will be kept.
                         {% elif action == 'Edit' %}
@@ -79,7 +79,7 @@
                             {% if form.original_price.errors %}
                                 <div class="invalid-feedback">{% for error in form.original_price.errors %}<span>{{ error }}</span>{% endfor %}</div>
                             {% endif %}
-                            <small class="form-text text-muted">Original 'was' price to display on banner.</small>
+                            <small class="form-text text-muted">Not shown to customers. A promotion isn't linked to one product, so the shop can't check a "was" price against its price history (the honest-price rule). To advertise a crossed-out price, put the discount on the product itself; it shows once it has been verified.</small>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -89,7 +89,7 @@
                             {% if form.promo_price.errors %}
                                 <div class="invalid-feedback">{% for error in form.promo_price.errors %}<span>{{ error }}</span>{% endfor %}</div>
                             {% endif %}
-                            <small class="form-text text-muted">Promotional 'now' price for display.</small>
+                            <small class="form-text text-muted">The price shown on the banner. It must be what customers really pay when they follow the link.</small>
                         </div>
                     </div>
                 </div>
@@ -100,7 +100,7 @@
                     {% if form.discount_text.errors %}
                         <div class="invalid-feedback">{% for error in form.discount_text.errors %}<span>{{ error }}</span>{% endfor %}</div>
                     {% endif %}
-                    <small class="form-text text-muted">Text to display prominently, like a discount percentage or sale name.</small>
+                    <small class="form-text text-muted">Shown prominently, like a sale name ("Back to school"). It must be true: only claim "50% OFF" if the linked products really were sold at the higher price before - misleading price claims break consumer-protection rules.</small>
                 </div>
                 <hr>
 
@@ -120,7 +120,7 @@
 
                 <hr>
                 <div class="form-group text-right">
-                    <a href="{{ url_for('admin_promotions') }}" class="btn btn-secondary mr-2">Cancel</a>
+                    <a href="{{ url_for('admin.admin_promotions') }}" class="btn btn-secondary mr-2">Cancel</a>
                     {{ form.submit(class="btn btn-primary", value=(action + " Promotion")) }}
                 </div>
             </form>

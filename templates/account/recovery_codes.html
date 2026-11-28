@@ -1,0 +1,27 @@
+{% extends "layout.html" %}
+{% block title %}Save your recovery codes - {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="container my-4 my-md-5" style="max-width: 760px;">
+    <h1 class="mb-3">Save your recovery codes</h1>
+    <div class="alert alert-warning"><i class="fas fa-exclamation-triangle mr-1"></i>
+        If you lose your phone, these codes are the only way into your account. Each works once.
+        <strong>This is the only time they are shown.</strong></div>
+    <div class="info-card">
+        <ul class="recovery-codes" id="recovery-codes">
+            {% for c in codes %}<li><code>{{ c }}</code></li>{% endfor %}
+        </ul>
+        <p class="text-muted small">Write them down or save them in a password manager. Don't keep them only on the same phone as your authenticator app.</p>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="fas fa-print mr-1"></i> Print</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="copy-codes"><i class="far fa-copy mr-1"></i> Copy</button>
+        <a href="{{ url_for('account.security') }}" class="btn btn-primary btn-sm ml-2">I've saved them</a>
+    </div>
+</div>
+{% endblock %}
+{% block scripts_extra %}
+<script>
+document.getElementById('copy-codes').addEventListener('click', function () {
+    var text = Array.prototype.map.call(document.querySelectorAll('#recovery-codes code'), function (c) { return c.textContent; }).join('\n');
+    navigator.clipboard && navigator.clipboard.writeText(text).then(function () { window.showToast && showToast('Recovery codes copied', 'success'); });
+});
+</script>
+{% endblock %}
