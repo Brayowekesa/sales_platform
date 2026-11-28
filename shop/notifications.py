@@ -3,12 +3,12 @@ import os
 import re
 import threading
 import requests
-from flask import current_app, render_template, url_for
+from flask import current_app, render_template
 from flask_mail import Message
 from shop.db import get_db_connection
 from shop.extensions import mail, token_serializer
 from shop.gifts import recipient_sms
-from shop.helpers import SITE_NAME, get_shop_settings
+from shop.helpers import SITE_NAME, get_shop_settings, public_url
 from shop.security import log_activity
 
 
@@ -18,7 +18,7 @@ def mail_configured():
 
 def send_confirmation_email(user_email):
     token = token_serializer().dumps(user_email, salt='email-confirm')
-    confirm_url = url_for('auth.confirm_email', token=token, _external=True)
+    confirm_url = public_url('auth.confirm_email', token=token)
     subject = "Confirm Your Account"
     body = f"Thank you for registering! Please click the link to confirm your email address: {confirm_url}"
     msg = Message(subject, recipients=[user_email], body=body)
@@ -46,6 +46,22 @@ def send_verification_email(user_email, code):
         return False
 
 
+def send_account_exists_email(user_email):
+    """Someone tried to register with an email that already has an account (we don't say so on the page)."""
+    if not mail_configured():
+        return False
+    body = (f"Someone (hopefully you) tried to create a {SITE_NAME} account with this email address, "
+            f"but you already have one.\n\nLog in here: {public_url('auth.login')}\n"
+            f"Forgot your password? Reset it here: {public_url('auth.reset_request')}\n\n"
+            "If this wasn't you, you can ignore this email - nothing has changed.")
+    try:
+        mail.send(Message(f"You already have a {SITE_NAME} account", recipients=[user_email], body=body))
+        return True
+    except Exception as e:
+        current_app.logger.error(f"Account-exists email failed: {e}")
+        return False
+
+
 def _password_fingerprint(password_hash):
     # Part of the current hash goes into the reset token, so the link stops working once the password changes
     return (password_hash or '')[-16:]
@@ -53,7 +69,7 @@ def _password_fingerprint(password_hash):
 
 def send_password_reset_email(user_email, password_hash=''):
     token = token_serializer().dumps([user_email, _password_fingerprint(password_hash)], salt='password-reset')
-    reset_url = url_for('auth.reset_token', token=token, _external=True)
+    reset_url = public_url('auth.reset_token', token=token)
     subject = "Password Reset Request"
     body = f"To reset your password, visit the following link: {reset_url}\nIf you did not make this request then simply ignore this email."
     msg = Message(subject, recipients=[user_email], body=body)
@@ -155,7 +171,7 @@ def notify_order_event(order_id, event):
                 message += (f" Your PIN is {order['delivery_pin']} - show it when you collect." if is_pickup else
                             f" Your delivery PIN is {order['delivery_pin']} - give it to the rider only when you have your parcel.")
         shop = get_shop_settings()
-        order_url = url_for('orders.order_details', order_id=order_id, _external=True)
+        order_url = public_url('orders.order_details', order_id=order_id)
         html = render_template('emails/order_update.html', order=order, items=items, headline=headline,
                                message=message, note=note, order_url=order_url, shop=shop, event=event)
         text = render_template('emails/order_update.txt', order=order, items=items, headline=headline,

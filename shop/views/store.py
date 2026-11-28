@@ -16,7 +16,7 @@ bp = Blueprint('store', __name__)
 @bp.route('/')  # public: visitors can browse without an account # Keep this if you want the homepage to require login
 def index():
     category_filter = request.args.get('category', 'All')
-    page = request.args.get('page', 1, type=int)
+    page = max(1, min(request.args.get('page', 1, type=int), 10000))   # a huge or negative page can't break the query
     per_page = 9  # Number of products for the main paginated grid
 
     # Initialize lists
@@ -169,8 +169,11 @@ def product_details(product_id):
             #         current_app.logger.warning(f"Could not parse added_at for product {product_id} in product_details")
 
 
+            can_review = current_user.is_authenticated and bool(received_product(conn, current_user.id, product_id))
             reviews_raw = conn.execute('''
-                SELECT r.rating, r.comment, r.created_at, u.username
+                SELECT r.rating, r.comment, r.created_at, u.username,
+                       EXISTS (SELECT 1 FROM order_items oi JOIN orders o ON o.id = oi.order_id
+                               WHERE o.user_id = r.user_id AND oi.product_id = r.product_id AND o.status = 'Delivered') AS verified
                 FROM reviews r
                 JOIN users u ON r.user_id = u.id
                 WHERE r.product_id = ?
@@ -211,6 +214,7 @@ def product_details(product_id):
     return render_template(
         'product_details.html',
         deal=deal,
+        can_review=can_review,
         photos=photos,
         chart=chart,
         product=product_data_for_template,  # Pass the (potentially processed) product dict
@@ -218,6 +222,13 @@ def product_details(product_id):
         review_form=review_form,
         title=product_data_for_template['name']
     )
+
+
+def received_product(conn, user_id, product_id):
+    """True if this customer has a delivered order containing the product."""
+    return conn.execute('''SELECT 1 FROM order_items oi JOIN orders o ON o.id = oi.order_id
+                           WHERE o.user_id = ? AND oi.product_id = ? AND o.status = 'Delivered' LIMIT 1''',
+                        (user_id, product_id)).fetchone() is not None
 
 
 @bp.route('/product/<int:product_id>/review', methods=['POST'])
@@ -235,15 +246,10 @@ def add_review(product_id):
                 return redirect(url_for('store.product_details', product_id=product_id))
 
             with get_db_connection() as conn:
-                # Optional: Check if user purchased the product
-                # purchased = conn.execute('''
-                #     SELECT 1 FROM order_items oi
-                #     JOIN orders o ON oi.order_id = o.id
-                #     WHERE o.user_id = ? AND oi.product_id = ?
-                # ''', (current_user.id, product_id)).fetchone()
-                # if not purchased:
-                #     flash('You must purchase this product to review it.', 'warning')
-                #     return redirect(url_for('store.product_details', product_id=product_id))
+                # Only customers who received the product can review it (no fake reviews)
+                if not received_product(conn, current_user.id, product_id):
+                    flash('Only customers who bought and received this product can review it.', 'warning')
+                    return redirect(url_for('store.product_details', product_id=product_id))
 
                 conn.execute('''
                     INSERT INTO reviews (user_id, product_id, rating, comment)
@@ -272,7 +278,7 @@ def add_review(product_id):
 @bp.route('/search')  # public: visitors can browse without an account
 def search():
     query = request.args.get('query', '').strip()
-    page = request.args.get('page', 1, type=int)
+    page = max(1, min(request.args.get('page', 1, type=int), 10000))   # a huge or negative page can't break the query
     per_page = 10 # Number of search results per page
 
     if not query:

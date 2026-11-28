@@ -190,3 +190,25 @@ def test_copy_to_postgres_keeps_history_deals_and_proofs(tmp_path):
         d.rollback()
     finally:
         d.close()
+
+
+def test_uploaded_photos_are_re_encoded(app, login, db):
+    """A file that only starts like a picture is refused; real photos lose hidden camera/GPS data."""
+    import io
+    import os
+    from PIL import Image
+    adm = login('admin', 'adminpass')
+    base = {'price': '100', 'category': 'Electronics', 'stock': '3', 'description': 'x'}
+    polyglot = io.BytesIO(b'GIF89a' + b'\x00' * 10 + b'<script>alert(1)</script>')
+    adm.post('/admin/products/add', data={**base, 'name': 'Poly', 'photos': [(polyglot, 'poly.png')]}, content_type='multipart/form-data')
+    assert db().execute("SELECT image FROM products WHERE name='Poly'").fetchone()[0] == 'uploads/default.jpg'
+    exif = Image.Exif(); exif[0x010F] = 'PhoneMaker'
+    photo = io.BytesIO(); Image.new('RGB', (50, 40), (10, 20, 30)).save(photo, 'JPEG', exif=exif); photo.seek(0)
+    adm.post('/admin/products/add', data={**base, 'name': 'Camera', 'photos': [(photo, 'cam.jpg')]}, content_type='multipart/form-data')
+    path = db().execute("SELECT image FROM products WHERE name='Camera'").fetchone()[0]
+    full = os.path.join(app.static_folder, path)
+    try:
+        with Image.open(full) as im:
+            assert im.format == 'JPEG' and not im.getexif()
+    finally:
+        os.remove(full)

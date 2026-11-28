@@ -11,6 +11,7 @@ from shop.forms import ProductForm, PromotionForm
 from shop.helpers import (MAX_PRODUCT_PHOTOS, _delete_upload, max_upload_mb, product_category_choices, product_photos,
                           save_product_photos, valid_photo_upload)
 from shop.security import admin_required, log_activity
+from shop.images import save_clean_image
 
 from shop.admin import bp
 
@@ -19,7 +20,7 @@ from shop.admin import bp
 @login_required
 @admin_required
 def admin_products():
-    page = request.args.get('page', 1, type=int)
+    page = max(1, min(request.args.get('page', 1, type=int), 10000))   # a huge or negative page can't break the query
     per_page = 10  # Number of products per admin page
 
     with get_db_connection() as conn:
@@ -86,8 +87,12 @@ def admin_add_product():
                     image_filename = default_image_path_segment
                 elif valid_photo_upload(image_file):
                     filename = f"{uuid.uuid4().hex[:8]}_{secure_filename(image_file.filename)}"
-                    image_file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
-                    image_filename = f"uploads/{filename}"
+                    try:
+                        save_clean_image(image_file, os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+                        image_filename = f"uploads/{filename}"
+                    except ValueError:
+                        flash('That photo could not be read. Using the default image.', 'warning')
+                        image_filename = default_image_path_segment
                 else: # File selected, but not allowed type
                     flash('Invalid image file type. Using default image if none previously set.', 'warning')
                     image_filename = default_image_path_segment # Fallback or keep existing if editing
@@ -169,8 +174,11 @@ def admin_edit_product(product_id):
                                 current_app.logger.error(f"Error deleting old image {old_image_path}: {ose}")
                     
                     filename = f"{uuid.uuid4().hex[:8]}_{secure_filename(image_file.filename)}"
-                    image_file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
-                    image_filename = f"uploads/{filename}"
+                    try:
+                        save_clean_image(image_file, os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+                        image_filename = f"uploads/{filename}"
+                    except ValueError:
+                        flash('That photo could not be read. Current image retained.', 'warning')
                 else:
                     flash('Invalid new image file type. Current image retained.', 'warning')
             
@@ -308,7 +316,7 @@ def admin_add_promotion():
                 os.makedirs(promotions_folder, exist_ok=True) # Ensure folder exists
                 save_path = os.path.join(promotions_folder, filename)
                 try:
-                    image_file.save(save_path)
+                    save_clean_image(image_file, save_path)
                     image_filename_for_db = f"uploads/promotions/{filename}" # Path relative to static/
                 except Exception as e_save:
                     flash(f"Error saving promotion image: {str(e_save)}", "danger")
@@ -388,7 +396,7 @@ def admin_edit_promotion(promo_id):
                 os.makedirs(promotions_folder, exist_ok=True)
                 save_path = os.path.join(promotions_folder, filename)
                 try:
-                    image_file.save(save_path)
+                    save_clean_image(image_file, save_path)
                     new_image_filename_for_db = f"uploads/promotions/{filename}"
                 except Exception as e_save:
                     flash(f"Error saving new promotion image: {str(e_save)}", "danger")

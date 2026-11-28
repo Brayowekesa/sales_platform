@@ -83,3 +83,35 @@ def cached_copy(path, size):
         current_app.logger.warning(f'Could not resize {rel}: {e}')
         return None
     return out
+
+
+def save_clean_image(file_storage, path):
+    """Save an uploaded photo as a fresh copy made by Pillow instead of the raw upload.
+
+    Fully decoding and re-encoding removes hidden data (camera details, GPS location) and anything
+    smuggled after the picture (e.g. a file that only *starts* like a GIF). Raises ValueError if the
+    file isn't a picture Pillow can read.
+    """
+    import warnings
+    try:
+        file_storage.stream.seek(0)
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', Image.DecompressionBombWarning)
+            with Image.open(file_storage.stream) as im:
+                fmt = (im.format or '').upper()
+                frames = getattr(im, 'n_frames', 1)
+                if fmt == 'GIF' and frames > 1:
+                    im.save(path, 'GIF', save_all=True, optimize=False)        # keep animations
+                    return
+                im.load()
+                im = ImageOps.exif_transpose(im)
+                if fmt in ('JPEG', 'MPO'):
+                    im.convert('RGB').save(path, 'JPEG', quality=90, optimize=True)
+                elif fmt == 'WEBP':
+                    im.save(path, 'WEBP', quality=90)
+                elif fmt == 'GIF':
+                    im.save(path, 'GIF')
+                else:
+                    im.save(path, 'PNG', optimize=True)
+    except (OSError, ValueError, Image.DecompressionBombError, Image.DecompressionBombWarning, SyntaxError) as e:
+        raise ValueError(f'not a readable image: {e}')

@@ -1,0 +1,5 @@
+{# DataTables 1.13 + Bootstrap 4 styling, served from static/vendor (no CDN).
+   Include inside {% block admin_scripts_extra %} after admin_layout has loaded jQuery. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/datatables-1.13.11/css/dataTables.bootstrap4.min.css') }}">
+<script src="{{ url_for('static', filename='vendor/datatables-1.13.11/js/jquery.dataTables.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/datatables-1.13.11/js/dataTables.bootstrap4.min.js') }}"></script>

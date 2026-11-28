@@ -3,6 +3,7 @@ from datetime import datetime
 from flask import current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from werkzeug.security import generate_password_hash
+from shop.models import end_other_sessions
 from shop.db import IntegrityError, get_db_connection
 from shop.forms import AdminResetPasswordForm, AdminUserForm
 from shop.security import admin_required, log_activity
@@ -14,7 +15,7 @@ from shop.admin import bp
 @login_required
 @admin_required
 def admin_members():
-    page = request.args.get('page', 1, type=int)
+    page = max(1, min(request.args.get('page', 1, type=int), 10000))   # a huge or negative page can't break the query
     per_page = 10
 
     with get_db_connection() as conn:
@@ -113,6 +114,7 @@ def admin_edit_member(user_id):
                           1 if form.is_admin.data else 0, 
                           1 if form.confirmed.data else 0, 
                           user_id))
+                    end_other_sessions(conn, user_id)
                 else: # Keep old password
                     conn.execute('''
                         UPDATE users SET username = ?, email = ?, is_admin = ?, confirmed = ?
@@ -185,6 +187,7 @@ def admin_reset_user_password(user_id): # Renamed from original if it was admin_
         try:
             with get_db_connection() as conn:
                 conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_password_hash, user_id))
+                end_other_sessions(conn, user_id)
                 conn.commit()
             flash(f"Password for {user['username']} has been reset.", "success")
             log_activity("Admin reset user password", user_id=current_user.id, details=f"Reset password for User ID: {user_id}")

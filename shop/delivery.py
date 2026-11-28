@@ -48,7 +48,15 @@ def save_proof_file(file_storage):
     """Save into the private proof folder; returns the stored file name."""
     ext = _extension(file_storage.filename or '')
     name = uuid.uuid4().hex + (f'.{ext}' if ext in PHOTO_EXTENSIONS | VIDEO_EXTENSIONS else '')   # keep the type, drop the name
-    file_storage.save(os.path.join(current_app.config['PROOF_FOLDER'], name))
+    path = os.path.join(current_app.config['PROOF_FOLDER'], name)
+    if ext in PHOTO_EXTENSIONS:
+        from shop.images import save_clean_image
+        try:
+            save_clean_image(file_storage, path)     # removes GPS/camera data from staff phone photos
+            return name
+        except ValueError:
+            file_storage.stream.seek(0)            # already checked as a picture: keep the original
+    file_storage.save(path)
     return name
 
 

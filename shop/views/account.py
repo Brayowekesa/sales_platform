@@ -7,15 +7,15 @@ import time
 import pyotp
 import qrcode
 import qrcode.image.svg
-from flask import Blueprint, current_app, flash, redirect, render_template, session, url_for
-from flask_login import current_user, login_required, login_user
+from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
+from flask_login import current_user, login_required, login_user, logout_user
 from flask_wtf import FlaskForm
 from werkzeug.security import check_password_hash, generate_password_hash
 from wtforms import PasswordField, StringField, SubmitField
 from wtforms.validators import DataRequired, Length
 
 from shop.db import get_db_connection
-from shop.models import load_user
+from shop.models import end_other_sessions, load_user, stay_logged_in
 from shop.security import clear_rate_events, client_ip, is_safe_next_url, log_activity, rate_limited, record_rate_event
 
 bp = Blueprint('account', __name__)
@@ -48,21 +48,43 @@ def _new_recovery_codes():
     return codes, json.dumps([generate_password_hash(_clean(c)) for c in codes])
 
 
+def matching_step(secret, code):
+    """The 30-second time step this authenticator code belongs to (now, or one step either side), or None."""
+    totp, now = pyotp.TOTP(secret), time.time()
+    for offset in (0, -1, 1):
+        t = now + offset * totp.interval
+        if secrets.compare_digest(totp.at(t), code):
+            return int(t // totp.interval)
+    return None
+
+
 def check_second_factor(user_row, code):
     """True if `code` is the current authenticator code or an unused recovery code (which is then used up)."""
     code = _clean(code)
     if not user_row['totp_secret']:
         return False
-    if code.isdigit() and len(code) == 6 and pyotp.TOTP(user_row['totp_secret']).verify(code, valid_window=1):
-        return True
-    hashes = json.loads(user_row['recovery_codes'] or '[]')
+    if code.isdigit() and len(code) == 6:
+        step = matching_step(user_row['totp_secret'], code)
+        if step is None:
+            return False
+        # Each code works only once: remember the newest time step used (in one step, so two
+        # requests with the same code can't both pass)
+        with get_db_connection() as conn:
+            cur = conn.execute('UPDATE users SET totp_last_step = ? WHERE id = ? AND (totp_last_step IS NULL OR totp_last_step < ?)',
+                               (step, user_row['id'], step))
+        return cur.rowcount == 1
+    stored = user_row['recovery_codes'] or '[]'
+    hashes = json.loads(stored)
     for h in hashes:
         if check_password_hash(h, code):
             hashes.remove(h)
+            # Only if the list is still the one we read: two requests can't both use the same code
             with get_db_connection() as conn:
-                conn.execute('UPDATE users SET recovery_codes = ? WHERE id = ?', (json.dumps(hashes), user_row['id']))
-            log_activity('Recovery code used', user_id=user_row['id'], details=f'{len(hashes)} left')
-            return True
+                used = conn.execute('UPDATE users SET recovery_codes = ? WHERE id = ? AND recovery_codes = ?',
+                                    (json.dumps(hashes), user_row['id'], stored)).rowcount == 1
+            if used:
+                log_activity('Recovery code used', user_id=user_row['id'], details=f'{len(hashes)} left')
+            return used
     return False
 
 
@@ -119,11 +141,14 @@ def setup():
     session[SETUP_KEY] = secret
     form = CodeForm()
     if form.validate_on_submit():
-        if pyotp.TOTP(secret).verify(_clean(form.code.data), valid_window=1):
+        step = matching_step(secret, _clean(form.code.data))
+        if step is not None:
             codes, hashes = _new_recovery_codes()
             with get_db_connection() as conn:
-                conn.execute('UPDATE users SET totp_secret = ?, totp_enabled = 1, recovery_codes = ? WHERE id = ?',
-                             (secret, hashes, current_user.id))
+                conn.execute('UPDATE users SET totp_secret = ?, totp_enabled = 1, recovery_codes = ?, totp_last_step = ? WHERE id = ?',
+                             (secret, hashes, step, current_user.id))
+                end_other_sessions(conn, current_user.id)      # log out every other device
+            stay_logged_in(current_user.id)
             session.pop(SETUP_KEY, None)
             log_activity('Two-step login turned on', user_id=current_user.id)
             return render_template('account/recovery_codes.html', codes=codes, title='Save your recovery codes')
@@ -147,7 +172,10 @@ def disable():
             and not rate_limited('2fa_fail', f'user:{row["id"]}', MAX_CODE_ATTEMPTS, 15) \
             and check_second_factor(row, form.code.data):
         with get_db_connection() as conn:
-            conn.execute('UPDATE users SET totp_secret = NULL, totp_enabled = 0, recovery_codes = NULL WHERE id = ?', (row['id'],))
+            conn.execute('UPDATE users SET totp_secret = NULL, totp_enabled = 0, recovery_codes = NULL, totp_last_step = NULL WHERE id = ?',
+                         (row['id'],))
+            end_other_sessions(conn, row['id'])
+        stay_logged_in(row['id'])
         log_activity('Two-step login turned off', user_id=row['id'])
         flash('Two-step login is now off.', 'warning')
     else:
@@ -156,10 +184,30 @@ def disable():
     return redirect(url_for('account.security'))
 
 
+@bp.route('/account/logout-everywhere', methods=['POST'])
+@login_required
+def logout_everywhere():
+    """Log out on every phone and computer (e.g. a lost phone, or a shared computer)."""
+    with get_db_connection() as conn:
+        end_other_sessions(conn, current_user.id)
+    log_activity('Logged out everywhere', user_id=current_user.id)
+    logout_user()
+    flash('You have been logged out on all devices. Log in again on this one.', 'success')
+    return redirect(url_for('auth.login'))
+
+
 @bp.route('/account/two-step/new-codes', methods=['POST'])
 @login_required
 def new_recovery_codes():
     if not current_user.totp_enabled:
+        return redirect(url_for('account.security'))
+    # Needs the password too: a stolen login cookie alone can't replace the owner's recovery codes
+    with get_db_connection() as conn:
+        row = conn.execute('SELECT password_hash FROM users WHERE id = ?', (current_user.id,)).fetchone()
+    key = f'user:{current_user.id}'
+    if rate_limited('2fa_fail', key, MAX_CODE_ATTEMPTS, 15) or not check_password_hash(row['password_hash'], request.form.get('password') or ''):
+        record_rate_event('2fa_fail', key)
+        flash('Your password is not right - your recovery codes were not changed.', 'danger')
         return redirect(url_for('account.security'))
     codes, hashes = _new_recovery_codes()
     with get_db_connection() as conn:

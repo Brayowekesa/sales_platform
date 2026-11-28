@@ -7,10 +7,11 @@ showing after MAX_SALE_DAYS (a sale that never ends is just the normal price).
 import threading
 from datetime import datetime, timedelta, timezone
 
-from flask import current_app, render_template, url_for
+from flask import current_app, render_template
 from flask_mail import Message
 
 from shop.db import get_db_connection
+from shop.helpers import public_url
 
 VERIFY_DAYS = 14
 LOOKBACK_DAYS = 90
@@ -170,7 +171,7 @@ def send_wishlist_alerts(product_id, alerts):
         return
     product = dict(product)
     kind, old_price = alerts[0]
-    url = url_for('store.product_details', product_id=product_id, _external=True)
+    url = public_url('store.product_details', product_id=product_id)
     site = current_app.config['SITE_NAME']
     if kind == 'price_drop':
         headline = f"Price drop: {product['name']}"

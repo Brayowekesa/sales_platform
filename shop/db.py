@@ -407,6 +407,11 @@ def _migration_9_pickup_text(conn):
     conn.execute('UPDATE delivery_zones SET details = ? WHERE details = ?', ('Set your shop address and opening hours in Admin -> Shop settings.', 'Set your shop address and opening hours in Admin -> Delivery.'))
 
 
+def _migration_10_login_security(conn):
+    conn.execute('ALTER TABLE users ADD COLUMN session_version INTEGER DEFAULT 0')   # raised to log out other devices
+    conn.execute('ALTER TABLE users ADD COLUMN totp_last_step INTEGER')               # each authenticator code works once
+
+
 # Add new schema changes at the end as (version, description, function). Never edit old ones.
 MIGRATIONS = [
     (1, 'initial schema', _migration_1_initial_schema),
@@ -418,6 +423,7 @@ MIGRATIONS = [
     (7, 'Pamoja group deals', _migration_7_group_deals),
     (8, 'order safety: stock flag, PIN attempts, staff-only override reason', _migration_8_order_safety),
     (9, 'fix default pickup point text', _migration_9_pickup_text),
+    (10, 'log out other devices on password/2FA change; single-use 2FA codes', _migration_10_login_security),
 ]
 
 

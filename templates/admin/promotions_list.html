@@ -93,15 +93,13 @@ Manage Promotions
 {% endblock %}
 
 {% block admin_scripts_extra %}
-{# Optional: DataTables for Promotions table
-<script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
-<link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/jquery.dataTables.min.css">
+{% include 'admin/_datatables.html' %}
 <script>
-$(document).ready( function () {
+$(function () {
     $('#dataTablePromotions').DataTable({
-        "order": [[ 5, "asc" ], [ 6, "desc" ]] // Sort by display_order then created_at
+        order: [[5, 'asc'], [6, 'desc']],                       // display order, then newest
+        columnDefs: [{ orderable: false, searchable: false, targets: [1, 7] }]   // image, actions
     });
-} );
+});
 </script>
-#}
 {% endblock %}

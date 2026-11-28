@@ -22,8 +22,11 @@
         <hr>
         <form method="POST" action="{{ url_for('account.new_recovery_codes') }}" class="mb-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn btn-outline-secondary btn-sm"><i class="fas fa-redo mr-1"></i> Make new recovery codes</button>
-            <small class="text-muted ml-2">Your old codes stop working.</small>
+            <label for="codes-password" class="small mb-1">Make new recovery codes (your old codes stop working)</label>
+            <div class="d-flex flex-wrap" style="gap:.5rem; max-width: 420px;">
+                <input type="password" name="password" id="codes-password" class="form-control form-control-sm" style="flex:1; min-width: 180px;" placeholder="Your password" autocomplete="current-password" required>
+                <button class="btn btn-outline-secondary btn-sm"><i class="fas fa-redo mr-1"></i> Make new codes</button>
+            </div>
         </form>
         <details>
             <summary class="text-danger font-weight-bold">Turn off two-step login</summary>
@@ -35,6 +38,13 @@
             </form>
         </details>
         {% endif %}
+        <hr>
+        <h2 class="h6 font-weight-bold">Devices</h2>
+        <p class="text-muted small mb-2">Lost your phone, or logged in on someone else's computer? Log out everywhere - you'll need your password (and code) to log in again.</p>
+        <form method="POST" action="{{ url_for('account.logout_everywhere') }}" onsubmit="return confirm('Log out on all devices, including this one?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt mr-1"></i> Log out of all devices</button>
+        </form>
     </div>
 </div>
 {% endblock %}

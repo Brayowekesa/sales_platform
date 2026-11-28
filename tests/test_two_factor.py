@@ -17,6 +17,11 @@ def turn_on_2fa(client):
     return secret, [c.decode() for c in codes]
 
 
+def next_code(secret, steps=1):
+    """The authenticator code for a later 30-second step (each code can only be used once)."""
+    return pyotp.TOTP(secret).at(time.time() + 30 * steps)
+
+
 def password_step(app, username='jane', password='janepass', next_url=None):
     c = app.test_client()
     r = c.post('/login' + (f'?next={next_url}' if next_url else ''), data={'login_identifier': username, 'password': password})
@@ -33,9 +38,12 @@ def test_setup_then_login_needs_code(app, login, db):
     c, r = password_step(app, next_url='/wishlist')
     assert r.headers['Location'].endswith('/login/code')
     assert '/login' in c.get('/cart').headers['Location']                    # not logged in yet
-    r = c.post('/login/code', data={'code': pyotp.TOTP(secret).now()})
+    r = c.post('/login/code', data={'code': next_code(secret)})
     assert r.headers['Location'].endswith('/wishlist')                        # back to where they were going
     assert c.get('/cart').status_code == 200
+    # the same code can't be used again (e.g. by someone who saw it over the shoulder)
+    c2, _ = password_step(app)
+    assert b'not right' in c2.post('/login/code', data={'code': next_code(secret)}).data
 
 
 def test_wrong_codes_lock_out(app, login):
@@ -72,7 +80,7 @@ def test_turning_off_needs_password_and_code(app, login, db):
     secret, _ = turn_on_2fa(jane)
     jane.post('/account/two-step/disable', data={'password': 'wrong', 'code': pyotp.TOTP(secret).now()})
     assert db().execute("SELECT totp_enabled FROM users WHERE username='jane'").fetchone()[0] == 1
-    jane.post('/account/two-step/disable', data={'password': 'janepass', 'code': pyotp.TOTP(secret).now()})
+    jane.post('/account/two-step/disable', data={'password': 'janepass', 'code': next_code(secret)})
     assert db().execute("SELECT totp_enabled, totp_secret FROM users WHERE username='jane'").fetchone() == (0, None)
 
 

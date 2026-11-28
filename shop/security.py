@@ -12,6 +12,8 @@ def is_safe_next_url(target):
     """Only allow redirects to paths on this site (blocks ?next=https://evil.example)."""
     if not target:
         return False
+    if '\\' in target or any(ord(c) < 32 or ord(c) == 127 for c in target):
+        return False                    # browsers treat '/\\evil.example' like '//evil.example'
     parsed = urlparse(target)
     return not parsed.scheme and not parsed.netloc and target.startswith('/') and not target.startswith('//')
 
@@ -42,10 +44,11 @@ def handle_needs_login():
 
 CSP = "; ".join([
     "default-src 'self'",
-    # inline <script>/<style> blocks are still used by the templates
-    "script-src 'self' 'unsafe-inline' https://code.jquery.com https://cdn.jsdelivr.net https://stackpath.bootstrapcdn.com",
-    "style-src 'self' 'unsafe-inline' https://stackpath.bootstrapcdn.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://cdn.jsdelivr.net",
-    "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:",
+    # jQuery, Bootstrap, Font Awesome, Chart.js and DataTables are served from static/vendor - no CDN hosts.
+    # 'unsafe-inline' stays until the inline <script>/<style> blocks in the templates move to static files.
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",   # Google Fonts stylesheet (Inter)
+    "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data:",
     "connect-src 'self'",
     "worker-src 'self'",

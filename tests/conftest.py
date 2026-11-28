@@ -98,4 +98,9 @@ def checkout_details(db):
 
 
 def fake_png():
-    return io.BytesIO(b'\x89PNG\r\n\x1a\n' + os.urandom(64))
+    """A small real PNG photo (uploads are decoded and re-saved, so it must be a real picture)."""
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new('RGB', (40, 30), tuple(os.urandom(3))).save(buf, 'PNG')
+    buf.seek(0)
+    return buf

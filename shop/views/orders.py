@@ -8,7 +8,7 @@ from flask_login import current_user, login_required
 from shop.db import get_db_connection
 from shop.extensions import csrf
 from shop.forms import CheckoutForm
-from shop.helpers import active_delivery_zones, delivery_fee_for, localtime_filter
+from shop.helpers import active_delivery_zones, delivery_fee_for, localtime_filter, public_url
 from shop.deals import apply_deal_prices, close_due_deals, deal_info
 from shop.gifts import GIFT_ORDERS_PER_DAY, gift_message_problem, order_from_gift_token, recipient_sms
 from shop.notifications import notify_order_event, send_sms, sms_enabled, to_international
@@ -218,7 +218,8 @@ def mpesa_callback():
         log_activity("M-Pesa callback rejected (bad signature)", details=f"Order ref: {order_id_ref}")
         return jsonify({"ResultCode": 1, "ResultDesc": "Rejected"}), 403
 
-    current_app.logger.info(f"M-Pesa Callback Received for order {order_id_ref}: {callback_data}")
+    _cb = ((callback_data or {}).get('Body') or {}).get('stkCallback') or {}
+    current_app.logger.info(f"M-Pesa callback for order {order_id_ref}: ResultCode {_cb.get('ResultCode')}")   # no phone numbers in logs
 
     try:
         result_code = callback_data['Body']['stkCallback']['ResultCode']
@@ -266,7 +267,7 @@ def mpesa_callback():
         return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"}), 200
 
     except Exception as e:
-        current_app.logger.error(f"M-Pesa Callback Error: {str(e)} - Data: {callback_data}")
+        current_app.logger.error(f"M-Pesa callback error for order {order_id_ref}: {e}")
         log_activity("M-Pesa callback processing error", details=str(e))
         # Acknowledge receipt even on error to prevent M-Pesa retries if it's a processing fault on our side
         return jsonify({"ResultCode": 1, "ResultDesc": "Internal Server Error"}), 200 # Or 500 but M-Pesa might prefer 200
@@ -327,7 +328,7 @@ def order_details(order_id): # Renamed from order_details_user to match your exi
     gift_link = None
     if order_dict.get('is_gift'):
         from shop.gifts import gift_token
-        gift_link = url_for('orders.gift_tracking', token=gift_token(order_id), _external=True)
+        gift_link = public_url('orders.gift_tracking', token=gift_token(order_id))
     order_dict['order_date_formatted'] = localtime_filter(order_dict.get('order_date')) or 'N/A'
     return render_template('order_details_user.html', order=order_dict, order_items=order_items,
                            history=history, proofs=proofs, just_placed=request.args.get('placed') == '1',

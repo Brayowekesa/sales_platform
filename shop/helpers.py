@@ -10,6 +10,7 @@ from werkzeug.utils import secure_filename
 from shop.config import Config
 from shop.db import DatabaseError, get_db_connection
 from shop.security import is_real_image
+from shop.images import save_clean_image
 
 
 SITE_NAME = Config.SITE_NAME
@@ -41,6 +42,14 @@ def safe_link_filter(url):
 
 
 SHOP_TZ = ZoneInfo(Config.SHOP_TIMEZONE)
+
+
+def public_url(endpoint, **values):
+    """Full link for emails/SMS/WhatsApp: uses PUBLIC_URL when set, never the request's Host header."""
+    base = current_app.config.get('PUBLIC_URL')
+    if base:
+        return base.rstrip('/') + url_for(endpoint, **values)
+    return url_for(endpoint, _external=True, **values)
 
 
 def to_local(value):
@@ -208,7 +217,11 @@ def save_product_photos(product_id):
                 flash(f'"{f.filename}" is not a PNG, JPG, GIF or WebP image and was skipped.', 'warning')
                 continue
             filename = f"{uuid.uuid4().hex[:8]}_{secure_filename(f.filename)}"
-            f.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+            try:
+                save_clean_image(f, os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+            except ValueError:
+                flash(f'"{f.filename}" could not be read as a photo and was skipped.', 'warning')
+                continue
             photos.append(f"uploads/{filename}")
         if skipped:
             flash(f'Only {MAX_PRODUCT_PHOTOS} photos per product - {skipped} photo(s) were not added.', 'warning')
