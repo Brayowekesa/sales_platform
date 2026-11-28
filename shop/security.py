@@ -42,10 +42,11 @@ def handle_needs_login():
 
 CSP = "; ".join([
     "default-src 'self'",
-    # inline <script>/<style> blocks are still used by the templates
-    "script-src 'self' 'unsafe-inline' https://code.jquery.com https://cdn.jsdelivr.net https://stackpath.bootstrapcdn.com",
-    "style-src 'self' 'unsafe-inline' https://stackpath.bootstrapcdn.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://cdn.jsdelivr.net",
-    "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:",
+    # jQuery, Bootstrap, Font Awesome, Chart.js and DataTables are served from static/vendor - no CDN hosts.
+    # 'unsafe-inline' stays until the inline <script>/<style> blocks in the templates move to static files.
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",   # Google Fonts stylesheet (Inter)
+    "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data:",
     "connect-src 'self'",
     "worker-src 'self'",

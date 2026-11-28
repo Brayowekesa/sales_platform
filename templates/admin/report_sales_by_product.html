@@ -73,8 +73,8 @@
                             <td><a href="{{ url_for('admin.admin_edit_product', product_id=item.product_id) }}">{{ item.product_name }}</a></td>
                             <td>{{ item.product_category }}</td>
                             <td>{{ item.total_quantity_sold }}</td>
-                            <td>{{ item.average_selling_price|money }}</td>
-                            <td>{{ item.total_revenue_generated|money }}</td>
+                            <td data-order="{{ item.average_selling_price }}">{{ item.average_selling_price|money }}</td>
+                            <td data-order="{{ item.total_revenue_generated }}">{{ item.total_revenue_generated|money }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -89,16 +89,13 @@
 {% endblock %}
 
 {% block admin_scripts_extra %}
-{# Optional: Add DataTables.js for sorting/searching the HTML table #}
-{# 
-<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.25/css/jquery.dataTables.css">
-<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.js"></script>
+{% include 'admin/_datatables.html' %}
 <script>
-$(document).ready( function () {
+$(function () {
     $('#salesByProductTable').DataTable({
-        "order": [] // Disable initial sorting if Python handles it, or set default
+        order: [],          // keep the server's order (best sellers first) until a column is clicked
+        pageLength: 25
     });
 });
 </script>
-#}
 {% endblock %}
